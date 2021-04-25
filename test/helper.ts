@@ -1,4 +1,4 @@
-import { waffle, ethers } from "hardhat";
+import { ethers } from "hardhat";
 import { BigNumber, BigNumberish, Wallet } from "ethers";
 
 const mintRequestTypes = [
@@ -39,8 +39,8 @@ export async function prepareSignature(
     txId: string,
     height: BigNumberish
 ): Promise<[string[], string[], BigNumber]> {
-    let rList: string[] = [];
-    let sList: string[] = [];
+    const rList: string[] = [];
+    const sList: string[] = [];
     let packedV = BigNumber.from(0);
     let vShift = 0;
     for (let i = 0; i < keepers.length; i++) {
