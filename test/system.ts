@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber, Contract, Wallet, constants } from "ethers";
-import type { Fixture, MockContract, MockProvider } from "ethereum-waffle";
+import type { MockContract, MockProvider } from "ethereum-waffle";
 import { waffle, ethers } from "hardhat";
 const { loadFixture } = waffle;
 const { parseEther, parseUnits, solidityKeccak256 } = ethers.utils;
@@ -77,7 +77,6 @@ describe("DeCusSystem", function () {
     describe("getReceiptId()", function () {
         it("should get receipt ID", async function () {
             const btcAddress = BTC_ADDRESS_0;
-            const amountInSatoshi = KEEPER_SATOSHI;
             const identifier = 0;
             expect(await system.getReceiptId(btcAddress, user1.address, identifier)).to.be.equal(
                 getReceiptId(btcAddress, user1.address, identifier)
@@ -152,7 +151,6 @@ describe("DeCusSystem", function () {
 
     describe("verifyMint()", function () {
         const btcAddress = BTC_ADDRESS_0;
-        const amountInSatoshi = KEEPER_SATOSHI;
         const identifier = 0;
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
