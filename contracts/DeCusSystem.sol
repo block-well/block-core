@@ -60,7 +60,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         return keccak256(abi.encodePacked(btcAddress, recipient, identifier));
     }
 
-    function getGroupAllowance(string memory btcAddress) internal view returns (uint256) {
+    function getGroupAllowance(string memory btcAddress) public view returns (uint256) {
         Group memory group = groups[btcAddress];
         return group.maxSatoshi.sub(group.currSatoshi);
     }
@@ -131,16 +131,18 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         emit MintVerified(request.receiptId);
     }
 
+    //---------------------------- Arbitration ---------------------------------
     function chill(address keeper, uint256 chillTime) external onlyOwner {
         _cooldown(keeper, block.timestamp.add(chillTime));
     }
 
+    //------------------------------ Private -----------------------------------
     function _requestDeposit(
         address recipient,
         string memory btcAddress,
         uint256 amountInSatoshi,
         uint256 identifier
-    ) internal returns (bytes32) {
+    ) private returns (bytes32) {
         bytes32 receiptId = getReceiptId(btcAddress, recipient, identifier);
         Receipt storage receipt = receipts[receiptId];
         require(receipt.status < Status.DepositReceived, "receipt is in use");
@@ -161,7 +163,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         bytes32[] calldata r,
         bytes32[] calldata s,
         uint256 packedV
-    ) internal {
+    ) private {
         uint256 cooldownTime = block.timestamp.add(KEEPER_COOLDOWN);
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
@@ -179,7 +181,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         Receipt storage receipt,
         bytes32 txId,
         uint256 height
-    ) internal {
+    ) private {
         receipt.status = Status.DepositReceived;
         receipt.txId = txId;
         receipt.height = height;
@@ -189,7 +191,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         group.currSatoshi = currSatoshi;
     }
 
-    function _mintToUser(Receipt storage receipt) internal {
+    function _mintToUser(Receipt storage receipt) private {
         // TODO: add fee deduction
         eBTC.mint(
             receipt.recipient,
