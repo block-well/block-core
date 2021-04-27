@@ -1,16 +1,16 @@
 import { expect } from "chai";
-import { /*BigNumber,*/ Contract, Wallet, constants } from "ethers";
-import { MockContract, MockProvider } from "ethereum-waffle";
+import { BigNumber, Contract, Wallet, constants } from "ethers";
+import type { MockContract, MockProvider } from "ethereum-waffle";
 import { waffle, ethers } from "hardhat";
 const { loadFixture } = waffle;
-const { /*parseEther,*/ parseUnits, solidityKeccak256 } = ethers.utils;
+const { parseEther, parseUnits, solidityKeccak256 } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
 import { deployMockForName } from "./mock";
 import { prepareSignature } from "./helper";
 
 const BTC_ADDRESS_0 = "38aNsdfsdfsdfsdfsdfdsfsdf0";
 const BTC_ADDRESS_1 = "38aNsdfsdfsdfsdfsdfdsfsdf1";
-// const BTC_ADDRESS_2 = "38aNsdfsdfsdfsdfsdfdsfsdf2";
+const BTC_ADDRESS_2 = "38aNsdfsdfsdfsdfsdfdsfsdf2";
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
 
 function getReceiptId(btcAddress: string, recipient: string, identifier: number): string {
@@ -36,8 +36,8 @@ describe("DeCusSystem", function () {
     let user4: Wallet;
     let user5: Wallet;
     let user6: Wallet;
-    // let owner: Wallet;
-    // let ebtc: MockContract;
+    let owner: Wallet;
+    let ebtc: MockContract;
     let system: Contract;
 
     async function deployFixture(_wallets: Wallet[], provider: MockProvider): Promise<FixtureData> {
@@ -69,8 +69,8 @@ describe("DeCusSystem", function () {
         user4 = fixtureData.wallets.user4;
         user5 = fixtureData.wallets.user5;
         user6 = fixtureData.wallets.user6;
-        // owner = fixtureData.wallets.owner;
-        // ebtc = fixtureData.ebtc;
+        owner = fixtureData.wallets.owner;
+        ebtc = fixtureData.ebtc;
         system = fixtureData.system;
     });
 
