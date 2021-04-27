@@ -1,7 +1,7 @@
 import { expect, Assertion } from "chai";
 import { ethers, waffle } from "hardhat";
-import type { MockContract, Stub } from "ethereum-waffle";
-import type { Signer, Transaction } from "ethers";
+import { MockContract, Stub } from "ethereum-waffle";
+import { Signer, Transaction } from "ethers";
 const { deployMockContract } = waffle;
 
 export async function deployMockForName(deployer: Signer, name: string): Promise<MockContract> {
