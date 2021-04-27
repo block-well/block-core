@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber, Contract, Wallet } from "ethers";
-import type { MockProvider } from "ethereum-waffle";
+import { MockProvider } from "ethereum-waffle";
 import { waffle, ethers } from "hardhat";
 const { loadFixture } = waffle;
 const { parseEther, parseUnits } = ethers.utils;
@@ -21,7 +21,7 @@ describe("KeeperRegistry", function () {
     let fixtureData: FixtureData;
 
     let user1: Wallet;
-    let user2: Wallet;
+    // let user2: Wallet;
     let owner: Wallet;
     let wbtc: Contract;
     let hbtc: Contract;
@@ -60,7 +60,7 @@ describe("KeeperRegistry", function () {
     beforeEach(async function () {
         fixtureData = await loadFixture(deployFixture);
         user1 = fixtureData.wallets.user1;
-        user2 = fixtureData.wallets.user2;
+        // user2 = fixtureData.wallets.user2;
         owner = fixtureData.wallets.owner;
         wbtc = fixtureData.wbtc;
         hbtc = fixtureData.hbtc;
