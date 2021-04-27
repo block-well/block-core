@@ -50,7 +50,7 @@ describe("DeCusSystem", function () {
         await ebtc.mock.mint.returns(); // 0.1% per day
 
         const registry = await deployMockForName(owner, "IKeeperRegistry");
-        await registry.mock.getSatoshiValue.returns(parseBtc("0.5")); // 0.1% per day
+        await registry.mock.getCollateralValue.returns(parseBtc("0.5")); // 0.1% per day
 
         await system.initialize(ebtc.address, registry.address);
 

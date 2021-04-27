@@ -108,7 +108,6 @@ describe("KeeperRegistry", function () {
 
     describe("addKeeper()", function () {
         it("should add keeper", async function () {
-            expect(await registry.totalCollaterals(user1.address)).to.be.equal(0);
             expect(await registry.collaterals(user1.address, wbtc.address)).to.be.equal(0);
             expect(await registry.collaterals(user1.address, hbtc.address)).to.be.equal(0);
             expect(await wbtc.balanceOf(user1.address)).to.be.equal(parseBtc("100"));
@@ -116,62 +115,52 @@ describe("KeeperRegistry", function () {
             expect(await hbtc.balanceOf(user1.address)).to.be.equal(parseEther("100"));
             expect(await hbtc.balanceOf(registry.address)).to.be.equal(parseEther("0"));
 
-            const assets = [hbtc.address, wbtc.address];
-            const amounts = [parseEther("10"), parseBtc("10")];
-            await expect(registry.connect(user1).addKeeper(assets, amounts))
+            const asset = wbtc.address;
+            const amount = parseBtc("10");
+            await expect(registry.connect(user1).addKeeper(asset, amount))
                 .to.emit(registry, "KeeperAdded")
-                .withArgs(user1.address, assets, amounts);
+                .withArgs(user1.address, asset, amount);
 
-            expect(await registry.totalCollaterals(user1.address)).to.be.equal(parseEther("20"));
             expect(await registry.collaterals(user1.address, wbtc.address)).to.be.equal(
                 parseEther("10")
             );
             expect(await registry.collaterals(user1.address, hbtc.address)).to.be.equal(
-                parseEther("10")
+                parseEther("0")
             );
             expect(await wbtc.balanceOf(user1.address)).to.be.equal(parseBtc("90"));
             expect(await wbtc.balanceOf(registry.address)).to.be.equal(parseBtc("10"));
-            expect(await hbtc.balanceOf(user1.address)).to.be.equal(parseEther("90"));
-            expect(await hbtc.balanceOf(registry.address)).to.be.equal(parseEther("10"));
+            expect(await hbtc.balanceOf(user1.address)).to.be.equal(parseEther("100"));
+            expect(await hbtc.balanceOf(registry.address)).to.be.equal(parseEther("0"));
         });
     });
 
     describe("punishKeeper()", function () {
-        let assets: string[];
-        let amounts: BigNumber[];
-
         beforeEach(async function () {
-            assets = [hbtc.address, wbtc.address, ebtc.address];
-            amounts = [parseEther("10"), parseBtc("10"), parseEther("10")];
-
             await registry.connect(owner).addAsset(ebtc.address);
-            await registry.connect(user1).addKeeper(assets, amounts);
-            await registry.connect(user2).addKeeper(assets, amounts);
+            await registry.connect(user1).addKeeper(wbtc.address, parseBtc("10"));
 
             await uniswapRouter.mock.swapTokensForExactTokens
                 .withArgs(
-                    parseEther("29"),
                     parseEther("10"),
-                    [hbtc.address, ebtc.address],
-                    registry.address,
-                    constants.MaxUint256
-                )
-                .returns([parseEther("10"), parseEther("9")]);
-            await ebtc.mint(registry.address, parseEther("9"));
-            await uniswapRouter.mock.swapTokensForExactTokens
-                .withArgs(
-                    parseEther("20"),
                     parseBtc("10"),
                     [wbtc.address, ebtc.address],
                     registry.address,
                     constants.MaxUint256
                 )
-                .returns([parseBtc("10"), parseEther("10")]);
+                .returns([parseBtc("9"), parseEther("10")]);
             await ebtc.mint(registry.address, parseEther("10"));
         });
 
         it("should punish keeper", async function () {
-            await registry.connect(owner).punishKeeper(assets, user1.address, parseEther("29"));
+            expect(await registry.collaterals(user1.address, wbtc.address)).to.be.equal(
+                parseEther("10")
+            );
+
+            await registry.connect(owner).punishKeeper(user1.address, parseEther("10"));
+
+            expect(await registry.collaterals(user1.address, wbtc.address)).to.be.equal(
+                parseEther("1")
+            );
         });
     });
 });

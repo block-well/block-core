@@ -25,7 +25,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     EnumerableSet.AddressSet assetSet;
     mapping(address => Asset) public metadata;
     mapping(address => mapping(address => uint256)) public collaterals;
-    mapping(address => uint256) public totalCollaterals;
+    mapping(address => address) public perUserCollateral;
 
     constructor(
         address[] memory _assets,
@@ -40,8 +40,8 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         uniswapRouter = IUniswapV2Router02(_uniswapRouter);
     }
 
-    function getSatoshiValue(address keeper) external view override returns (uint256) {
-        return totalCollaterals[keeper];
+    function getCollateralValue(address keeper) external view override returns (uint256) {
+        return collaterals[keeper][perUserCollateral[keeper]];
     }
 
     function addAsset(address asset) external onlyOwner {
@@ -49,33 +49,27 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         _addAsset(asset, decimal);
     }
 
-    function addKeeper(address[] calldata assets, uint256[] calldata amounts) external {
+    function addKeeper(address asset, uint256 amount) external {
         // transfer assets
-        for (uint256 i = 0; i < assets.length; i++) {
-            require(assetSet.contains(assets[i]), "assets not accepted");
-            require(
-                ERC20(assets[i]).transferFrom(msg.sender, address(this), amounts[i]),
-                "transfer failed"
-            );
-        }
+        require(assetSet.contains(asset), "assets not accepted");
+        require(perUserCollateral[msg.sender] == address(0), "keeper already exist");
+        require(ERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
 
-        _addKeeper(msg.sender, assets, amounts);
+        _addKeeper(msg.sender, asset, amount);
     }
 
     function deleteKeeper(address keeper) external onlyOwner {
         // require admin role because we need to make sure keeper is not in any working groups
-        for (uint256 i = 0; i < assetSet.length(); i++) {
-            address asset = assetSet.at(i);
-            require(ERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
-            delete collaterals[keeper][asset];
-        }
-
-        delete totalCollaterals[keeper];
+        address asset = perUserCollateral[keeper];
+        require(ERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
+        delete collaterals[keeper][asset];
+        delete perUserCollateral[keeper];
 
         emit KeeperDeleted(keeper);
     }
 
-    function importKeepers(
+    // TODO: each keeper only have one non-zero asset
+    /*function importKeepers(
         address[] calldata assets,
         address[] calldata keepers,
         uint256[][] calldata keeperAmounts
@@ -102,31 +96,27 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         }
 
         emit KeeperImported(msg.sender, assets, keepers, keeperAmounts);
-    }
+    }*/
 
-    function punishKeeper(
-        address[] calldata assets,
-        address keeper,
-        uint256 amount
-    ) external onlyOwner {
-        for (uint256 i = 0; i < assets.length && amount > 0; i++) {
-            address asset = assets[i];
-            require(assetSet.contains(asset), "nonexistent asset");
-            uint256 collateral = collaterals[keeper][asset];
+    function punishKeeper(address keeper, uint256 amount) external onlyOwner returns (uint256) {
+        address asset = perUserCollateral[keeper];
+        require(assetSet.contains(asset), "nonexistent asset");
+        uint256 collateral = collaterals[keeper][asset];
 
-            if (asset == address(eBTC)) {
-                uint256 deduction = amount.min(collateral);
-                eBTC.burn(deduction);
-                collaterals[keeper][asset] = collateral - deduction;
-                amount = amount - deduction;
-            } else {
-                uint256 divisor = metadata[asset].divisor;
-                uint256[] memory swapResult = _buyback(asset, amount, collateral.div(divisor));
-                eBTC.burn(swapResult[1]);
-                collaterals[keeper][asset] = collateral.sub(swapResult[0].mul(divisor));
-                amount = amount.sub(swapResult[1]);
-            }
+        if (asset == address(eBTC)) {
+            uint256 deduction = amount.min(collateral);
+            eBTC.burn(deduction);
+            collaterals[keeper][asset] = collateral - deduction;
+            amount = amount - deduction;
+        } else {
+            uint256 divisor = metadata[asset].divisor;
+            uint256[] memory swapResult = _buyback(asset, amount, collateral.div(divisor));
+            eBTC.burn(swapResult[1]);
+            collaterals[keeper][asset] = collateral.sub(swapResult[0].mul(divisor));
+            amount = amount.sub(swapResult[1]);
         }
+
+        return amount;
     }
 
     function _addAsset(address asset, uint256 decimal) private {
@@ -139,21 +129,14 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     function _addKeeper(
         address keeper,
-        address[] calldata assets,
-        uint256[] calldata amounts
+        address asset,
+        uint256 amount
     ) private {
-        uint256 totalCollateral = totalCollaterals[keeper];
-        require(totalCollateral == 0, "keeper existed");
+        uint256 divisor = metadata[asset].divisor;
+        collaterals[keeper][asset] = amount.mul(divisor);
+        perUserCollateral[keeper] = asset;
 
-        for (uint256 i = 0; i < assets.length; i++) {
-            uint256 divisor = metadata[assets[i]].divisor;
-            uint256 amount = amounts[i].mul(divisor);
-            totalCollateral = totalCollateral.add(amount);
-            collaterals[keeper][assets[i]] = collaterals[keeper][assets[i]].add(amount);
-        }
-        totalCollaterals[keeper] = totalCollateral;
-
-        emit KeeperAdded(keeper, assets, amounts);
+        emit KeeperAdded(keeper, asset, amount);
     }
 
     function _buyback(

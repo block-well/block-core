@@ -78,7 +78,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         group.maxSatoshi = maxSatoshi;
         for (uint256 i = 0; i < keepers.length; i++) {
             require(
-                keeperRegistry.getSatoshiValue(keepers[i]) >= minKeeperSatoshi,
+                keeperRegistry.getCollateralValue(keepers[i]) >= minKeeperSatoshi,
                 "keepre has not enough collaterl"
             );
             group.keeperSet.add(keepers[i]);
