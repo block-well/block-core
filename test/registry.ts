@@ -25,7 +25,7 @@ describe("KeeperRegistry", function () {
     let fixtureData: FixtureData;
 
     let user1: Wallet;
-    let user2: Wallet;
+    // let user2: Wallet;
     let owner: Wallet;
     let wbtc: Contract;
     let hbtc: Contract;
@@ -79,7 +79,7 @@ describe("KeeperRegistry", function () {
     beforeEach(async function () {
         fixtureData = await loadFixture(deployFixture);
         user1 = fixtureData.wallets.user1;
-        user2 = fixtureData.wallets.user2;
+        // user2 = fixtureData.wallets.user2;
         owner = fixtureData.wallets.owner;
         wbtc = fixtureData.wbtc;
         hbtc = fixtureData.hbtc;
