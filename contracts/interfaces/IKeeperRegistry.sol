@@ -7,17 +7,17 @@ interface IKeeperRegistry {
         uint256 divisor; // 10 ** decimal
     }
 
-    function getSatoshiValue(address keeper) external view returns (uint256);
+    function getCollateralValue(address keeper) external view returns (uint256);
 
-    function importKeepers(
+    /*function importKeepers(
         address[] calldata assets,
         address[] calldata keepers,
         uint256[][] calldata keeperAmounts
-    ) external;
+    ) external;*/
 
     event AssetAdded(address indexed asset, uint256 divisor);
 
-    event KeeperAdded(address indexed keeper, address[] assets, uint256[] amounts);
+    event KeeperAdded(address indexed keeper, address asset, uint256 amount);
     event KeeperDeleted(address indexed keeper);
     event KeeperImported(
         address indexed from,
