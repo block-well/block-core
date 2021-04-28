@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { /*BigNumber,*/ Contract, Wallet, constants } from "ethers";
+import { BigNumber, Contract, Wallet, constants } from "ethers";
 import { MockContract, MockProvider } from "ethereum-waffle";
 import { waffle, ethers } from "hardhat";
 const { loadFixture } = waffle;
@@ -101,6 +101,21 @@ describe("DeCusSystem", function () {
                     user3.address,
                     user4.address,
                 ]);
+
+            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+                BigNumber.from(3),
+                BigNumber.from(KEEPER_SATOSHI),
+                BigNumber.from(0),
+            ]);
+            expect(await system.getGroupAllowance(BTC_ADDRESS_0)).equal(
+                BigNumber.from(KEEPER_SATOSHI)
+            );
+            expect(await system.listGroupKeeper(BTC_ADDRESS_0)).deep.equal([
+                user1.address,
+                user2.address,
+                user3.address,
+                user4.address,
+            ]);
         });
     });
 
@@ -114,10 +129,58 @@ describe("DeCusSystem", function () {
             ]);
         });
 
+        it("delete not exist", async function () {
+            await expect(system.deleteGroup(BTC_ADDRESS_1))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(BTC_ADDRESS_1);
+        });
+
         it("should delete group", async function () {
+            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+                BigNumber.from(3),
+                BigNumber.from(KEEPER_SATOSHI),
+                BigNumber.from(0),
+            ]);
+            expect(await system.listGroupKeeper(BTC_ADDRESS_0)).deep.equal([
+                user1.address,
+                user2.address,
+                user3.address,
+                user4.address,
+            ]);
+
             await expect(system.deleteGroup(BTC_ADDRESS_0))
                 .to.emit(system, "GroupDeleted")
                 .withArgs(BTC_ADDRESS_0);
+
+            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+                BigNumber.from(0),
+                BigNumber.from(0),
+                BigNumber.from(0),
+            ]);
+            expect(await system.listGroupKeeper(BTC_ADDRESS_0)).deep.equal([]);
+        });
+
+        it("delete group twice", async function () {
+            await expect(system.deleteGroup(BTC_ADDRESS_0))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(BTC_ADDRESS_0);
+
+            await expect(system.deleteGroup(BTC_ADDRESS_0))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(BTC_ADDRESS_0);
+        });
+
+        it("add same address", async function () {
+            await expect(system.deleteGroup(BTC_ADDRESS_0))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(BTC_ADDRESS_0);
+
+            await system.addGroup(BTC_ADDRESS_0, 2, KEEPER_SATOSHI, [user3.address, user4.address]);
+            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+                BigNumber.from(2),
+                BigNumber.from(KEEPER_SATOSHI),
+                BigNumber.from(0),
+            ]);
         });
     });
 
