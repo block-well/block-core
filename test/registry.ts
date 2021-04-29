@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber, constants, Contract, Wallet } from "ethers";
-import type { MockContract, MockProvider } from "ethereum-waffle";
+import { MockContract, MockProvider } from "ethereum-waffle";
 import { waffle, ethers } from "hardhat";
 import { deployMockForName } from "./mock";
 

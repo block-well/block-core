@@ -31,7 +31,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         keeperRegistry = IKeeperRegistry(_registry);
     }
 
-    function getGroup(string memory btcAddress)
+    function getGroup(string calldata btcAddress)
         external
         view
         returns (
@@ -40,8 +40,18 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
             uint256
         )
     {
-        Group memory group = groups[btcAddress];
+        Group storage group = groups[btcAddress];
         return (group.required, group.maxSatoshi, group.currSatoshi);
+    }
+
+    function listGroupKeeper(string calldata btcAddress) public view returns (address[] memory) {
+        Group storage group = groups[btcAddress];
+
+        address[] memory keeperArray = new address[](group.keeperSet.length());
+        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
+            keeperArray[i] = group.keeperSet.at(i);
+        }
+        return keeperArray;
     }
 
     function getReceipt(bytes32 receiptId) external view returns (Receipt memory) {
@@ -61,7 +71,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
     }
 
     function getGroupAllowance(string memory btcAddress) public view returns (uint256) {
-        Group memory group = groups[btcAddress];
+        Group storage group = groups[btcAddress];
         return group.maxSatoshi.sub(group.currSatoshi);
     }
 
@@ -88,12 +98,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
     }
 
     function deleteGroup(string memory btcAddress) external onlyOwner {
-        Group storage group = groups[btcAddress];
         require(groups[btcAddress].currSatoshi == 0, "group balance is not empty");
 
-        for (uint256 i = group.keeperSet.length().sub(1); i > 0; i--) {
-            group.keeperSet.remove(group.keeperSet.at(i));
-        }
         delete groups[btcAddress];
 
         emit GroupDeleted(btcAddress);
