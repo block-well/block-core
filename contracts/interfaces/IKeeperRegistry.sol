@@ -3,10 +3,6 @@ pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 interface IKeeperRegistry {
-    struct Asset {
-        uint256 divisor; // 10 ** decimal
-    }
-
     function getCollateralValue(address keeper) external view returns (uint256);
 
     /*function importKeepers(
@@ -15,7 +11,7 @@ interface IKeeperRegistry {
         uint256[][] calldata keeperAmounts
     ) external;*/
 
-    event AssetAdded(address indexed asset, uint256 divisor);
+    event AssetAdded(address indexed asset);
 
     event KeeperAdded(address indexed keeper, address asset, uint256 amount);
     event KeeperDeleted(address indexed keeper);
@@ -25,4 +21,6 @@ interface IKeeperRegistry {
         address[] keepers,
         uint256[][] keeperAmounts
     );
+
+    event TreasuryTransferred(address indexed previousTreasury, address indexed newTreasury);
 }

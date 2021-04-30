@@ -21,7 +21,8 @@ const config: HardhatUserConfig = {
     },
     // @see https://hardhat.org/plugins/hardhat-gas-reporter.html
     gasReporter: {
-        enabled: true,
+        enabled: process.env.REPORT_GAS ? true : false,
+        excludeContracts: ["mock/"],
         currency: "USD",
         noColors: true,
         coinmarketcap: "7ac7b370-2b6d-401b-8556-b65869c984db",

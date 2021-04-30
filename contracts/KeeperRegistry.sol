@@ -2,42 +2,40 @@
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IEBTC} from "./interfaces/IEBTC.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
+
+interface IERC20Extension {
+    function decimals() external returns (uint8);
+}
 
 contract KeeperRegistry is Ownable, IKeeperRegistry {
     using Math for uint256;
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    // Uniswap
-    IUniswapV2Router02 public uniswapRouter;
-
     IEBTC public eBTC;
+    address public treasury;
+
     EnumerableSet.AddressSet assetSet;
-    mapping(address => Asset) public metadata;
     mapping(address => mapping(address => uint256)) public collaterals;
     mapping(address => address) public perUserCollateral;
 
-    constructor(
-        address[] memory _assets,
-        address _eBTC,
-        address _uniswapRouter
-    ) public {
+    uint256 public overissuedTotal;
+    mapping(address => uint256) public confiscations;
+
+    constructor(address[] memory _assets, address _eBTC) public {
         for (uint256 i = 0; i < _assets.length; i++) {
-            uint256 decimal = ERC20(_assets[i]).decimals();
-            _addAsset(_assets[i], decimal);
+            _addAsset(_assets[i]);
         }
         eBTC = IEBTC(_eBTC);
-        uniswapRouter = IUniswapV2Router02(_uniswapRouter);
     }
 
     function getCollateralValue(address keeper) external view override returns (uint256) {
@@ -45,15 +43,14 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     }
 
     function addAsset(address asset) external onlyOwner {
-        uint256 decimal = ERC20(asset).decimals();
-        _addAsset(asset, decimal);
+        _addAsset(asset);
     }
 
     function addKeeper(address asset, uint256 amount) external {
         // transfer assets
         require(assetSet.contains(asset), "assets not accepted");
         require(perUserCollateral[msg.sender] == address(0), "keeper already exist");
-        require(ERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
+        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
 
         _addKeeper(msg.sender, asset, amount);
     }
@@ -61,7 +58,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     function deleteKeeper(address keeper) external onlyOwner {
         // require admin role because we need to make sure keeper is not in any working groups
         address asset = perUserCollateral[keeper];
-        require(ERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
+        require(IERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
         delete collaterals[keeper][asset];
         delete perUserCollateral[keeper];
 
@@ -98,33 +95,49 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         emit KeeperImported(msg.sender, assets, keepers, keeperAmounts);
     }*/
 
-    function punishKeeper(address keeper, uint256 amount) external onlyOwner returns (uint256) {
+    function punishKeeper(address keeper, uint256 overissuedAmount) external onlyOwner {
         address asset = perUserCollateral[keeper];
         require(assetSet.contains(asset), "nonexistent asset");
         uint256 collateral = collaterals[keeper][asset];
 
         if (asset == address(eBTC)) {
-            uint256 deduction = amount.min(collateral);
+            uint256 deduction = overissuedAmount.min(collateral);
             eBTC.burn(deduction);
-            collaterals[keeper][asset] = collateral - deduction;
-            amount = amount - deduction;
-        } else {
-            uint256 divisor = metadata[asset].divisor;
-            uint256[] memory swapResult = _buyback(asset, amount, collateral.div(divisor));
-            eBTC.burn(swapResult[1]);
-            collaterals[keeper][asset] = collateral.sub(swapResult[0].mul(divisor));
-            amount = amount.sub(swapResult[1]);
+            overissuedAmount = overissuedAmount.sub(deduction);
+            collateral = collateral.sub(deduction);
         }
 
-        return amount;
+        confiscations[asset] = confiscations[asset].add(collateral);
+        overissuedTotal = overissuedTotal.add(overissuedAmount);
+
+        delete collaterals[keeper][asset];
     }
 
-    function _addAsset(address asset, uint256 decimal) private {
-        assetSet.add(asset);
-        uint256 divisor = BtcUtility.getSatoshiDivisor(decimal);
-        metadata[asset].divisor = divisor;
+    function updateTreasury(address newTreasury) external onlyOwner {
+        emit TreasuryTransferred(treasury, newTreasury);
+        treasury = newTreasury;
+    }
 
-        emit AssetAdded(asset, divisor);
+    function confiscate(address[] calldata assets) external {
+        require(treasury != address(0), "treasury not up yet");
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            require(
+                IERC20(assets[i]).transfer(treasury, confiscations[assets[i]]),
+                "transfer failed"
+            );
+            delete confiscations[assets[i]];
+        }
+    }
+
+    function offsetOverissue(uint256 ebtcAmount) external {
+        eBTC.burnFrom(msg.sender, ebtcAmount);
+        overissuedTotal = overissuedTotal.sub(ebtcAmount);
+    }
+
+    function _addAsset(address asset) private {
+        assetSet.add(asset);
+        emit AssetAdded(asset);
     }
 
     function _addKeeper(
@@ -132,33 +145,10 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         address asset,
         uint256 amount
     ) private {
-        uint256 divisor = metadata[asset].divisor;
+        uint256 divisor = BtcUtility.getSatoshiDivisor(IERC20Extension(asset).decimals());
         collaterals[keeper][asset] = amount.mul(divisor);
         perUserCollateral[keeper] = asset;
 
         emit KeeperAdded(keeper, asset, amount);
-    }
-
-    function _buyback(
-        address asset,
-        uint256 amountOut,
-        uint256 amountInMax
-    ) internal returns (uint256[] memory) {
-        if (IERC20(asset).allowance(address(this), address(uniswapRouter)) < amountInMax) {
-            IERC20(asset).approve(address(uniswapRouter), type(uint256).max);
-        }
-
-        address[] memory path = new address[](2);
-        path[0] = asset;
-        path[1] = address(eBTC);
-        uint256[] memory swapResult =
-            uniswapRouter.swapTokensForExactTokens(
-                amountOut,
-                amountInMax,
-                path,
-                address(this),
-                type(uint256).max
-            );
-        return swapResult;
     }
 }
