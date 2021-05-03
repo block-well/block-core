@@ -23,4 +23,5 @@ interface IKeeperRegistry {
     );
 
     event TreasuryTransferred(address indexed previousTreasury, address indexed newTreasury);
+    event Confiscated(address indexed treasury, address asset, uint256 amount);
 }

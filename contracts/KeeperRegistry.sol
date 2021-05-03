@@ -95,22 +95,24 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         emit KeeperImported(msg.sender, assets, keepers, keeperAmounts);
     }*/
 
-    function punishKeeper(address keeper, uint256 overissuedAmount) external onlyOwner {
-        address asset = perUserCollateral[keeper];
-        require(assetSet.contains(asset), "nonexistent asset");
-        uint256 collateral = collaterals[keeper][asset];
+    function punishKeeper(address[] calldata keepers, uint256 overissuedAmount) external onlyOwner {
+        for (uint256 i = 0; i < keepers.length; i++) {
+            address keeper = keepers[i];
+            address asset = perUserCollateral[keeper];
+            uint256 collateral = collaterals[keeper][asset];
 
-        if (asset == address(eBTC)) {
-            uint256 deduction = overissuedAmount.min(collateral);
-            eBTC.burn(deduction);
-            overissuedAmount = overissuedAmount.sub(deduction);
-            collateral = collateral.sub(deduction);
+            if (asset == address(eBTC)) {
+                uint256 deduction = overissuedAmount.min(collateral);
+                eBTC.burn(deduction);
+                overissuedAmount = overissuedAmount.sub(deduction);
+                collateral = collateral.sub(deduction);
+            }
+
+            confiscations[asset] = confiscations[asset].add(collateral);
+            delete collaterals[keeper][asset];
         }
 
-        confiscations[asset] = confiscations[asset].add(collateral);
         overissuedTotal = overissuedTotal.add(overissuedAmount);
-
-        delete collaterals[keeper][asset];
     }
 
     function updateTreasury(address newTreasury) external onlyOwner {
@@ -122,10 +124,9 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         require(treasury != address(0), "treasury not up yet");
 
         for (uint256 i = 0; i < assets.length; i++) {
-            require(
-                IERC20(assets[i]).transfer(treasury, confiscations[assets[i]]),
-                "transfer failed"
-            );
+            uint256 confiscation = confiscations[assets[i]];
+            require(IERC20(assets[i]).transfer(treasury, confiscation), "transfer failed");
+            emit Confiscated(treasury, assets[i], confiscation);
             delete confiscations[assets[i]];
         }
     }
