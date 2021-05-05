@@ -9,11 +9,7 @@ contract EBTC is AccessControl, ERC20Burnable, ERC20Pausable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
-    constructor(
-        string memory name,
-        string memory symbol,
-        address decusSystem
-    ) public ERC20(name, symbol) {
+    constructor(address decusSystem) public ERC20("DeCus BTC", "EBTC") {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         _setupRole(MINTER_ROLE, decusSystem);
