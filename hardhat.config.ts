@@ -12,7 +12,7 @@ const networks: NetworksUserConfig = {
     localhost: {},
 };
 
-const config: HardhatUserConfig = {
+let config: HardhatUserConfig = {
     networks: networks,
     solidity: {
         version: "0.6.12",
@@ -42,4 +42,30 @@ const config: HardhatUserConfig = {
         deployer: 0,
     },
 };
+
+const etherscanKey = process.env.ETHERSCAN_API_KEY;
+if (etherscanKey) {
+    config = { ...config, etherscan: { apiKey: etherscanKey } };
+}
+
+const infuraId = process.env.INFURA_PROJECT_ID;
+if (infuraId) {
+    const privateKey = `0x${process.env.PRIVATE_KEY}`;
+    config.networks = {
+        ...config.networks,
+        kovan: {
+            url: `https://kovan.infura.io/v3/${infuraId}`,
+            accounts: [privateKey],
+            throwOnTransactionFailures: true,
+            throwOnCallFailures: true,
+        },
+        ropsten: {
+            url: `https://ropsten.infura.io/v3/${infuraId}`,
+            accounts: [privateKey],
+            throwOnTransactionFailures: true,
+            throwOnCallFailures: true,
+        },
+    };
+}
+
 export default config;
