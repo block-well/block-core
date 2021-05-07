@@ -152,4 +152,8 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
         emit KeeperAdded(keeper, asset, amount);
     }
+
+    function hasKeeper(address keeper) external view returns (bool) {
+        return perUserCollateral[keeper] != address(0);
+    }
 }
