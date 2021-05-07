@@ -1,24 +1,30 @@
 import { task, types } from "hardhat/config";
 import { KeeperRegistry, ERC20 } from "../build/typechain";
+import { NonceManager } from "@ethersproject/experimental";
 
 task("addKeeper", "add keeper")
     .addParam("privKey", "Keeper private key")
     .addParam("amount", "Keeper collateral amount in BTC", "0.01", types.string)
     .addOptionalParam("asset", "WBTC or other BTC", "WBTC")
-    .setAction(async ({ privKey, amountBTC, asset }, { ethers }) => {
-        const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
-        const btc = (await ethers.getContract(asset)) as ERC20;
-        const keeper = new ethers.Wallet(privKey, ethers.provider);
-        const amount = ethers.utils.parseUnits(amountBTC, await btc.decimals());
+    .setAction(async ({ privKey, amount, asset }, { ethers }) => {
+        const nonceManager = new NonceManager(new ethers.Wallet(privKey, ethers.provider));
+        const keeper = await nonceManager.getAddress();
 
-        if (registry.hasKeeper(keeper.address)) {
+        const btc = (await ethers.getContract(asset, nonceManager)) as ERC20;
+        const registry = (await ethers.getContract(
+            "KeeperRegistry",
+            nonceManager
+        )) as KeeperRegistry;
+
+        if ((await registry.getCollateralValue(keeper)).gt(0)) {
             console.log(`keeper exist: ${keeper}`);
             return;
         }
 
-        let tx = await btc.approve(registry.address, amount);
-        console.log(`${keeper.address} approve at ${tx.hash}`);
+        const num = ethers.utils.parseUnits(amount, await btc.decimals());
+        let tx = await btc.approve(registry.address, num);
+        console.log(`${keeper} approve at ${tx.hash}`);
 
-        tx = await registry.connect(keeper).addKeeper(btc.address, amount);
-        console.log(`${keeper.address} added at ${tx.hash}`);
+        tx = await registry.addKeeper(btc.address, num);
+        console.log(`${keeper} added at ${tx.hash}`);
     });
