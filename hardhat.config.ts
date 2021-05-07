@@ -7,12 +7,15 @@ import "hardhat-typechain";
 import "hardhat-deploy";
 import { HardhatUserConfig, NetworksUserConfig } from "hardhat/types";
 
-const tasksPath = path.join(__dirname, "tasks");
-fs.readdirSync(tasksPath)
-    .filter((pth) => pth.includes(".ts"))
-    .forEach((task) => {
-        require(`${tasksPath}/${task}`);
-    });
+// Prevent to load scripts before compilation and typechain
+if (!process.env.SKIP_LOAD) {
+    const tasksPath = path.join(__dirname, "tasks");
+    fs.readdirSync(tasksPath)
+        .filter((pth) => pth.includes(".ts"))
+        .forEach((task) => {
+            require(`${tasksPath}/${task}`);
+        });
+}
 
 const networks: NetworksUserConfig = {
     hardhat: {
