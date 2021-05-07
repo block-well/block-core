@@ -1,8 +1,8 @@
 {
     "name": "decus-core",
     "scripts": {
-        "check": "npm run lint && prettier -c .",
-        "fmt": "prettier -w .",
+        "check": "npm run lint && prettier --ignore-path .gitignore -c .",
+        "fmt": "prettier --ignore-path .gitignore -w .",
         "lint": "eslint --ext .js,.ts --ignore-path .gitignore .",
         "test": "hardhat test",
         "coverage": "hardhat coverage --solcoverjs ./.decus.solcover.js",
