@@ -5,7 +5,6 @@ const { parseUnits, solidityKeccak256 } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature } from "./helper";
 import { DeCusSystem, ERC20, KeeperRegistry } from "../build/typechain";
-import { parseEther } from "@ethersproject/units";
 
 const BTC_ADDRESS_0 = "38aNsdfsdfsdfsdfsdfdsfsdf0";
 const BTC_ADDRESS_1 = "38aNsdfsdfsdfsdfsdfdsfsdf1";
@@ -16,31 +15,24 @@ function getReceiptId(btcAddress: string, recipient: string, identifier: number)
     return solidityKeccak256(["string", "address", "uint256"], [btcAddress, recipient, identifier]);
 }
 
-const setupFixture = deployments.createFixture(
-    async ({ ethers, deployments, getNamedAccounts }) => {
-        await deployments.fixture();
+const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
+    await deployments.fixture();
 
-        const { deployer } = await getNamedAccounts();
-        const users = waffle.provider.getWallets().slice(1, 7);
-        const owner = await ethers.getSigner(deployer);
+    const users = waffle.provider.getWallets().slice(1, 7); // position 0 is used as deployer
+    const wbtc = (await ethers.getContract("WBTC")) as ERC20;
+    const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
 
-        const wbtc = (await ethers.getContract("WBTC")) as ERC20;
-        const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
-
-        for (const user of users) {
-            // TODO: can we find better way to assign ether to each user
-            await owner.sendTransaction({ to: user.address, value: parseEther("1") });
-            await wbtc.mint(user.address, parseBtc("100"));
-            await wbtc.connect(user).approve(registry.address, parseBtc("100"));
-            await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
-        }
-
-        return {
-            users,
-            system: (await ethers.getContract("DeCusSystem")) as DeCusSystem,
-        };
+    for (const user of users) {
+        await wbtc.mint(user.address, parseBtc("100"));
+        await wbtc.connect(user).approve(registry.address, parseBtc("100"));
+        await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
-);
+
+    return {
+        users,
+        system: (await ethers.getContract("DeCusSystem")) as DeCusSystem,
+    };
+});
 
 describe("DeCusSystem", function () {
     let user1: Wallet;
