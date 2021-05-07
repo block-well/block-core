@@ -5,12 +5,18 @@
         "fmt": "prettier --ignore-path .gitignore -w .",
         "lint": "eslint --ext .js,.ts --ignore-path .gitignore .",
         "test": "hardhat test",
-        "coverage": "hardhat coverage --solcoverjs ./.decus.solcover.js"
+        "coverage": "hardhat coverage --solcoverjs ./.decus.solcover.js",
+        "compile": "hardhat compile",
+        "deploy": "hardhat deploy",
+        "deploy:kovan": "hardhat deploy --network kovan",
+        "verify:kovan": "npx hardhat etherscan-verify --network kovan"
     },
     "devDependencies": {
-        "@nomiclabs/hardhat-ethers": "^2.0.1",
+        "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers@^0.3.0-beta.7",
+        "@nomiclabs/hardhat-etherscan": "^2.1.2",
         "@nomiclabs/hardhat-waffle": "^2.0.1",
         "@openzeppelin/contracts": "^3.3.0",
+        "@typechain/ethers-v5": "^6.0.5",
         "@types/chai": "^4.2.15",
         "@types/edit-json-file": "^1.4.0",
         "@types/mocha": "^8.2.0",
@@ -27,16 +33,18 @@
         "eslint-plugin-node": "^11.1.0",
         "eslint-plugin-promise": "^4.2.1",
         "ethereum-waffle": "^3.2.2",
-        "ethers": "^5.0.30",
+        "ethers": "^5.1.4",
         "hardhat": "^2.1.1",
+        "hardhat-deploy": "^0.7.5",
         "hardhat-gas-reporter": "^1.0.4",
+        "hardhat-typechain": "^0.3.5",
         "prettier": "^2.2.1",
         "prettier-plugin-solidity": "^1.0.0-beta.3",
         "solidity-coverage": "^0.7.12",
+        "ts-generator": "^0.1.1",
         "ts-node": "^9.1.1",
+        "typechain": "^4.0.3",
         "typescript": "^4.1.5"
     },
-    "dependencies": {
-        "@uniswap/v2-periphery": "^1.1.0-beta.0"
-    }
+    "dependencies": {}
 }
