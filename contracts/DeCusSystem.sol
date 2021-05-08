@@ -46,7 +46,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         return (group.required, group.maxSatoshi, group.currSatoshi, group.workingReceiptId);
     }
 
-    function listGroupKeeper(string calldata btcAddress) public view returns (address[] memory) {
+    function listGroupKeeper(string calldata btcAddress) external view returns (address[] memory) {
         Group storage group = groups[btcAddress];
 
         address[] memory keeperArray = new address[](group.keeperSet.length());
@@ -89,11 +89,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         group.required = required;
         group.maxSatoshi = maxSatoshi;
         for (uint256 i = 0; i < keepers.length; i++) {
+            address keeper = keepers[i];
             require(
-                keeperRegistry.getCollateralValue(keepers[i]) >= minKeeperSatoshi,
+                keeperRegistry.getCollateralValue(keeper) >= minKeeperSatoshi,
                 "keeper has not enough collateral"
             );
-            group.keeperSet.add(keepers[i]);
+            group.keeperSet.add(keeper);
         }
 
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
@@ -181,15 +182,17 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
+
             require(cooldownUntil[keeper] <= block.timestamp, "keeper is in cooldown");
             require(keeperSet.contains(keeper), "keeper is not in group");
             require(
                 ecrecover(requestHash, uint8(packedV), r[i], s[i]) == keeper,
                 "invalid signature"
             );
+            // assert keepers.length <= 32
+            packedV >>= 8;
 
             _cooldown(keeper, cooldownTime);
-            packedV >>= 8;
         }
     }
 
