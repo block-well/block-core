@@ -89,7 +89,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         for (uint256 i = 0; i < keepers.length; i++) {
             require(
                 keeperRegistry.getCollateralValue(keepers[i]) >= minKeeperSatoshi,
-                "keepre has not enough collaterl"
+                "keeper has not enough collateral"
             );
             group.keeperSet.add(keepers[i]);
         }

@@ -36,7 +36,7 @@ interface IDeCusSystem {
     event MintRequested(
         string btcAddress,
         bytes32 receiptId,
-        address sender,
+        address recipient,
         uint256 amountInSatoshi
     );
     event MintVerified(bytes32 indexed receiptId);
