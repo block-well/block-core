@@ -23,6 +23,8 @@ jobs:
               run: npm ci
             - name: Build
               run: npm run compile
+              env:
+                  SKIP_LOAD: 1
             - name: Run unit test coverage
               run: npm run coverage
     check:
@@ -38,5 +40,7 @@ jobs:
               run: npm ci
             - name: Build
               run: npm run compile
+              env:
+                  SKIP_LOAD: 1
             - name: Check lint and format
               run: npm run check
