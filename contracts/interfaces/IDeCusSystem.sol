@@ -20,12 +20,12 @@ interface IDeCusSystem {
     }
 
     struct Receipt {
-        address recipient;
         uint256 amountInSatoshi;
         uint256 createTimestamp;
         bytes32 txId;
         uint256 height;
         Status status;
+        address recipient;
         string btcAddress; // for withdraw
     }
 
