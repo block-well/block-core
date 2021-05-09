@@ -181,9 +181,15 @@ describe("DeCusSystem", function () {
             const identifier = 0;
             const receiptId = getReceiptId(btcAddress, user1.address, identifier);
 
+            expect(await system.getWorkingReceiptId(btcAddress)).to.equal(
+                ethers.constants.HashZero
+            );
+
             await expect(system.connect(user1).requestMint(btcAddress, amountInSatoshi, identifier))
                 .to.emit(system, "MintRequested")
                 .withArgs(BTC_ADDRESS_0, receiptId, user1.address, amountInSatoshi);
+
+            expect(await system.getWorkingReceiptId(btcAddress)).to.equal(receiptId);
         });
     });
 
@@ -246,6 +252,10 @@ describe("DeCusSystem", function () {
             expect(receipt.txId).to.be.equal(txId);
             expect(receipt.height).to.be.equal(height);
             expect(group[2]).to.be.equal(KEEPER_SATOSHI);
+
+            expect(await system.getWorkingReceiptId(btcAddress)).to.equal(
+                ethers.constants.HashZero
+            );
         });
     });
 });
