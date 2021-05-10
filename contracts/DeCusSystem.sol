@@ -30,11 +30,22 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
     mapping(address => uint256) private cooldownUntil; // keeper address -> cooldown end timestamp
 
+    //================================= Public =================================
     function initialize(address _eBTC, address _registry) external {
         eBTC = IEBTC(_eBTC);
         keeperRegistry = IKeeperRegistry(_registry);
     }
 
+    // ------------------------------ keeper -----------------------------------
+    function chill(address keeper, uint256 chillTime) external onlyOwner {
+        _cooldown(keeper, block.timestamp.add(chillTime));
+    }
+
+    function getCooldownTime(address keeper) external view returns (uint256) {
+        return cooldownUntil[keeper];
+    }
+
+    // -------------------------------- group ----------------------------------
     function getGroup(string calldata btcAddress)
         external
         view
@@ -49,6 +60,11 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         return (group.required, group.maxSatoshi, group.currSatoshi, group.workingReceiptId);
     }
 
+    function getGroupAllowance(string calldata btcAddress) external view returns (uint256) {
+        Group storage group = groups[btcAddress];
+        return group.maxSatoshi.sub(group.currSatoshi);
+    }
+
     function listGroupKeeper(string calldata btcAddress) public view returns (address[] memory) {
         Group storage group = groups[btcAddress];
 
@@ -59,29 +75,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         return keeperArray;
     }
 
-    function getReceipt(bytes32 receiptId) external view returns (Receipt memory) {
-        return receipts[receiptId];
-    }
-
-    function getCooldownTime(address keeper) external view returns (uint256) {
-        return cooldownUntil[keeper];
-    }
-
-    function getReceiptId(
-        string memory btcAddress,
-        address recipient,
-        uint256 identifier
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(btcAddress, recipient, identifier));
-    }
-
-    function getGroupAllowance(string memory btcAddress) public view returns (uint256) {
-        Group storage group = groups[btcAddress];
-        return group.maxSatoshi.sub(group.currSatoshi);
-    }
-
     function addGroup(
-        string memory btcAddress,
+        string calldata btcAddress,
         uint256 required,
         uint256 maxSatoshi,
         address[] calldata keepers
@@ -102,7 +97,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
     }
 
-    function deleteGroup(string memory btcAddress) external onlyOwner {
+    function deleteGroup(string calldata btcAddress) external onlyOwner {
         require(groups[btcAddress].currSatoshi == 0, "group balance is not empty");
 
         delete groups[btcAddress];
@@ -110,56 +105,82 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         emit GroupDeleted(btcAddress);
     }
 
+    // ------------------------------- receipt ---------------------------------
+    function getReceipt(bytes32 receiptId) external view returns (Receipt memory) {
+        return receipts[receiptId];
+    }
+
+    function getReceiptId(
+        string calldata groupBtcAddress,
+        address recipient,
+        uint256 identifier
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(groupBtcAddress, recipient, identifier));
+    }
+
     function requestMint(
-        string memory btcAddress,
+        string calldata groupBtcAddress,
         uint256 amountInSatoshi,
         uint256 identifier
     ) public {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
-        require(groups[btcAddress].workingReceiptId == 0, "working receipt in progress");
+
+        Group storage group = groups[groupBtcAddress];
+        require(group.workingReceiptId == 0, "working receipt in progress");
         require(
-            getGroupAllowance(btcAddress) == amountInSatoshi,
+            (group.maxSatoshi).sub(group.currSatoshi) == amountInSatoshi,
             "should fill all group allowance"
         );
 
-        bytes32 receiptId = _requestDeposit(msg.sender, btcAddress, amountInSatoshi, identifier);
+        address recipient = msg.sender;
+        bytes32 receiptId = getReceiptId(groupBtcAddress, recipient, identifier);
+        Receipt storage receipt = receipts[receiptId];
+        _requestDeposit(receipt, groupBtcAddress, recipient, amountInSatoshi);
 
-        emit MintRequested(btcAddress, receiptId, msg.sender, amountInSatoshi);
+        group.workingReceiptId = receiptId;
+
+        emit MintRequested(receiptId, groupBtcAddress, recipient, amountInSatoshi);
     }
 
     function revokeMint(bytes32 receiptId) public {
         Receipt storage receipt = receipts[receiptId];
-        require(receipt.recipient == msg.sender, "require receipt recipient");
-        _revokeMint(receiptId, msg.sender);
+        _revokeDeposit(receipt);
+
+        Group storage group = groups[receipt.groupBtcAddress];
+        delete group.workingReceiptId;
+
+        emit MintRevoked(receiptId, msg.sender);
     }
 
     function forceRequestMint(
-        string memory btcAddress,
+        string calldata groupBtcAddress,
         uint256 amountInSatoshi,
         uint256 identifier
     ) public {
-        Group storage group = groups[btcAddress];
+        Group storage group = groups[groupBtcAddress];
         Receipt storage receipt = receipts[group.workingReceiptId];
+
         if (receipt.status == Status.WithdrawRequested) {
             require(
-                receipt.withdrawTime.add(WITHDRAW_VERIFICATION_END) < block.timestamp,
+                receipt.withdrawTimestamp.add(WITHDRAW_VERIFICATION_END) < block.timestamp,
                 "withdraw in progress"
             );
-
-            _verifyBurn(group.workingReceiptId, msg.sender);
-        }
-        if (receipt.status == Status.DepositRequested) {
+            verifyBurn(group.workingReceiptId);
+        } else if (receipt.status == Status.DepositRequested) {
             require(
                 receipt.createTimestamp.add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
                 "deposit in progress"
             );
-            _revokeMint(group.workingReceiptId, msg.sender);
+            // force transfer control to msg.sender
+            receipt.recipient = msg.sender;
+            revokeMint(group.workingReceiptId);
         }
-        requestMint(btcAddress, amountInSatoshi, identifier);
+
+        requestMint(groupBtcAddress, amountInSatoshi, identifier);
     }
 
     function verifyMint(
-        LibRequest.MintRequest memory request,
+        LibRequest.MintRequest calldata request,
         address[] calldata keepers, // keepers must be in ascending orders
         bytes32[] calldata r,
         bytes32[] calldata s,
@@ -167,94 +188,93 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     ) public {
         Receipt storage receipt = receipts[request.receiptId];
         Group storage group = groups[receipt.groupBtcAddress];
-        require(receipt.status == Status.DepositRequested, "receipt already verified");
-        require(keepers.length >= group.required, "not enough keepers");
 
-        _verifyDeposit(request, group.keeperSet, keepers, r, s, packedV);
-        _approveDeposit(group, receipt, request.txId, request.height);
-        _mintToUser(receipt);
+        _verifyMintRequest(group, request, keepers, r, s, packedV);
+        _approveDeposit(receipt, request.txId, request.height);
+        _mintEBTC(receipt.recipient, receipt.amountInSatoshi);
+
+        _subGroupAllowance(group, receipt.amountInSatoshi);
+        delete group.workingReceiptId;
 
         emit MintVerified(request.receiptId, keepers);
     }
 
-    function requestBurn(bytes32 receiptId, string memory btcAddress) public {
+    function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {
         // TODO: add fee deduction
         Receipt storage receipt = receipts[receiptId];
-        require(
-            receipt.status == Status.DepositReceived,
-            "receipt is not in DepositReceived state"
-        );
+        _requestWithdraw(receipt, withdrawBtcAddress);
 
-        uint256 amount = receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC());
-        eBTC.transferFrom(msg.sender, address(this), amount);
+        _transferFromEBTC(msg.sender, address(this), receipt.amountInSatoshi);
 
-        receipt.withdrawTime = block.timestamp;
-        receipt.withdrawBtcAddress = btcAddress;
-        receipt.status = Status.WithdrawRequested;
+        Group storage group = groups[receipt.groupBtcAddress];
+        group.workingReceiptId = receiptId;
 
-        groups[receipt.groupBtcAddress].workingReceiptId = receiptId;
-
-        emit BurnRequested(btcAddress, receiptId, msg.sender);
+        emit BurnRequested(receiptId, withdrawBtcAddress, msg.sender);
     }
 
     function verifyBurn(bytes32 receiptId) public {
         // TODO: allow only user or keepers to verify? If someone verified wrongly, we can punish
-        _verifyBurn(receiptId, msg.sender);
-    }
 
-    //---------------------------- Arbitration ---------------------------------
-    function chill(address keeper, uint256 chillTime) external onlyOwner {
-        _cooldown(keeper, block.timestamp.add(chillTime));
-    }
-
-    function recoverBurn(bytes32 receiptId) external onlyOwner {
         Receipt storage receipt = receipts[receiptId];
         require(
             receipt.status == Status.WithdrawRequested,
             "receipt is not in withdraw requested status"
         );
-        uint256 amount = receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC());
-        eBTC.transfer(msg.sender, amount);
 
-        receipt.status = Status.DepositReceived;
+        _burnEBTC(receipt.amountInSatoshi);
+
+        Group storage group = groups[receipt.groupBtcAddress];
+        _addGroupAllowance(group, receipt.amountInSatoshi);
+        delete group.workingReceiptId;
+
+        delete receipts[receiptId];
+        emit BurnVerified(receiptId, msg.sender);
     }
 
-    //------------------------------ Private -----------------------------------
-    function _requestDeposit(
-        address recipient,
-        string memory btcAddress,
-        uint256 amountInSatoshi,
-        uint256 identifier
-    ) private returns (bytes32) {
-        bytes32 receiptId = getReceiptId(btcAddress, recipient, identifier);
+    function recoverBurn(bytes32 receiptId) external onlyOwner {
         Receipt storage receipt = receipts[receiptId];
-        require(receipt.status == Status.Available, "receipt is in use");
+        _revokeWithdraw(receipt);
 
-        receipt.recipient = recipient;
-        receipt.groupBtcAddress = btcAddress;
-        receipt.amountInSatoshi = amountInSatoshi;
-        receipt.status = Status.DepositRequested;
-        receipt.createTimestamp = block.timestamp;
+        _transferEBTC(msg.sender, receipt.amountInSatoshi);
 
-        groups[btcAddress].workingReceiptId = receiptId;
-        return receiptId;
+        emit BurnRevoked(receiptId, msg.sender);
     }
 
-    function _verifyDeposit(
-        LibRequest.MintRequest memory request,
-        EnumerableSet.AddressSet storage keeperSet,
+    //================================ Private =================================
+    // ------------------------------ keeper -----------------------------------
+    function _cooldown(address keeper, uint256 cooldownEnd) private {
+        cooldownUntil[keeper] = cooldownEnd;
+        emit Cooldown(keeper, cooldownEnd);
+    }
+
+    // -------------------------------- group ----------------------------------
+    function _subGroupAllowance(Group storage group, uint256 amountInSatoshi) private {
+        group.currSatoshi = (group.currSatoshi).add(amountInSatoshi);
+        require(group.currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
+    }
+
+    function _addGroupAllowance(Group storage group, uint256 amountInSatoshi) private {
+        require(group.currSatoshi >= amountInSatoshi, "amount exceed min allowance");
+        group.currSatoshi = (group.currSatoshi).sub(amountInSatoshi);
+    }
+
+    function _verifyMintRequest(
+        Group storage group,
+        LibRequest.MintRequest calldata request,
         address[] calldata keepers,
         bytes32[] calldata r,
         bytes32[] calldata s,
         uint256 packedV
     ) private {
+        require(keepers.length >= group.required, "not enough keepers");
+
         uint256 cooldownTime = block.timestamp.add(KEEPER_COOLDOWN);
         bytes32 requestHash = getMintRequestHash(request);
 
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             require(cooldownUntil[keeper] <= block.timestamp, "keeper is in cooldown");
-            require(keeperSet.contains(keeper), "keeper is not in group");
+            require(group.keeperSet.contains(keeper), "keeper is not in group");
             require(
                 ecrecover(requestHash, uint8(packedV), r[i], s[i]) == keeper,
                 "invalid signature"
@@ -265,54 +285,92 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         }
     }
 
+    // ------------------------------- receipt ---------------------------------
+    function _requestDeposit(
+        Receipt storage receipt,
+        string calldata groupBtcAddress,
+        address recipient,
+        uint256 amountInSatoshi
+    ) private {
+        require(receipt.status == Status.Available, "receipt is not in Available state");
+
+        receipt.groupBtcAddress = groupBtcAddress;
+        receipt.recipient = recipient;
+        receipt.amountInSatoshi = amountInSatoshi;
+        receipt.createTimestamp = block.timestamp;
+        receipt.status = Status.DepositRequested;
+    }
+
     function _approveDeposit(
-        Group storage group,
         Receipt storage receipt,
         bytes32 txId,
         uint256 height
     ) private {
-        receipt.status = Status.DepositReceived;
+        require(
+            receipt.status == Status.DepositRequested,
+            "receipt is not in DepositRequested state"
+        );
+
         receipt.txId = txId;
         receipt.height = height;
-
-        uint256 currSatoshi = group.currSatoshi.add(receipt.amountInSatoshi);
-        require(currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
-        group.currSatoshi = currSatoshi;
-
-        delete group.workingReceiptId;
+        receipt.status = Status.DepositReceived;
     }
 
-    function _mintToUser(Receipt storage receipt) private {
-        // TODO: add fee deduction
-        eBTC.mint(
-            receipt.recipient,
-            receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC())
+    function _revokeDeposit(Receipt storage receipt) private {
+        require(receipt.status == Status.DepositRequested, "receipt is not DepositRequested");
+        require(receipt.recipient == msg.sender, "require receipt recipient");
+
+        receipt.status = Status.Available;
+    }
+
+    function _requestWithdraw(Receipt storage receipt, string calldata withdrawBtcAddress) private {
+        require(
+            receipt.status == Status.DepositReceived,
+            "receipt is not in DepositReceived state"
         );
+
+        receipt.withdrawTimestamp = block.timestamp;
+        receipt.withdrawBtcAddress = withdrawBtcAddress;
+        receipt.status = Status.WithdrawRequested;
     }
 
-    function _verifyBurn(bytes32 receiptId, address operator) private {
-        Receipt storage receipt = receipts[receiptId];
-        Group storage group = groups[receipt.groupBtcAddress];
-        group.currSatoshi = group.currSatoshi.sub(receipt.amountInSatoshi);
+    function _revokeWithdraw(Receipt storage receipt) private {
+        require(
+            receipt.status == Status.WithdrawRequested,
+            "receipt is not in WithdrawRequested status"
+        );
+        // TODO: require(msg.sender == ???) any user could revoke withdraw?
 
-        uint256 amount = receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC());
+        receipt.status = Status.DepositReceived;
+    }
+
+    // -------------------------------- eBTC -----------------------------------
+    function _mintEBTC(address to, uint256 amountInSatoshi) private {
+        // TODO: add fee deduction
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+
+        eBTC.mint(to, amount);
+    }
+
+    function _burnEBTC(uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+
         eBTC.burn(amount);
-
-        delete receipts[receiptId];
-        delete group.workingReceiptId;
-
-        emit BurnVerified(receiptId, operator);
     }
 
-    function _revokeMint(bytes32 receiptId, address operator) private {
-        Receipt storage receipt = receipts[receiptId];
-        delete receipt.status;
-        delete groups[receipt.groupBtcAddress].workingReceiptId;
-        emit MintRevoked(receiptId, operator);
+    function _transferEBTC(address to, uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+
+        eBTC.transfer(to, amount);
     }
 
-    function _cooldown(address keeper, uint256 cooldownEnd) private {
-        cooldownUntil[keeper] = cooldownEnd;
-        emit Cooldown(keeper, cooldownEnd);
+    function _transferFromEBTC(
+        address from,
+        address to,
+        uint256 amountInSatoshi
+    ) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+
+        eBTC.transferFrom(from, to, amount);
     }
 }

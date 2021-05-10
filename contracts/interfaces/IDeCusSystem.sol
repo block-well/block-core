@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
+
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
 interface IDeCusSystem {
@@ -23,26 +24,29 @@ interface IDeCusSystem {
         address recipient;
         string groupBtcAddress;
         string withdrawBtcAddress; // for withdraw
-        uint256 withdrawTime;
+        uint256 withdrawTimestamp;
     }
 
     // events
-    event GroupAdded(string btcAddress, uint256 required, uint256 maxSatoshi, address[] keepers);
-    event GroupDeleted(string btcAddress);
+    event GroupAdded(
+        string indexed btcAddress,
+        uint256 required,
+        uint256 maxSatoshi,
+        address[] keepers
+    );
+    event GroupDeleted(string indexed btcAddress);
 
     event MintRequested(
-        string btcAddress,
-        bytes32 receiptId,
-        address recipient,
+        bytes32 indexed receiptId,
+        string indexed groupBtcAddress,
+        address indexed recipient,
         uint256 amountInSatoshi
     );
-    event MintVerified(bytes32 indexed receiptId, address[] operators);
-
-    event BurnRequested(string btcAddress, bytes32 receiptId, address sender);
-
-    event BurnVerified(bytes32 indexed receiptId, address operator);
-
     event MintRevoked(bytes32 indexed receiptId, address operator);
+    event MintVerified(bytes32 indexed receiptId, address[] keepers);
+    event BurnRequested(bytes32 indexed receiptId, string withdrawBtcAddress, address operator);
+    event BurnRevoked(bytes32 indexed receiptId, address operator);
+    event BurnVerified(bytes32 indexed receiptId, address operator);
 
     event Cooldown(address indexed keeper, uint256 endTime);
 }
