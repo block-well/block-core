@@ -24,7 +24,7 @@ const networks: NetworksUserConfig = {
     localhost: {},
 };
 
-let config: HardhatUserConfig = {
+const config: HardhatUserConfig = {
     networks: networks,
     solidity: {
         version: "0.6.12",
@@ -57,7 +57,7 @@ let config: HardhatUserConfig = {
 
 const etherscanKey = process.env.ETHERSCAN_API_KEY;
 if (etherscanKey) {
-    config = { ...config, etherscan: { apiKey: etherscanKey } };
+    config.etherscan = { apiKey: etherscanKey };
 }
 
 const infuraId = process.env.INFURA_PROJECT_ID;

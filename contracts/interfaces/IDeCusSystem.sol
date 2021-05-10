@@ -8,6 +8,7 @@ interface IDeCusSystem {
         uint256 required;
         uint256 maxSatoshi;
         uint256 currSatoshi;
+        bytes32 workingReceiptId;
         EnumerableSet.AddressSet keeperSet;
     }
 
@@ -31,7 +32,7 @@ interface IDeCusSystem {
     event MintRequested(
         string btcAddress,
         bytes32 receiptId,
-        address sender,
+        address recipient,
         uint256 amountInSatoshi
     );
     event MintVerified(bytes32 indexed receiptId);

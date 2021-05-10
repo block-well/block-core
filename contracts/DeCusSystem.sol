@@ -40,11 +40,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         returns (
             uint256,
             uint256,
-            uint256
+            uint256,
+            bytes32
         )
     {
         Group storage group = groups[btcAddress];
-        return (group.required, group.maxSatoshi, group.currSatoshi);
+        return (group.required, group.maxSatoshi, group.currSatoshi, group.workingReceiptId);
     }
 
     function listGroupKeeper(string calldata btcAddress) public view returns (address[] memory) {
@@ -92,7 +93,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         for (uint256 i = 0; i < keepers.length; i++) {
             require(
                 keeperRegistry.getCollateralValue(keepers[i]) >= minKeeperSatoshi,
-                "keepre has not enough collaterl"
+                "keeper has not enough collateral"
             );
             group.keeperSet.add(keepers[i]);
         }
@@ -114,7 +115,10 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         uint256 identifier
     ) public {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
-        require(getGroupAllowance(btcAddress) >= amountInSatoshi, "exceed group allowance");
+        require(
+            getGroupAllowance(btcAddress) == amountInSatoshi,
+            "should fill all group allowance"
+        );
 
         bytes32 receiptId = _requestDeposit(msg.sender, btcAddress, amountInSatoshi, identifier);
 
@@ -222,6 +226,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         receipt.status = Status.DepositRequested;
         receipt.createTimestamp = block.timestamp;
 
+        groups[btcAddress].workingReceiptId = receiptId;
         return receiptId;
     }
 
@@ -263,6 +268,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         uint256 currSatoshi = group.currSatoshi.add(receipt.amountInSatoshi);
         require(currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
         group.currSatoshi = currSatoshi;
+
+        delete group.workingReceiptId;
     }
 
     function _mintToUser(Receipt storage receipt) private {

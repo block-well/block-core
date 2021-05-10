@@ -6,10 +6,12 @@ const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature } from "./helper";
 import { DeCusSystem, ERC20, KeeperRegistry } from "../build/typechain";
 
-const BTC_ADDRESS_0 = "38aNsdfsdfsdfsdfsdfdsfsdf0";
-const BTC_ADDRESS_1 = "38aNsdfsdfsdfsdfsdfdsfsdf1";
-// const BTC_ADDRESS_2 = "38aNsdfsdfsdfsdfsdfdsfsdf2";
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
+const BTC_ADDRESS = [
+    "38aNsdfsdfsdfsdfsdfdsfsdf0",
+    "38aNsdfsdfsdfsdfsdfdsfsdf1",
+    "38aNsdfsdfsdfsdfsdfdsfsdf2",
+];
 
 function getReceiptId(btcAddress: string, recipient: string, identifier: number): string {
     return solidityKeccak256(["string", "address", "uint256"], [btcAddress, recipient, identifier]);
@@ -18,9 +20,10 @@ function getReceiptId(btcAddress: string, recipient: string, identifier: number)
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture();
 
-    const users = waffle.provider.getWallets().slice(1, 7); // position 0 is used as deployer
+    const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
     const wbtc = (await ethers.getContract("WBTC")) as ERC20;
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
+    const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
 
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
@@ -28,33 +31,23 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return {
-        users,
-        system: (await ethers.getContract("DeCusSystem")) as DeCusSystem,
-    };
+    return { deployer, users, system };
 });
 
 describe("DeCusSystem", function () {
-    let user1: Wallet;
-    let user2: Wallet;
-    let user3: Wallet;
-    let user4: Wallet;
-    let user5: Wallet;
-    let user6: Wallet;
+    let users: Wallet[];
     let system: DeCusSystem;
 
     beforeEach(async function () {
-        let users;
         ({ users, system } = await setupFixture());
-        [user1, user2, user3, user4, user5, user6] = users;
     });
 
     describe("getReceiptId()", function () {
         it("should get receipt ID", async function () {
-            const btcAddress = BTC_ADDRESS_0;
+            const btcAddress = BTC_ADDRESS[0];
             const identifier = 0;
-            expect(await system.getReceiptId(btcAddress, user1.address, identifier)).to.be.equal(
-                getReceiptId(btcAddress, user1.address, identifier)
+            expect(await system.getReceiptId(btcAddress, users[0].address, identifier)).to.be.equal(
+                getReceiptId(btcAddress, users[0].address, identifier)
             );
         });
     });
@@ -62,153 +55,167 @@ describe("DeCusSystem", function () {
     describe("addGroup()", function () {
         it("should add group", async function () {
             await expect(
-                system.addGroup(BTC_ADDRESS_0, 3, KEEPER_SATOSHI, [
-                    user1.address,
-                    user2.address,
-                    user3.address,
-                    user4.address,
+                system.addGroup(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+                    users[0].address,
+                    users[1].address,
+                    users[2].address,
+                    users[3].address,
                 ])
             )
                 .to.emit(system, "GroupAdded")
-                .withArgs(BTC_ADDRESS_0, 3, KEEPER_SATOSHI, [
-                    user1.address,
-                    user2.address,
-                    user3.address,
-                    user4.address,
+                .withArgs(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+                    users[0].address,
+                    users[1].address,
+                    users[2].address,
+                    users[3].address,
                 ]);
 
-            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+            expect(await system.getGroup(BTC_ADDRESS[0])).deep.equal([
                 BigNumber.from(3),
                 BigNumber.from(KEEPER_SATOSHI),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
-            expect(await system.getGroupAllowance(BTC_ADDRESS_0)).equal(
+            expect(await system.getGroupAllowance(BTC_ADDRESS[0])).equal(
                 BigNumber.from(KEEPER_SATOSHI)
             );
-            expect(await system.listGroupKeeper(BTC_ADDRESS_0)).deep.equal([
-                user1.address,
-                user2.address,
-                user3.address,
-                user4.address,
+            expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([
+                users[0].address,
+                users[1].address,
+                users[2].address,
+                users[3].address,
             ]);
         });
     });
 
     describe("deleteGroup()", function () {
         beforeEach(async function () {
-            await system.addGroup(BTC_ADDRESS_0, 3, KEEPER_SATOSHI, [
-                user1.address,
-                user2.address,
-                user3.address,
-                user4.address,
+            await system.addGroup(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+                users[0].address,
+                users[1].address,
+                users[2].address,
+                users[3].address,
             ]);
         });
 
         it("delete not exist", async function () {
-            await expect(system.deleteGroup(BTC_ADDRESS_1))
+            await expect(system.deleteGroup(BTC_ADDRESS[1]))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS_1);
+                .withArgs(BTC_ADDRESS[1]);
         });
 
         it("should delete group", async function () {
-            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+            expect(await system.getGroup(BTC_ADDRESS[0])).deep.equal([
                 BigNumber.from(3),
                 BigNumber.from(KEEPER_SATOSHI),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
-            expect(await system.listGroupKeeper(BTC_ADDRESS_0)).deep.equal([
-                user1.address,
-                user2.address,
-                user3.address,
-                user4.address,
+            expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([
+                users[0].address,
+                users[1].address,
+                users[2].address,
+                users[3].address,
             ]);
 
-            await expect(system.deleteGroup(BTC_ADDRESS_0))
+            await expect(system.deleteGroup(BTC_ADDRESS[0]))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS_0);
+                .withArgs(BTC_ADDRESS[0]);
 
-            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+            expect(await system.getGroup(BTC_ADDRESS[0])).deep.equal([
                 BigNumber.from(0),
                 BigNumber.from(0),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
-            expect(await system.listGroupKeeper(BTC_ADDRESS_0)).deep.equal([]);
+            expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([]);
         });
 
         it("delete group twice", async function () {
-            await expect(system.deleteGroup(BTC_ADDRESS_0))
+            await expect(system.deleteGroup(BTC_ADDRESS[0]))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS_0);
+                .withArgs(BTC_ADDRESS[0]);
 
-            await expect(system.deleteGroup(BTC_ADDRESS_0))
+            await expect(system.deleteGroup(BTC_ADDRESS[0]))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS_0);
+                .withArgs(BTC_ADDRESS[0]);
         });
 
         it("add same address", async function () {
-            await expect(system.deleteGroup(BTC_ADDRESS_0))
+            await expect(system.deleteGroup(BTC_ADDRESS[0]))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS_0);
+                .withArgs(BTC_ADDRESS[0]);
 
-            await system.addGroup(BTC_ADDRESS_0, 2, KEEPER_SATOSHI, [user3.address, user4.address]);
-            expect(await system.getGroup(BTC_ADDRESS_0)).deep.equal([
+            await system.addGroup(BTC_ADDRESS[0], 2, KEEPER_SATOSHI, [
+                users[2].address,
+                users[3].address,
+            ]);
+            expect(await system.getGroup(BTC_ADDRESS[0])).deep.equal([
                 BigNumber.from(2),
                 BigNumber.from(KEEPER_SATOSHI),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
         });
     });
 
     describe("requestMint()", function () {
         beforeEach(async function () {
-            await system.addGroup(BTC_ADDRESS_0, 3, KEEPER_SATOSHI, [
-                user1.address,
-                user2.address,
-                user3.address,
-                user4.address,
+            await system.addGroup(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+                users[0].address,
+                users[1].address,
+                users[2].address,
+                users[3].address,
             ]);
-            await system.addGroup(BTC_ADDRESS_1, 3, KEEPER_SATOSHI, [
-                user1.address,
-                user2.address,
-                user5.address,
-                user6.address,
+            await system.addGroup(BTC_ADDRESS[1], 3, KEEPER_SATOSHI, [
+                users[0].address,
+                users[1].address,
+                users[4].address,
+                users[5].address,
             ]);
         });
 
         it("should request mint", async function () {
-            const btcAddress = BTC_ADDRESS_0;
+            const btcAddress = BTC_ADDRESS[0];
             const amountInSatoshi = KEEPER_SATOSHI;
             const identifier = 0;
-            const receiptId = getReceiptId(btcAddress, user1.address, identifier);
+            const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
 
-            await expect(system.connect(user1).requestMint(btcAddress, amountInSatoshi, identifier))
+            // working receipt
+            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+
+            await expect(
+                system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier)
+            )
                 .to.emit(system, "MintRequested")
-                .withArgs(BTC_ADDRESS_0, receiptId, user1.address, amountInSatoshi);
+                .withArgs(BTC_ADDRESS[0], receiptId, users[0].address, amountInSatoshi);
+
+            expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
         });
     });
 
     describe("verifyMint()", function () {
-        const btcAddress = BTC_ADDRESS_0;
+        const btcAddress = BTC_ADDRESS[0];
         const identifier = 0;
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
 
         beforeEach(async function () {
-            await system.addGroup(BTC_ADDRESS_0, 3, KEEPER_SATOSHI, [
-                user1.address,
-                user2.address,
-                user3.address,
-                user4.address,
+            await system.addGroup(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+                users[0].address,
+                users[1].address,
+                users[2].address,
+                users[3].address,
             ]);
-            await system.addGroup(BTC_ADDRESS_1, 3, KEEPER_SATOSHI, [
-                user1.address,
-                user2.address,
-                user5.address,
-                user6.address,
+            await system.addGroup(BTC_ADDRESS[1], 3, KEEPER_SATOSHI, [
+                users[0].address,
+                users[1].address,
+                users[4].address,
+                users[5].address,
             ]);
-            await system.connect(user1).requestMint(btcAddress, KEEPER_SATOSHI, identifier);
-            receiptId = getReceiptId(btcAddress, user1.address, identifier);
+            await system.connect(users[0]).requestMint(btcAddress, KEEPER_SATOSHI, identifier);
+            receiptId = getReceiptId(btcAddress, users[0].address, identifier);
         });
 
         it("should verify mint", async function () {
@@ -220,7 +227,7 @@ describe("DeCusSystem", function () {
             expect(group[2]).to.be.equal(0);
 
             const [rList, sList, packedV] = await prepareSignature(
-                [user2, user3, user4],
+                [users[1], users[2], users[3]],
                 system.address,
                 receiptId,
                 txId,
@@ -228,10 +235,10 @@ describe("DeCusSystem", function () {
             );
             await expect(
                 system
-                    .connect(user1)
+                    .connect(users[0])
                     .verifyMint(
                         { receiptId, txId, height },
-                        [user2.address, user3.address, user4.address],
+                        [users[1].address, users[2].address, users[3].address],
                         rList,
                         sList,
                         packedV
@@ -246,6 +253,7 @@ describe("DeCusSystem", function () {
             expect(receipt.txId).to.be.equal(txId);
             expect(receipt.height).to.be.equal(height);
             expect(group[2]).to.be.equal(KEEPER_SATOSHI);
+            expect(group[3]).to.be.equal(ethers.constants.HashZero);
         });
     });
 });
