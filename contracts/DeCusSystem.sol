@@ -26,7 +26,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
     mapping(address => uint256) private cooldownUntil; // keeper address -> cooldown end timestamp
-    mapping(string => bytes32) private groupWorkingReceiptId; // group -> working receipt id
 
     function initialize(address _eBTC, address _registry) external {
         eBTC = IEBTC(_eBTC);
@@ -39,11 +38,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         returns (
             uint256,
             uint256,
-            uint256
+            uint256,
+            bytes32
         )
     {
         Group storage group = groups[btcAddress];
-        return (group.required, group.maxSatoshi, group.currSatoshi);
+        return (group.required, group.maxSatoshi, group.currSatoshi, group.workingReceiptId);
     }
 
     function listGroupKeeper(string calldata btcAddress) public view returns (address[] memory) {
@@ -62,10 +62,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function getCooldownTime(address keeper) external view returns (uint256) {
         return cooldownUntil[keeper];
-    }
-
-    function getWorkingReceiptId(string memory btcAddress) external view returns (bytes32) {
-        return groupWorkingReceiptId[btcAddress];
     }
 
     function getReceiptId(
@@ -120,8 +116,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         require(
             getGroupAllowance(btcAddress) == amountInSatoshi,
             "should fill all group allowance"
-        ); // TODO: consider more flexible amount later
-        // require(getGroupAllowance(btcAddress) >= amountInSatoshi, "exceed group allowance");
+        );
 
         bytes32 receiptId = _requestDeposit(msg.sender, btcAddress, amountInSatoshi, identifier);
 
@@ -169,7 +164,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         receipt.status = Status.DepositRequested;
         receipt.createTimestamp = block.timestamp;
 
-        groupWorkingReceiptId[btcAddress] = receiptId;
+        groups[btcAddress].workingReceiptId = receiptId;
         return receiptId;
     }
 
@@ -212,7 +207,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         require(currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
         group.currSatoshi = currSatoshi;
 
-        delete groupWorkingReceiptId[receipt.btcAddress];
+        delete group.workingReceiptId;
     }
 
     function _mintToUser(Receipt storage receipt) private {
