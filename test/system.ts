@@ -225,7 +225,7 @@ describe("DeCusSystem", function () {
                 system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier)
             )
                 .to.emit(system, "MintRequested")
-                .withArgs(receiptId, BTC_ADDRESS[0], users[0].address, amountInSatoshi);
+                .withArgs(receiptId, users[0].address, amountInSatoshi, BTC_ADDRESS[0]);
 
             expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
         });
@@ -280,7 +280,7 @@ describe("DeCusSystem", function () {
                 .to.emit(system, "MintRevoked")
                 .withArgs(receiptId, users[1].address)
                 .to.emit(system, "MintRequested")
-                .withArgs(receiptId2, btcAddress, users[1].address, GROUP_SATOSHI);
+                .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
         });
     });
 
@@ -412,7 +412,7 @@ describe("DeCusSystem", function () {
                 .to.emit(system, "BurnVerified")
                 .withArgs(receiptId, users[1].address)
                 .to.emit(system, "MintRequested")
-                .withArgs(receiptId2, btcAddress, users[1].address, GROUP_SATOSHI);
+                .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
 
             const group = await system.getGroup(btcAddress);
             expect(group[2]).to.be.equal(0);

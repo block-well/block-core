@@ -28,19 +28,14 @@ interface IDeCusSystem {
     }
 
     // events
-    event GroupAdded(
-        string indexed btcAddress,
-        uint256 required,
-        uint256 maxSatoshi,
-        address[] keepers
-    );
-    event GroupDeleted(string indexed btcAddress);
+    event GroupAdded(string btcAddress, uint256 required, uint256 maxSatoshi, address[] keepers);
+    event GroupDeleted(string btcAddress);
 
     event MintRequested(
         bytes32 indexed receiptId,
-        string indexed groupBtcAddress,
         address indexed recipient,
-        uint256 amountInSatoshi
+        uint256 amountInSatoshi,
+        string groupBtcAddress
     );
     event MintRevoked(bytes32 indexed receiptId, address operator);
     event MintVerified(bytes32 indexed receiptId, address[] keepers);

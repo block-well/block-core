@@ -140,7 +140,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         group.workingReceiptId = receiptId;
 
-        emit MintRequested(receiptId, groupBtcAddress, recipient, amountInSatoshi);
+        emit MintRequested(receiptId, recipient, amountInSatoshi, groupBtcAddress);
     }
 
     function revokeMint(bytes32 receiptId) public {
