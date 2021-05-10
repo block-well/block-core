@@ -7,6 +7,7 @@ import { prepareSignature, advanceTimeAndBlock } from "./helper";
 import { DeCusSystem, EBTC, ERC20, KeeperRegistry } from "../build/typechain";
 
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
+const GROUP_SATOSHI = parseBtc("0.6");
 const BTC_ADDRESS = [
     "38aNsdfsdfsdfsdfsdfdsfsdf0",
     "38aNsdfsdfsdfsdfsdfdsfsdf1",
@@ -57,7 +58,7 @@ describe("DeCusSystem", function () {
     describe("addGroup()", function () {
         it("should add group", async function () {
             await expect(
-                system.addGroup(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+                system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, [
                     users[0].address,
                     users[1].address,
                     users[2].address,
@@ -65,7 +66,7 @@ describe("DeCusSystem", function () {
                 ])
             )
                 .to.emit(system, "GroupAdded")
-                .withArgs(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+                .withArgs(BTC_ADDRESS[0], 3, GROUP_SATOSHI, [
                     users[0].address,
                     users[1].address,
                     users[2].address,
@@ -74,12 +75,12 @@ describe("DeCusSystem", function () {
 
             expect(await system.getGroup(BTC_ADDRESS[0])).deep.equal([
                 BigNumber.from(3),
-                BigNumber.from(KEEPER_SATOSHI),
+                BigNumber.from(GROUP_SATOSHI),
                 BigNumber.from(0),
                 ethers.constants.HashZero,
             ]);
             expect(await system.getGroupAllowance(BTC_ADDRESS[0])).equal(
-                BigNumber.from(KEEPER_SATOSHI)
+                BigNumber.from(GROUP_SATOSHI)
             );
             expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([
                 users[0].address,
@@ -92,7 +93,7 @@ describe("DeCusSystem", function () {
 
     describe("deleteGroup()", function () {
         beforeEach(async function () {
-            await system.addGroup(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+            await system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, [
                 users[0].address,
                 users[1].address,
                 users[2].address,
@@ -109,7 +110,7 @@ describe("DeCusSystem", function () {
         it("should delete group", async function () {
             expect(await system.getGroup(BTC_ADDRESS[0])).deep.equal([
                 BigNumber.from(3),
-                BigNumber.from(KEEPER_SATOSHI),
+                BigNumber.from(GROUP_SATOSHI),
                 BigNumber.from(0),
                 ethers.constants.HashZero,
             ]);
@@ -148,13 +149,13 @@ describe("DeCusSystem", function () {
                 .to.emit(system, "GroupDeleted")
                 .withArgs(BTC_ADDRESS[0]);
 
-            await system.addGroup(BTC_ADDRESS[0], 2, KEEPER_SATOSHI, [
+            await system.addGroup(BTC_ADDRESS[0], 2, GROUP_SATOSHI, [
                 users[2].address,
                 users[3].address,
             ]);
             expect(await system.getGroup(BTC_ADDRESS[0])).deep.equal([
                 BigNumber.from(2),
-                BigNumber.from(KEEPER_SATOSHI),
+                BigNumber.from(GROUP_SATOSHI),
                 BigNumber.from(0),
                 ethers.constants.HashZero,
             ]);
@@ -162,13 +163,13 @@ describe("DeCusSystem", function () {
     });
 
     const addMockGroup = async (): Promise<void> => {
-        await system.addGroup(BTC_ADDRESS[0], 3, KEEPER_SATOSHI, [
+        await system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, [
             users[0].address,
             users[1].address,
             users[2].address,
             users[3].address,
         ]);
-        await system.addGroup(BTC_ADDRESS[1], 3, KEEPER_SATOSHI, [
+        await system.addGroup(BTC_ADDRESS[1], 3, GROUP_SATOSHI, [
             users[0].address,
             users[1].address,
             users[4].address,
@@ -181,7 +182,7 @@ describe("DeCusSystem", function () {
         btcAddress: string,
         identifier: number
     ): Promise<string> => {
-        await system.connect(user).requestMint(btcAddress, KEEPER_SATOSHI, identifier);
+        await system.connect(user).requestMint(btcAddress, GROUP_SATOSHI, identifier);
         return getReceiptId(btcAddress, user.address, identifier);
     };
 
@@ -213,7 +214,7 @@ describe("DeCusSystem", function () {
 
         it("should request mint", async function () {
             const btcAddress = BTC_ADDRESS[0];
-            const amountInSatoshi = KEEPER_SATOSHI;
+            const amountInSatoshi = GROUP_SATOSHI;
             const identifier = 0;
             const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
 
@@ -229,9 +230,58 @@ describe("DeCusSystem", function () {
             expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
         });
 
-        // TODO: revoke mint
+        it("revoke mint", async function () {
+            const btcAddress = BTC_ADDRESS[0];
+            const amountInSatoshi = GROUP_SATOSHI;
+            const identifier = 0;
+            const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
+
+            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier);
+
+            expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
+
+            await expect(system.connect(users[1]).revokeMint(receiptId)).to.revertedWith(
+                "require receipt recipient"
+            );
+
+            await expect(system.connect(users[0]).revokeMint(receiptId))
+                .to.emit(system, "MintRevoked")
+                .withArgs(receiptId, users[0].address);
+
+            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+        });
 
         // TODO: force mint request
+        it("force mint request", async function () {
+            const btcAddress = BTC_ADDRESS[0];
+            const amountInSatoshi = GROUP_SATOSHI;
+            const identifier = 0;
+            const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
+
+            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier);
+
+            expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
+
+            const identifier2 = identifier + 1;
+            await expect(
+                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, identifier2)
+            ).to.revertedWith("deposit in progress");
+
+            advanceTimeAndBlock(24 * 3600);
+
+            const receiptId2 = getReceiptId(btcAddress, users[1].address, identifier2);
+            await expect(
+                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, identifier2)
+            )
+                .to.emit(system, "MintRevoked")
+                .withArgs(receiptId, users[1].address)
+                .to.emit(system, "MintRequested")
+                .withArgs(btcAddress, receiptId2, users[1].address, GROUP_SATOSHI);
+        });
     });
 
     describe("verifyMint()", function () {
@@ -278,12 +328,10 @@ describe("DeCusSystem", function () {
             expect(receipt.status).to.be.equal(2);
             expect(receipt.txId).to.be.equal(txId);
             expect(receipt.height).to.be.equal(height);
-            expect(group[2]).to.be.equal(KEEPER_SATOSHI);
+            expect(group[2]).to.be.equal(GROUP_SATOSHI);
             expect(group[3]).to.be.equal(ethers.constants.HashZero);
 
-            expect(await ebtc.balanceOf(users[0].address)).to.be.equal(
-                KEEPER_SATOSHI.mul(10 ** 10)
-            );
+            expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
         });
     });
 
@@ -294,7 +342,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
-        const userEbtcAmount = KEEPER_SATOSHI.mul(10 ** 10);
+        const userEbtcAmount = GROUP_SATOSHI.mul(10 ** 10);
 
         beforeEach(async function () {
             await addMockGroup();
@@ -325,7 +373,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
-        const userEbtcAmount = KEEPER_SATOSHI.mul(10 ** 10);
+        const userEbtcAmount = GROUP_SATOSHI.mul(10 ** 10);
 
         beforeEach(async function () {
             await addMockGroup();
@@ -354,15 +402,17 @@ describe("DeCusSystem", function () {
 
             const identifier2 = identifier + 1;
             await expect(
-                system.connect(users[1]).requestMint(btcAddress, KEEPER_SATOSHI, identifier2)
+                system.connect(users[1]).requestMint(btcAddress, GROUP_SATOSHI, identifier2)
             ).to.be.revertedWith("working receipt in progress");
 
+            const receiptId2 = getReceiptId(btcAddress, users[1].address, identifier2);
             await expect(
-                system.connect(users[1]).forceRequestMint(btcAddress, KEEPER_SATOSHI, identifier2)
+                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, identifier2)
             )
                 .to.emit(system, "BurnVerified")
-                .withArgs(receiptId, users[1].address);
-            const receiptId2 = getReceiptId(btcAddress, users[1].address, identifier2);
+                .withArgs(receiptId, users[1].address)
+                .to.emit(system, "MintRequested")
+                .withArgs(btcAddress, receiptId2, users[1].address, GROUP_SATOSHI);
 
             const group = await system.getGroup(btcAddress);
             expect(group[2]).to.be.equal(0);

@@ -198,7 +198,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     }
 
     function verifyBurn(bytes32 receiptId) public {
-        // TODO: allow only user or keepers can verify? If someone verified wrongly, we can punish
+        // TODO: allow only user or keepers to verify? If someone verified wrongly, we can punish
         _verifyBurn(receiptId, msg.sender);
     }
 
