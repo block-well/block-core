@@ -74,6 +74,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(3),
                 BigNumber.from(KEEPER_SATOSHI),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
             expect(await system.getGroupAllowance(BTC_ADDRESS[0])).equal(
                 BigNumber.from(KEEPER_SATOSHI)
@@ -108,6 +109,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(3),
                 BigNumber.from(KEEPER_SATOSHI),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
             expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([
                 users[0].address,
@@ -124,6 +126,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(0),
                 BigNumber.from(0),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
             expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([]);
         });
@@ -151,6 +154,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(2),
                 BigNumber.from(KEEPER_SATOSHI),
                 BigNumber.from(0),
+                ethers.constants.HashZero,
             ]);
         });
     });
@@ -177,13 +181,16 @@ describe("DeCusSystem", function () {
             const identifier = 0;
             const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
 
+            // working receipt
+            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+
             await expect(
                 system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier)
             )
                 .to.emit(system, "MintRequested")
                 .withArgs(BTC_ADDRESS[0], receiptId, users[0].address, amountInSatoshi);
 
-            expect(await system.getWorkingReceiptId(btcAddress)).to.equal(receiptId);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
         });
     });
 
@@ -246,10 +253,7 @@ describe("DeCusSystem", function () {
             expect(receipt.txId).to.be.equal(txId);
             expect(receipt.height).to.be.equal(height);
             expect(group[2]).to.be.equal(KEEPER_SATOSHI);
-
-            expect(await system.getWorkingReceiptId(btcAddress)).to.equal(
-                ethers.constants.HashZero
-            );
+            expect(group[3]).to.be.equal(ethers.constants.HashZero);
         });
     });
 });
