@@ -38,7 +38,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     // ------------------------------ keeper -----------------------------------
     function chill(address keeper, uint256 chillTime) external onlyOwner {
-        _cooldown(keeper, block.timestamp.add(chillTime));
+        _cooldown(keeper, (block.timestamp).add(chillTime));
     }
 
     function getCooldownTime(address keeper) external view returns (uint256) {
@@ -65,7 +65,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         return group.maxSatoshi.sub(group.currSatoshi);
     }
 
-    function listGroupKeeper(string calldata btcAddress) public view returns (address[] memory) {
+    function listGroupKeeper(string calldata btcAddress) external view returns (address[] memory) {
         Group storage group = groups[btcAddress];
 
         address[] memory keeperArray = new address[](group.keeperSet.length());
@@ -144,6 +144,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function revokeMint(bytes32 receiptId) public {
         Receipt storage receipt = receipts[receiptId];
+        require(receipt.recipient == msg.sender, "require receipt recipient");
+
+        _revokeMint(receiptId);
+    }
+
+    function _revokeMint(bytes32 receiptId) private {
+        Receipt storage receipt = receipts[receiptId];
         _revokeDeposit(receipt);
 
         Group storage group = groups[receipt.groupBtcAddress];
@@ -162,18 +169,16 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         if (receipt.status == Status.WithdrawRequested) {
             require(
-                receipt.withdrawTimestamp.add(WITHDRAW_VERIFICATION_END) < block.timestamp,
+                (receipt.withdrawTimestamp).add(WITHDRAW_VERIFICATION_END) < block.timestamp,
                 "withdraw in progress"
             );
             verifyBurn(group.workingReceiptId);
         } else if (receipt.status == Status.DepositRequested) {
             require(
-                receipt.createTimestamp.add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
+                (receipt.createTimestamp).add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
                 "deposit in progress"
             );
-            // force transfer control to msg.sender
-            receipt.recipient = msg.sender;
-            revokeMint(group.workingReceiptId);
+            _revokeMint(group.workingReceiptId);
         }
 
         requestMint(groupBtcAddress, amountInSatoshi, identifier);
@@ -188,12 +193,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     ) public {
         Receipt storage receipt = receipts[request.receiptId];
         Group storage group = groups[receipt.groupBtcAddress];
+        _subGroupAllowance(group, receipt.amountInSatoshi);
 
         _verifyMintRequest(group, request, keepers, r, s, packedV);
         _approveDeposit(receipt, request.txId, request.height);
         _mintEBTC(receipt.recipient, receipt.amountInSatoshi);
 
-        _subGroupAllowance(group, receipt.amountInSatoshi);
         delete group.workingReceiptId;
 
         emit MintVerified(request.receiptId, keepers);
@@ -214,24 +219,21 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function verifyBurn(bytes32 receiptId) public {
         // TODO: allow only user or keepers to verify? If someone verified wrongly, we can punish
-
         Receipt storage receipt = receipts[receiptId];
-        require(
-            receipt.status == Status.WithdrawRequested,
-            "receipt is not in withdraw requested status"
-        );
+        _approveWithdraw(receipt);
 
         _burnEBTC(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
         _addGroupAllowance(group, receipt.amountInSatoshi);
+
         delete group.workingReceiptId;
 
         delete receipts[receiptId];
         emit BurnVerified(receiptId, msg.sender);
     }
 
-    function recoverBurn(bytes32 receiptId) external onlyOwner {
+    function recoverBurn(bytes32 receiptId) public onlyOwner {
         Receipt storage receipt = receipts[receiptId];
         _revokeWithdraw(receipt);
 
@@ -240,7 +242,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         emit BurnRevoked(receiptId, msg.sender);
     }
 
-    //================================ Private =================================
+    //=============================== Private ==================================
     // ------------------------------ keeper -----------------------------------
     function _cooldown(address keeper, uint256 cooldownEnd) private {
         cooldownUntil[keeper] = cooldownEnd;
@@ -268,7 +270,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     ) private {
         require(keepers.length >= group.required, "not enough keepers");
 
-        uint256 cooldownTime = block.timestamp.add(KEEPER_COOLDOWN);
+        uint256 cooldownTime = (block.timestamp).add(KEEPER_COOLDOWN);
         bytes32 requestHash = getMintRequestHash(request);
 
         for (uint256 i = 0; i < keepers.length; i++) {
@@ -318,7 +320,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function _revokeDeposit(Receipt storage receipt) private {
         require(receipt.status == Status.DepositRequested, "receipt is not DepositRequested");
-        require(receipt.recipient == msg.sender, "require receipt recipient");
 
         receipt.status = Status.Available;
     }
@@ -334,12 +335,20 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         receipt.status = Status.WithdrawRequested;
     }
 
+    function _approveWithdraw(Receipt storage receipt) private view {
+        require(
+            receipt.status == Status.WithdrawRequested,
+            "receipt is not in withdraw requested status"
+        );
+
+        // cause receipt delete soon, no status change
+    }
+
     function _revokeWithdraw(Receipt storage receipt) private {
         require(
             receipt.status == Status.WithdrawRequested,
             "receipt is not in WithdrawRequested status"
         );
-        // TODO: require(msg.sender == ???) any user could revoke withdraw?
 
         receipt.status = Status.DepositReceived;
     }

@@ -23,7 +23,7 @@ interface IDeCusSystem {
         Status status;
         address recipient;
         string groupBtcAddress;
-        string withdrawBtcAddress; // for withdraw
+        string withdrawBtcAddress;
         uint256 withdrawTimestamp;
     }
 
