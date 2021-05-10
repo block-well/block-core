@@ -21,7 +21,8 @@ interface IDeCusSystem {
         uint256 height;
         Status status;
         address recipient;
-        string btcAddress; // for withdraw
+        string groupBtcAddress;
+        string withdrawBtcAddress; // for withdraw
         uint256 withdrawTime;
     }
 
@@ -35,9 +36,13 @@ interface IDeCusSystem {
         address recipient,
         uint256 amountInSatoshi
     );
-    event MintVerified(bytes32 indexed receiptId);
+    event MintVerified(bytes32 indexed receiptId, address[] operators);
 
     event BurnRequested(string btcAddress, bytes32 receiptId, address sender);
+
+    event BurnVerified(bytes32 indexed receiptId, address operator);
+
+    event MintRevoked(bytes32 indexed receiptId, address operator);
 
     event Cooldown(address indexed keeper, uint256 endTime);
 }
