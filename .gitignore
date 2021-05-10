@@ -3,3 +3,8 @@
 /artifacts/
 /coverage/
 /coverage.json
+/build
+/deployments
+/scripts
+
+.env

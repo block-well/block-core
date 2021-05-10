@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
+
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
@@ -9,10 +10,10 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IEBTC} from "./interfaces/IEBTC.sol";
-import {SignatureValidator, LibRequest} from "./utils/SignatureValidator.sol";
+import {LibRequest} from "./utils/LibRequest.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
-contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
+contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -233,15 +234,20 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         uint256 packedV
     ) private {
         uint256 cooldownTime = block.timestamp.add(KEEPER_COOLDOWN);
+        bytes32 requestHash = getMintRequestHash(request);
+
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             require(cooldownUntil[keeper] <= block.timestamp, "keeper is in cooldown");
             require(keeperSet.contains(keeper), "keeper is not in group");
+            require(
+                ecrecover(requestHash, uint8(packedV), r[i], s[i]) == keeper,
+                "invalid signature"
+            );
 
             _cooldown(keeper, cooldownTime);
+            packedV >>= 8;
         }
-
-        _batchValidate(request, keepers, r, s, packedV);
     }
 
     function _approveDeposit(

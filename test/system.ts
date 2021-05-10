@@ -1,12 +1,10 @@
 import { expect } from "chai";
-import { BigNumber, Contract, Wallet, constants } from "ethers";
-import { MockContract, MockProvider } from "ethereum-waffle";
-import { waffle, ethers } from "hardhat";
-const { loadFixture } = waffle;
-const { /*parseEther,*/ parseUnits, solidityKeccak256 } = ethers.utils;
+import { BigNumber, Wallet, constants } from "ethers";
+import { deployments, ethers, waffle } from "hardhat";
+const { parseUnits, solidityKeccak256 } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
-import { deployMockForName } from "./mock";
 import { prepareSignature } from "./helper";
+import { DeCusSystem, ERC20, KeeperRegistry } from "../build/typechain";
 
 const BTC_ADDRESS_0 = "38aNsdfsdfsdfsdfsdfdsfsdf0";
 const BTC_ADDRESS_1 = "38aNsdfsdfsdfsdfsdfdsfsdf1";
@@ -17,61 +15,38 @@ function getReceiptId(btcAddress: string, recipient: string, identifier: number)
     return solidityKeccak256(["string", "address", "uint256"], [btcAddress, recipient, identifier]);
 }
 
+const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
+    await deployments.fixture();
+
+    const users = waffle.provider.getWallets().slice(1, 7); // position 0 is used as deployer
+    const wbtc = (await ethers.getContract("WBTC")) as ERC20;
+    const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
+
+    for (const user of users) {
+        await wbtc.mint(user.address, parseBtc("100"));
+        await wbtc.connect(user).approve(registry.address, parseBtc("100"));
+        await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
+    }
+
+    return {
+        users,
+        system: (await ethers.getContract("DeCusSystem")) as DeCusSystem,
+    };
+});
+
 describe("DeCusSystem", function () {
-    interface FixtureWalletMap {
-        readonly [name: string]: Wallet;
-    }
-
-    interface FixtureData {
-        readonly wallets: FixtureWalletMap;
-        readonly ebtc: MockContract;
-        readonly system: Contract;
-    }
-
-    let fixtureData: FixtureData;
-
     let user1: Wallet;
     let user2: Wallet;
     let user3: Wallet;
     let user4: Wallet;
     let user5: Wallet;
     let user6: Wallet;
-    // let owner: Wallet;
-    // let ebtc: MockContract;
-    let system: Contract;
-
-    async function deployFixture(_wallets: Wallet[], provider: MockProvider): Promise<FixtureData> {
-        const [user1, user2, user3, user4, user5, user6, owner] = provider.getWallets();
-
-        const DeCusSystem = await ethers.getContractFactory("DeCusSystem");
-        const system = await DeCusSystem.connect(owner).deploy();
-
-        const ebtc = await deployMockForName(owner, "IEBTC");
-        await ebtc.mock.mint.returns(); // 0.1% per day
-
-        const registry = await deployMockForName(owner, "IKeeperRegistry");
-        await registry.mock.getCollateralValue.returns(parseBtc("0.5")); // 0.1% per day
-
-        await system.initialize(ebtc.address, registry.address);
-
-        return {
-            wallets: { user1, user2, user3, user4, user5, user6, owner },
-            ebtc,
-            system,
-        };
-    }
+    let system: DeCusSystem;
 
     beforeEach(async function () {
-        fixtureData = await loadFixture(deployFixture);
-        user1 = fixtureData.wallets.user1;
-        user2 = fixtureData.wallets.user2;
-        user3 = fixtureData.wallets.user3;
-        user4 = fixtureData.wallets.user4;
-        user5 = fixtureData.wallets.user5;
-        user6 = fixtureData.wallets.user6;
-        // owner = fixtureData.wallets.owner;
-        // ebtc = fixtureData.ebtc;
-        system = fixtureData.system;
+        let users;
+        ({ users, system } = await setupFixture());
+        [user1, user2, user3, user4, user5, user6] = users;
     });
 
     describe("getReceiptId()", function () {
@@ -255,7 +230,7 @@ describe("DeCusSystem", function () {
                 system
                     .connect(user1)
                     .verifyMint(
-                        [receiptId, txId, height],
+                        { receiptId, txId, height },
                         [user2.address, user3.address, user4.address],
                         rList,
                         sList,
