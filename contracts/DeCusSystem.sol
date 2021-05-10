@@ -87,11 +87,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         group.required = required;
         group.maxSatoshi = maxSatoshi;
         for (uint256 i = 0; i < keepers.length; i++) {
+            address keeper = keepers[i];
             require(
-                keeperRegistry.getCollateralValue(keepers[i]) >= minKeeperSatoshi,
+                keeperRegistry.getCollateralValue(keeper) >= minKeeperSatoshi,
                 "keeper has not enough collateral"
             );
-            group.keeperSet.add(keepers[i]);
+            group.keeperSet.add(keeper);
         }
 
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
@@ -275,15 +276,17 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
+
             require(cooldownUntil[keeper] <= block.timestamp, "keeper is in cooldown");
             require(group.keeperSet.contains(keeper), "keeper is not in group");
             require(
                 ecrecover(requestHash, uint8(packedV), r[i], s[i]) == keeper,
                 "invalid signature"
             );
+            // assert keepers.length <= 32
+            packedV >>= 8;
 
             _cooldown(keeper, cooldownTime);
-            packedV >>= 8;
         }
     }
 
