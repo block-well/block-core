@@ -11,13 +11,7 @@ interface IDeCusSystem {
         EnumerableSet.AddressSet keeperSet;
     }
 
-    enum Status {
-        Available,
-        DepositRequested,
-        DepositReceived,
-        WithdrawRequested,
-        WithdrawDone // should equal to Available
-    }
+    enum Status {Available, DepositRequested, DepositReceived, WithdrawRequested}
 
     struct Receipt {
         address recipient;
@@ -27,6 +21,7 @@ interface IDeCusSystem {
         uint256 height;
         Status status;
         string btcAddress; // for withdraw
+        uint256 withdrawTime;
     }
 
     // events
@@ -40,6 +35,8 @@ interface IDeCusSystem {
         uint256 amountInSatoshi
     );
     event MintVerified(bytes32 indexed receiptId);
+
+    event BurnRequested(string btcAddress, bytes32 receiptId, address sender);
 
     event Cooldown(address indexed keeper, uint256 endTime);
 }

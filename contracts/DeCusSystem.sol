@@ -17,6 +17,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant KEEPER_COOLDOWN = 10 minutes;
+    uint256 public constant WITHDRAW_VERIFICATION_START = 1 hours;
+    uint256 public constant WITHDRAW_VERIFICATION_END = 1 days;
     uint256 public minKeeperSatoshi = 1e5;
 
     IEBTC public eBTC;
@@ -137,9 +139,56 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
         emit MintVerified(request.receiptId);
     }
 
+    function requestBurn(bytes32 receiptId, string memory btcAddress) public {
+        // TODO: add fee deduction
+        Receipt storage receipt = receipts[receiptId];
+        require(
+            receipt.status == Status.DepositReceived,
+            "receipt is not in DepositReceived state"
+        );
+
+        uint256 amount = receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC());
+        eBTC.transferFrom(msg.sender, address(this), amount);
+
+        receipt.withdrawTime = block.timestamp;
+        receipt.btcAddress = btcAddress;
+        receipt.status = Status.WithdrawRequested;
+
+        emit BurnRequested(btcAddress, receiptId, msg.sender);
+    }
+
+    function verifyBurn(bytes32 receiptId) public {
+        Receipt memory receipt = receipts[receiptId];
+        require(
+            receipt.status == Status.WithdrawRequested &&
+                receipt.withdrawTime.add(WITHDRAW_VERIFICATION_START) < block.timestamp,
+            "receipt is not in withdraw verification period"
+        );
+        groups[receipt.btcAddress].currSatoshi = groups[receipt.btcAddress].currSatoshi.sub(
+            receipt.amountInSatoshi
+        );
+
+        uint256 amount = receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC());
+        eBTC.burn(amount);
+
+        delete receipts[receiptId];
+    }
+
     //---------------------------- Arbitration ---------------------------------
     function chill(address keeper, uint256 chillTime) external onlyOwner {
         _cooldown(keeper, block.timestamp.add(chillTime));
+    }
+
+    function recoverBurn(bytes32 receiptId) external onlyOwner {
+        Receipt memory receipt = receipts[receiptId];
+        require(
+            receipt.status == Status.WithdrawRequested,
+            "receipt is not in withdraw requested status"
+        );
+        uint256 amount = receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC());
+        eBTC.transfer(msg.sender, amount);
+
+        receipt.status = Status.DepositReceived;
     }
 
     //------------------------------ Private -----------------------------------
@@ -151,7 +200,20 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, SignatureValidator {
     ) private returns (bytes32) {
         bytes32 receiptId = getReceiptId(btcAddress, recipient, identifier);
         Receipt storage receipt = receipts[receiptId];
-        require(receipt.status < Status.DepositReceived, "receipt is in use");
+        if (receipt.status == Status.WithdrawRequested) {
+            require(
+                receipt.withdrawTime.add(WITHDRAW_VERIFICATION_END) < block.timestamp,
+                "withdraw in progress"
+            );
+            uint256 amount = receipt.amountInSatoshi.mul(BtcUtility.getSatoshiMultiplierForEBTC());
+            eBTC.burn(amount);
+
+            receipt.txId = "";
+            receipt.height = 0;
+            receipt.withdrawTime = 0;
+        } else {
+            require(receipt.status == Status.Available, "receipt is in use");
+        }
 
         receipt.recipient = recipient;
         receipt.btcAddress = btcAddress;
