@@ -389,7 +389,7 @@ describe("DeCusSystem", function () {
         it("verify burn", async function () {
             await expect(system.connect(users[0]).verifyBurn(receiptId))
                 .to.emit(system, "BurnVerified")
-                .withArgs(receiptId, users[0].address);
+                .withArgs(receiptId, btcAddress, users[0].address);
 
             const receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.be.equal(0);
@@ -410,7 +410,7 @@ describe("DeCusSystem", function () {
                 system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, identifier2)
             )
                 .to.emit(system, "BurnVerified")
-                .withArgs(receiptId, users[1].address)
+                .withArgs(receiptId, btcAddress, users[1].address)
                 .to.emit(system, "MintRequested")
                 .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
 
