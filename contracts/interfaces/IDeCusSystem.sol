@@ -25,6 +25,7 @@ interface IDeCusSystem {
         string groupBtcAddress;
         string withdrawBtcAddress;
         uint256 withdrawTimestamp;
+        uint256 finishTimestamp;
     }
 
     // events

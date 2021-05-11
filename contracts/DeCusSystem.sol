@@ -21,6 +21,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     // uint256 public constant WITHDRAW_VERIFICATION_START = 1 hours;
     uint256 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
     uint256 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
+    uint256 public constant GROUP_RESUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint256 public minKeeperSatoshi = 1e5;
 
     IEBTC public eBTC;
@@ -111,12 +112,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         return receipts[receiptId];
     }
 
-    function getReceiptId(string calldata groupBtcAddress, uint256 identifier)
+    function getReceiptId(string calldata groupBtcAddress, uint256 nonce)
         public
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(groupBtcAddress, identifier));
+        return keccak256(abi.encodePacked(groupBtcAddress, nonce));
     }
 
     function requestMint(
@@ -132,6 +133,10 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         bytes32 prevReceiptId = getReceiptId(groupBtcAddress, group.nonce);
         Receipt storage prevReceipt = receipts[prevReceiptId];
         require(prevReceipt.status == Status.Available, "working receipt in progress");
+        require(
+            block.timestamp - prevReceipt.finishTimestamp > GROUP_RESUSING_GAP,
+            "group cooling down"
+        );
         delete receipts[prevReceiptId];
 
         group.nonce = nonce;
@@ -155,12 +160,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         _revokeMint(receiptId, receipt);
     }
 
-    function _revokeMint(bytes32 receiptId, Receipt storage receipt) private {
-        _revokeDeposit(receipt);
-
-        emit MintRevoked(receiptId, msg.sender);
-    }
-
     function forceRequestMint(
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
@@ -175,14 +174,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
                 (prevReceipt.withdrawTimestamp).add(WITHDRAW_VERIFICATION_END) < block.timestamp,
                 "withdraw in progress"
             );
-            // verifyBurn(prevReceiptId, prevReceipt);
-            verifyBurn(prevReceiptId);
+            _forceVerifyBurn(prevReceiptId, prevReceipt);
         } else if (prevReceipt.status == Status.DepositRequested) {
             require(
                 (prevReceipt.createTimestamp).add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
                 "deposit in progress"
             );
-            _revokeMint(prevReceiptId, prevReceipt);
+            _forceRevokeMint(prevReceiptId, prevReceipt);
         }
 
         requestMint(groupBtcAddress, amountInSatoshi, nonce);
@@ -210,7 +208,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {
         // TODO: add fee deduction
         Receipt storage receipt = receipts[receiptId];
-        require(receipt.status == Status.DepositReceived, "receipt not in DepositReceived");
 
         _requestWithdraw(receipt, withdrawBtcAddress);
 
@@ -221,7 +218,16 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function verifyBurn(bytes32 receiptId) public {
         // TODO: allow only user or keepers to verify? If someone verified wrongly, we can punish
-        _verifyBurn(receiptId, receipts[receiptId]);
+        Receipt storage receipt = receipts[receiptId];
+
+        _approveWithdraw(receipt);
+
+        _burnEBTC(receipt.amountInSatoshi);
+
+        Group storage group = groups[receipt.groupBtcAddress];
+        _addGroupAllowance(group, receipt.amountInSatoshi);
+
+        emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
     }
 
     function recoverBurn(bytes32 receiptId) public onlyOwner {
@@ -249,6 +255,18 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     function _addGroupAllowance(Group storage group, uint256 amountInSatoshi) private {
         require(group.currSatoshi >= amountInSatoshi, "amount exceed min allowance");
         group.currSatoshi = (group.currSatoshi).sub(amountInSatoshi);
+    }
+
+    function _revokeMint(bytes32 receiptId, Receipt storage receipt) private {
+        _revokeDeposit(receipt);
+
+        emit MintRevoked(receiptId, msg.sender);
+    }
+
+    function _forceRevokeMint(bytes32 receiptId, Receipt storage receipt) private {
+        receipt.status = Status.Available;
+
+        emit MintRevoked(receiptId, msg.sender);
     }
 
     function _verifyMintRequest(
@@ -280,8 +298,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         }
     }
 
-    function _verifyBurn(bytes32 receiptId, Receipt storage receipt) private {
-        _approveWithdraw(receipt);
+    function _forceVerifyBurn(bytes32 receiptId, Receipt storage receipt) private {
+        receipt.status = Status.Available;
 
         _burnEBTC(receipt.amountInSatoshi);
 
@@ -289,8 +307,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         _addGroupAllowance(group, receipt.amountInSatoshi);
 
         emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
-
-        delete receipts[receiptId];
     }
 
     // ------------------------------- receipt ---------------------------------
@@ -326,7 +342,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     function _revokeDeposit(Receipt storage receipt) private {
         require(receipt.status == Status.DepositRequested, "receipt is not DepositRequested");
 
-        receipt.status = Status.Available;
+        _markFinish(receipt);
     }
 
     function _requestWithdraw(Receipt storage receipt, string calldata withdrawBtcAddress) private {
@@ -340,13 +356,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         receipt.status = Status.WithdrawRequested;
     }
 
-    function _approveWithdraw(Receipt storage receipt) private view {
+    function _approveWithdraw(Receipt storage receipt) private {
         require(
             receipt.status == Status.WithdrawRequested,
             "receipt is not in withdraw requested status"
         );
 
-        // cause receipt delete soon, no status change
+        _markFinish(receipt);
     }
 
     function _revokeWithdraw(Receipt storage receipt) private {
@@ -356,6 +372,11 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         );
 
         receipt.status = Status.DepositReceived;
+    }
+
+    function _markFinish(Receipt storage receipt) private {
+        receipt.status = Status.Available;
+        receipt.finishTimestamp = block.timestamp;
     }
 
     // -------------------------------- eBTC -----------------------------------

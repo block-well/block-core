@@ -218,7 +218,9 @@ describe("DeCusSystem", function () {
         });
 
         it("invalid nonce", async function () {
-            await expect(system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce + 1)).to.revertedWith("invalid nonce");
+            await expect(
+                system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce + 1)
+            ).to.revertedWith("invalid nonce");
         });
 
         it("should request mint", async function () {
@@ -389,6 +391,18 @@ describe("DeCusSystem", function () {
             expect(receipt.status).to.be.equal(0);
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(0);
             expect(await ebtc.balanceOf(system.address)).to.be.equal(0);
+
+            const nonce2 = nonce + 1;
+            const receiptId2 = getReceiptId(btcAddress, nonce2);
+
+            await expect(
+                system.connect(users[1]).requestMint(btcAddress, GROUP_SATOSHI, nonce2)
+            ).to.revertedWith("group cooling down");
+
+            advanceTimeAndBlock(3600);
+            await expect(system.connect(users[1]).requestMint(btcAddress, GROUP_SATOSHI, nonce2))
+                .to.emit(system, "MintRequested")
+                .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
         });
 
         it("mint without verify burn", async function () {
