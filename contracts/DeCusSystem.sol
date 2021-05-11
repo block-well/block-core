@@ -230,11 +230,11 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         Group storage group = groups[receipt.groupBtcAddress];
         _addGroupAllowance(group, receipt.amountInSatoshi);
-
         delete group.workingReceiptId;
 
+        emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
+
         delete receipts[receiptId];
-        emit BurnVerified(receiptId, msg.sender);
     }
 
     function recoverBurn(bytes32 receiptId) public onlyOwner {
