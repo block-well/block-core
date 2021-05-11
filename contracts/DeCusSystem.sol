@@ -62,7 +62,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function getGroupAllowance(string calldata btcAddress) external view returns (uint256) {
         Group storage group = groups[btcAddress];
-        return group.maxSatoshi.sub(group.currSatoshi);
+        return (group.maxSatoshi).sub(group.currSatoshi);
     }
 
     function listGroupKeeper(string calldata btcAddress) external view returns (address[] memory) {
@@ -198,6 +198,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         _verifyMintRequest(group, request, keepers, r, s, packedV);
         _approveDeposit(receipt, request.txId, request.height);
+
         _mintEBTC(receipt.recipient, receipt.amountInSatoshi);
 
         delete group.workingReceiptId;
@@ -208,11 +209,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {
         // TODO: add fee deduction
         Receipt storage receipt = receipts[receiptId];
+        Group storage group = groups[receipt.groupBtcAddress];
+        require(group.workingReceiptId == 0, "working receipt in progress");
+
         _requestWithdraw(receipt, withdrawBtcAddress);
 
         _transferFromEBTC(msg.sender, address(this), receipt.amountInSatoshi);
 
-        Group storage group = groups[receipt.groupBtcAddress];
         group.workingReceiptId = receiptId;
 
         emit BurnRequested(receiptId, withdrawBtcAddress, msg.sender);
@@ -239,6 +242,9 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         _revokeWithdraw(receipt);
 
         _transferEBTC(msg.sender, receipt.amountInSatoshi);
+
+        Group storage group = groups[receipt.groupBtcAddress];
+        delete group.workingReceiptId;
 
         emit BurnRevoked(receiptId, msg.sender);
     }
