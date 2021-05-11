@@ -14,8 +14,8 @@ const BTC_ADDRESS = [
     "38aNsdfsdfsdfsdfsdfdsfsdf2",
 ];
 
-function getReceiptId(btcAddress: string, recipient: string, identifier: number): string {
-    return solidityKeccak256(["string", "address", "uint256"], [btcAddress, recipient, identifier]);
+function getReceiptId(btcAddress: string, nonce: number): string {
+    return solidityKeccak256(["string", "uint256"], [btcAddress, nonce]);
 }
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
@@ -48,9 +48,9 @@ describe("DeCusSystem", function () {
     describe("getReceiptId()", function () {
         it("should get receipt ID", async function () {
             const btcAddress = BTC_ADDRESS[0];
-            const identifier = 0;
-            expect(await system.getReceiptId(btcAddress, users[0].address, identifier)).to.be.equal(
-                getReceiptId(btcAddress, users[0].address, identifier)
+            const nonce = 1;
+            expect(await system.getReceiptId(btcAddress, nonce)).to.be.equal(
+                getReceiptId(btcAddress, nonce)
             );
         });
     });
@@ -77,7 +77,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(3),
                 BigNumber.from(GROUP_SATOSHI),
                 BigNumber.from(0),
-                ethers.constants.HashZero,
+                BigNumber.from(0),
             ]);
             expect(await system.getGroupAllowance(BTC_ADDRESS[0])).equal(
                 BigNumber.from(GROUP_SATOSHI)
@@ -112,7 +112,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(3),
                 BigNumber.from(GROUP_SATOSHI),
                 BigNumber.from(0),
-                ethers.constants.HashZero,
+                BigNumber.from(0),
             ]);
             expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([
                 users[0].address,
@@ -129,7 +129,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(0),
                 BigNumber.from(0),
                 BigNumber.from(0),
-                ethers.constants.HashZero,
+                BigNumber.from(0),
             ]);
             expect(await system.listGroupKeeper(BTC_ADDRESS[0])).deep.equal([]);
         });
@@ -157,7 +157,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(2),
                 BigNumber.from(GROUP_SATOSHI),
                 BigNumber.from(0),
-                ethers.constants.HashZero,
+                BigNumber.from(0),
             ]);
         });
     });
@@ -180,10 +180,10 @@ describe("DeCusSystem", function () {
     const requestMint = async (
         user: Wallet,
         btcAddress: string,
-        identifier: number
+        nonce: number
     ): Promise<string> => {
-        await system.connect(user).requestMint(btcAddress, GROUP_SATOSHI, identifier);
-        return getReceiptId(btcAddress, user.address, identifier);
+        await system.connect(user).requestMint(btcAddress, GROUP_SATOSHI, nonce);
+        return getReceiptId(btcAddress, nonce);
     };
 
     const verifyMint = async (
@@ -208,39 +208,36 @@ describe("DeCusSystem", function () {
     };
 
     describe("requestMint()", function () {
+        const btcAddress = BTC_ADDRESS[0];
+        const amountInSatoshi = GROUP_SATOSHI;
+        const nonce = 1;
+        const receiptId = getReceiptId(btcAddress, nonce);
+
         beforeEach(async function () {
             await addMockGroup();
         });
 
+        it("invalid nonce", async function () {
+            await expect(system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce + 1)).to.revertedWith("invalid nonce");
+        });
+
         it("should request mint", async function () {
-            const btcAddress = BTC_ADDRESS[0];
-            const amountInSatoshi = GROUP_SATOSHI;
-            const identifier = 0;
-            const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(nonce - 1);
 
-            // working receipt
-            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
-
-            await expect(
-                system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier)
-            )
+            await expect(system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce))
                 .to.emit(system, "MintRequested")
                 .withArgs(receiptId, users[0].address, amountInSatoshi, BTC_ADDRESS[0]);
 
-            expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(nonce);
         });
 
         it("revoke mint", async function () {
-            const btcAddress = BTC_ADDRESS[0];
-            const amountInSatoshi = GROUP_SATOSHI;
-            const identifier = 0;
-            const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(nonce - 1);
 
-            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
 
-            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier);
-
-            expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(nonce);
+            expect((await system.getReceipt(receiptId)).status).to.equal(1);
 
             await expect(system.connect(users[1]).revokeMint(receiptId)).to.revertedWith(
                 "require receipt recipient"
@@ -250,32 +247,28 @@ describe("DeCusSystem", function () {
                 .to.emit(system, "MintRevoked")
                 .withArgs(receiptId, users[0].address);
 
-            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+            expect((await system.getReceipt(receiptId)).status).to.equal(0);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(nonce);
         });
 
         // TODO: force mint request
         it("force mint request", async function () {
-            const btcAddress = BTC_ADDRESS[0];
-            const amountInSatoshi = GROUP_SATOSHI;
-            const identifier = 0;
-            const receiptId = getReceiptId(btcAddress, users[0].address, identifier);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(nonce - 1);
 
-            expect((await system.getGroup(btcAddress))[3]).to.equal(ethers.constants.HashZero);
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
 
-            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, identifier);
+            expect((await system.getGroup(btcAddress))[3]).to.equal(nonce);
 
-            expect((await system.getGroup(btcAddress))[3]).to.equal(receiptId);
-
-            const identifier2 = identifier + 1;
+            const nonce2 = nonce + 1;
             await expect(
-                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, identifier2)
+                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, nonce2)
             ).to.revertedWith("deposit in progress");
 
             advanceTimeAndBlock(24 * 3600);
 
-            const receiptId2 = getReceiptId(btcAddress, users[1].address, identifier2);
+            const receiptId2 = getReceiptId(btcAddress, nonce2);
             await expect(
-                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, identifier2)
+                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, nonce2)
             )
                 .to.emit(system, "MintRevoked")
                 .withArgs(receiptId, users[1].address)
@@ -286,7 +279,7 @@ describe("DeCusSystem", function () {
 
     describe("verifyMint()", function () {
         const btcAddress = BTC_ADDRESS[0];
-        const identifier = 0;
+        const nonce = 1;
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
@@ -294,7 +287,7 @@ describe("DeCusSystem", function () {
         beforeEach(async function () {
             await addMockGroup();
 
-            receiptId = await requestMint(users[0], btcAddress, identifier);
+            receiptId = await requestMint(users[0], btcAddress, nonce);
         });
 
         it("should verify mint", async function () {
@@ -304,6 +297,7 @@ describe("DeCusSystem", function () {
             expect(receipt.txId).to.be.equal(constants.HashZero);
             expect(receipt.height).to.be.equal(0);
             expect(group[2]).to.be.equal(0);
+            expect(group[3]).to.be.equal(nonce);
 
             const keepers = [users[1], users[2], users[3]];
             const [rList, sList, packedV] = await prepareSignature(
@@ -329,7 +323,7 @@ describe("DeCusSystem", function () {
             expect(receipt.txId).to.be.equal(txId);
             expect(receipt.height).to.be.equal(height);
             expect(group[2]).to.be.equal(GROUP_SATOSHI);
-            expect(group[3]).to.be.equal(ethers.constants.HashZero);
+            expect(group[3]).to.be.equal(nonce);
 
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
         });
@@ -338,7 +332,7 @@ describe("DeCusSystem", function () {
     describe("requestBurn()", function () {
         const btcAddress = BTC_ADDRESS[0];
         const withdrawBtcAddress = BTC_ADDRESS[1];
-        const identifier = 0;
+        const nonce = 1;
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
@@ -347,7 +341,7 @@ describe("DeCusSystem", function () {
         beforeEach(async function () {
             await addMockGroup();
 
-            receiptId = await requestMint(users[0], btcAddress, identifier);
+            receiptId = await requestMint(users[0], btcAddress, nonce);
 
             await verifyMint(users[0], [users[1], users[2], users[3]], receiptId, txId, height);
         });
@@ -369,7 +363,7 @@ describe("DeCusSystem", function () {
     describe("verifyBurn()", function () {
         const btcAddress = BTC_ADDRESS[0];
         const withdrawBtcAddress = BTC_ADDRESS[1];
-        const identifier = 0;
+        const nonce = 1;
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
@@ -378,7 +372,7 @@ describe("DeCusSystem", function () {
         beforeEach(async function () {
             await addMockGroup();
 
-            receiptId = await requestMint(users[0], btcAddress, identifier);
+            receiptId = await requestMint(users[0], btcAddress, nonce);
 
             await verifyMint(users[0], [users[1], users[2], users[3]], receiptId, txId, height);
 
@@ -400,14 +394,14 @@ describe("DeCusSystem", function () {
         it("mint without verify burn", async function () {
             advanceTimeAndBlock(24 * 60 * 60);
 
-            const identifier2 = identifier + 1;
+            const nonce2 = nonce + 1;
             await expect(
-                system.connect(users[1]).requestMint(btcAddress, GROUP_SATOSHI, identifier2)
+                system.connect(users[1]).requestMint(btcAddress, GROUP_SATOSHI, nonce2)
             ).to.be.revertedWith("working receipt in progress");
 
-            const receiptId2 = getReceiptId(btcAddress, users[1].address, identifier2);
+            const receiptId2 = getReceiptId(btcAddress, nonce2);
             await expect(
-                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, identifier2)
+                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, nonce2)
             )
                 .to.emit(system, "BurnVerified")
                 .withArgs(receiptId, btcAddress, users[1].address)
@@ -416,7 +410,7 @@ describe("DeCusSystem", function () {
 
             const group = await system.getGroup(btcAddress);
             expect(group[2]).to.be.equal(0);
-            expect(group[3]).to.be.equal(receiptId2);
+            expect(group[3]).to.be.equal(nonce2);
             const receipt = await system.getReceipt(receiptId2);
             expect(receipt.status).to.be.equal(1);
         });

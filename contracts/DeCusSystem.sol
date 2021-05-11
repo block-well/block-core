@@ -53,11 +53,11 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
             uint256,
             uint256,
             uint256,
-            bytes32
+            uint256
         )
     {
         Group storage group = groups[btcAddress];
-        return (group.required, group.maxSatoshi, group.currSatoshi, group.workingReceiptId);
+        return (group.required, group.maxSatoshi, group.currSatoshi, group.nonce);
     }
 
     function getGroupAllowance(string calldata btcAddress) external view returns (uint256) {
@@ -111,51 +111,52 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         return receipts[receiptId];
     }
 
-    function getReceiptId(
-        string calldata groupBtcAddress,
-        address recipient,
-        uint256 identifier
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(groupBtcAddress, recipient, identifier));
+    function getReceiptId(string calldata groupBtcAddress, uint256 identifier)
+        public
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(groupBtcAddress, identifier));
     }
 
     function requestMint(
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
-        uint256 identifier
+        uint256 nonce
     ) public {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
 
         Group storage group = groups[groupBtcAddress];
-        require(group.workingReceiptId == 0, "working receipt in progress");
+        require(nonce == (group.nonce).add(1), "invalid nonce");
+
+        bytes32 prevReceiptId = getReceiptId(groupBtcAddress, group.nonce);
+        Receipt storage prevReceipt = receipts[prevReceiptId];
+        require(prevReceipt.status == Status.Available, "working receipt in progress");
+        delete receipts[prevReceiptId];
+
+        group.nonce = nonce;
+
         require(
             (group.maxSatoshi).sub(group.currSatoshi) == amountInSatoshi,
             "should fill all group allowance"
         );
 
-        address recipient = msg.sender;
-        bytes32 receiptId = getReceiptId(groupBtcAddress, recipient, identifier);
+        bytes32 receiptId = getReceiptId(groupBtcAddress, nonce);
         Receipt storage receipt = receipts[receiptId];
-        _requestDeposit(receipt, groupBtcAddress, recipient, amountInSatoshi);
+        _requestDeposit(receipt, groupBtcAddress, amountInSatoshi);
 
-        group.workingReceiptId = receiptId;
-
-        emit MintRequested(receiptId, recipient, amountInSatoshi, groupBtcAddress);
+        emit MintRequested(receiptId, msg.sender, amountInSatoshi, groupBtcAddress);
     }
 
     function revokeMint(bytes32 receiptId) public {
         Receipt storage receipt = receipts[receiptId];
         require(receipt.recipient == msg.sender, "require receipt recipient");
 
-        _revokeMint(receiptId);
+        _revokeMint(receiptId, receipt);
     }
 
-    function _revokeMint(bytes32 receiptId) private {
-        Receipt storage receipt = receipts[receiptId];
+    function _revokeMint(bytes32 receiptId, Receipt storage receipt) private {
         _revokeDeposit(receipt);
-
-        Group storage group = groups[receipt.groupBtcAddress];
-        delete group.workingReceiptId;
 
         emit MintRevoked(receiptId, msg.sender);
     }
@@ -163,26 +164,28 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     function forceRequestMint(
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
-        uint256 identifier
+        uint256 nonce
     ) public {
         Group storage group = groups[groupBtcAddress];
-        Receipt storage receipt = receipts[group.workingReceiptId];
+        bytes32 prevReceiptId = getReceiptId(groupBtcAddress, group.nonce);
+        Receipt storage prevReceipt = receipts[prevReceiptId];
 
-        if (receipt.status == Status.WithdrawRequested) {
+        if (prevReceipt.status == Status.WithdrawRequested) {
             require(
-                (receipt.withdrawTimestamp).add(WITHDRAW_VERIFICATION_END) < block.timestamp,
+                (prevReceipt.withdrawTimestamp).add(WITHDRAW_VERIFICATION_END) < block.timestamp,
                 "withdraw in progress"
             );
-            verifyBurn(group.workingReceiptId);
-        } else if (receipt.status == Status.DepositRequested) {
+            // verifyBurn(prevReceiptId, prevReceipt);
+            verifyBurn(prevReceiptId);
+        } else if (prevReceipt.status == Status.DepositRequested) {
             require(
-                (receipt.createTimestamp).add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
+                (prevReceipt.createTimestamp).add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
                 "deposit in progress"
             );
-            _revokeMint(group.workingReceiptId);
+            _revokeMint(prevReceiptId, prevReceipt);
         }
 
-        requestMint(groupBtcAddress, amountInSatoshi, identifier);
+        requestMint(groupBtcAddress, amountInSatoshi, nonce);
     }
 
     function verifyMint(
@@ -201,40 +204,24 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         _mintEBTC(receipt.recipient, receipt.amountInSatoshi);
 
-        delete group.workingReceiptId;
-
         emit MintVerified(request.receiptId, keepers);
     }
 
     function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {
         // TODO: add fee deduction
         Receipt storage receipt = receipts[receiptId];
-        Group storage group = groups[receipt.groupBtcAddress];
-        require(group.workingReceiptId == 0, "working receipt in progress");
+        require(receipt.status == Status.DepositReceived, "receipt not in DepositReceived");
 
         _requestWithdraw(receipt, withdrawBtcAddress);
 
         _transferFromEBTC(msg.sender, address(this), receipt.amountInSatoshi);
-
-        group.workingReceiptId = receiptId;
 
         emit BurnRequested(receiptId, withdrawBtcAddress, msg.sender);
     }
 
     function verifyBurn(bytes32 receiptId) public {
         // TODO: allow only user or keepers to verify? If someone verified wrongly, we can punish
-        Receipt storage receipt = receipts[receiptId];
-        _approveWithdraw(receipt);
-
-        _burnEBTC(receipt.amountInSatoshi);
-
-        Group storage group = groups[receipt.groupBtcAddress];
-        _addGroupAllowance(group, receipt.amountInSatoshi);
-        delete group.workingReceiptId;
-
-        emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
-
-        delete receipts[receiptId];
+        _verifyBurn(receiptId, receipts[receiptId]);
     }
 
     function recoverBurn(bytes32 receiptId) public onlyOwner {
@@ -242,9 +229,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         _revokeWithdraw(receipt);
 
         _transferEBTC(msg.sender, receipt.amountInSatoshi);
-
-        Group storage group = groups[receipt.groupBtcAddress];
-        delete group.workingReceiptId;
 
         emit BurnRevoked(receiptId, msg.sender);
     }
@@ -296,17 +280,29 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         }
     }
 
+    function _verifyBurn(bytes32 receiptId, Receipt storage receipt) private {
+        _approveWithdraw(receipt);
+
+        _burnEBTC(receipt.amountInSatoshi);
+
+        Group storage group = groups[receipt.groupBtcAddress];
+        _addGroupAllowance(group, receipt.amountInSatoshi);
+
+        emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
+
+        delete receipts[receiptId];
+    }
+
     // ------------------------------- receipt ---------------------------------
     function _requestDeposit(
         Receipt storage receipt,
         string calldata groupBtcAddress,
-        address recipient,
         uint256 amountInSatoshi
     ) private {
         require(receipt.status == Status.Available, "receipt is not in Available state");
 
         receipt.groupBtcAddress = groupBtcAddress;
-        receipt.recipient = recipient;
+        receipt.recipient = msg.sender;
         receipt.amountInSatoshi = amountInSatoshi;
         receipt.createTimestamp = block.timestamp;
         receipt.status = Status.DepositRequested;

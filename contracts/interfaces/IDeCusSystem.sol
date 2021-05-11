@@ -9,7 +9,7 @@ interface IDeCusSystem {
         uint256 required;
         uint256 maxSatoshi;
         uint256 currSatoshi;
-        bytes32 workingReceiptId;
+        uint256 nonce;
         EnumerableSet.AddressSet keeperSet;
     }
 
