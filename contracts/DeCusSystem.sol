@@ -202,7 +202,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         _mintEBTC(receipt.recipient, receipt.amountInSatoshi);
 
-        emit MintVerified(request.receiptId, keepers);
+        emit MintVerified(request.receiptId, receipt.groupBtcAddress, keepers);
     }
 
     function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {
@@ -213,7 +213,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         _transferFromEBTC(msg.sender, address(this), receipt.amountInSatoshi);
 
-        emit BurnRequested(receiptId, withdrawBtcAddress, msg.sender);
+        emit BurnRequested(receiptId, receipt.groupBtcAddress, withdrawBtcAddress, msg.sender);
     }
 
     function verifyBurn(bytes32 receiptId) public {
@@ -236,7 +236,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         _transferEBTC(msg.sender, receipt.amountInSatoshi);
 
-        emit BurnRevoked(receiptId, msg.sender);
+        emit BurnRevoked(receiptId, receipt.groupBtcAddress, msg.sender);
     }
 
     //=============================== Private ==================================
@@ -260,13 +260,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     function _revokeMint(bytes32 receiptId, Receipt storage receipt) private {
         _revokeDeposit(receipt);
 
-        emit MintRevoked(receiptId, msg.sender);
+        emit MintRevoked(receiptId, receipt.groupBtcAddress, msg.sender);
     }
 
     function _forceRevokeMint(bytes32 receiptId, Receipt storage receipt) private {
         receipt.status = Status.Available;
 
-        emit MintRevoked(receiptId, msg.sender);
+        emit MintRevoked(receiptId, receipt.groupBtcAddress, msg.sender);
     }
 
     function _verifyMintRequest(

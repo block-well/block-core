@@ -38,10 +38,15 @@ interface IDeCusSystem {
         uint256 amountInSatoshi,
         string groupBtcAddress
     );
-    event MintRevoked(bytes32 indexed receiptId, address operator);
-    event MintVerified(bytes32 indexed receiptId, address[] keepers);
-    event BurnRequested(bytes32 indexed receiptId, string withdrawBtcAddress, address operator);
-    event BurnRevoked(bytes32 indexed receiptId, address operator);
+    event MintRevoked(bytes32 indexed receiptId, string groupBtcAddress, address operator);
+    event MintVerified(bytes32 indexed receiptId, string groupBtcAddress, address[] keepers);
+    event BurnRequested(
+        bytes32 indexed receiptId,
+        string groupBtcAddress,
+        string withdrawBtcAddress,
+        address operator
+    );
+    event BurnRevoked(bytes32 indexed receiptId, string groupBtcAddress, address operator);
     event BurnVerified(bytes32 indexed receiptId, string groupBtcAddress, address operator);
 
     event Cooldown(address indexed keeper, uint256 endTime);
