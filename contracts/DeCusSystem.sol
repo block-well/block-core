@@ -51,10 +51,10 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         external
         view
         returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256
+            uint256 required,
+            uint256 maxSatoshi,
+            uint256 currSatoshi,
+            uint256 nonce
         )
     {
         Group storage group = groups[btcAddress];
