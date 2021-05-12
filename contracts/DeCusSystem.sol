@@ -134,7 +134,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         Receipt storage prevReceipt = receipts[prevReceiptId];
         require(prevReceipt.status == Status.Available, "working receipt in progress");
         require(
-            block.timestamp - prevReceipt.finishTimestamp > GROUP_RESUSING_GAP,
+            block.timestamp - prevReceipt.updateTimestamp > GROUP_RESUSING_GAP,
             "group cooling down"
         );
         delete receipts[prevReceiptId];
@@ -171,13 +171,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
         if (prevReceipt.status == Status.WithdrawRequested) {
             require(
-                (prevReceipt.withdrawTimestamp).add(WITHDRAW_VERIFICATION_END) < block.timestamp,
+                (prevReceipt.updateTimestamp).add(WITHDRAW_VERIFICATION_END) < block.timestamp,
                 "withdraw in progress"
             );
             _forceVerifyBurn(prevReceiptId, prevReceipt);
         } else if (prevReceipt.status == Status.DepositRequested) {
             require(
-                (prevReceipt.createTimestamp).add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
+                (prevReceipt.updateTimestamp).add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
                 "deposit in progress"
             );
             _forceRevokeMint(prevReceiptId, prevReceipt);
@@ -320,7 +320,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         receipt.groupBtcAddress = groupBtcAddress;
         receipt.recipient = msg.sender;
         receipt.amountInSatoshi = amountInSatoshi;
-        receipt.createTimestamp = block.timestamp;
+        receipt.updateTimestamp = block.timestamp;
         receipt.status = Status.DepositRequested;
     }
 
@@ -351,7 +351,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
             "receipt is not in DepositReceived state"
         );
 
-        receipt.withdrawTimestamp = block.timestamp;
+        receipt.updateTimestamp = block.timestamp;
         receipt.withdrawBtcAddress = withdrawBtcAddress;
         receipt.status = Status.WithdrawRequested;
     }
@@ -376,7 +376,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function _markFinish(Receipt storage receipt) private {
         receipt.status = Status.Available;
-        receipt.finishTimestamp = block.timestamp;
+        receipt.updateTimestamp = block.timestamp;
     }
 
     // -------------------------------- eBTC -----------------------------------

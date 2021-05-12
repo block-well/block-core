@@ -17,15 +17,13 @@ interface IDeCusSystem {
 
     struct Receipt {
         uint256 amountInSatoshi;
-        uint256 createTimestamp;
+        uint256 updateTimestamp;
         bytes32 txId;
         uint256 height;
         Status status;
         address recipient;
         string groupBtcAddress;
         string withdrawBtcAddress;
-        uint256 withdrawTimestamp;
-        uint256 finishTimestamp;
     }
 
     // events
