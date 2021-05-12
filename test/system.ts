@@ -247,7 +247,7 @@ describe("DeCusSystem", function () {
 
             await expect(system.connect(users[0]).revokeMint(receiptId))
                 .to.emit(system, "MintRevoked")
-                .withArgs(receiptId, users[0].address);
+                .withArgs(receiptId, btcAddress, users[0].address);
 
             expect((await system.getReceipt(receiptId)).status).to.equal(0);
             expect((await system.getGroup(btcAddress))[3]).to.equal(nonce);
@@ -273,7 +273,7 @@ describe("DeCusSystem", function () {
                 system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, nonce2)
             )
                 .to.emit(system, "MintRevoked")
-                .withArgs(receiptId, users[1].address)
+                .withArgs(receiptId, btcAddress, users[1].address)
                 .to.emit(system, "MintRequested")
                 .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
         });
@@ -317,7 +317,7 @@ describe("DeCusSystem", function () {
                     .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
             )
                 .to.emit(system, "MintVerified")
-                .withArgs(receiptId, keeperAddresses);
+                .withArgs(receiptId, btcAddress, keeperAddresses);
 
             receipt = await system.getReceipt(receiptId);
             group = await system.getGroup(btcAddress);
@@ -352,7 +352,7 @@ describe("DeCusSystem", function () {
             await ebtc.connect(users[0]).approve(system.address, userEbtcAmount);
             await expect(system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress))
                 .to.emit(system, "BurnRequested")
-                .withArgs(receiptId, withdrawBtcAddress, users[0].address);
+                .withArgs(receiptId, btcAddress, withdrawBtcAddress, users[0].address);
 
             const receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.be.equal(3);
