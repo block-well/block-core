@@ -1,11 +1,22 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
+import { ethers } from "hardhat";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
     const ebtc = await deployments.get("EBTC");
+    const decusSystem = await deployments.get("DeCusSystem");
+
+    await deployments.execute(
+        "EBTC",
+        { from: deployer, log: true },
+        "grantRole",
+        ethers.utils.id("MINTER_ROLE"),
+        decusSystem.address
+    );
+
     const registry = await deployments.get("KeeperRegistry");
 
     await deployments.execute(
