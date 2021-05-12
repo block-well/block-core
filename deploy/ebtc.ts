@@ -5,15 +5,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    const decusSystem = await deployments.get("DeCusSystem");
-
     await deployments.deploy("EBTC", {
         from: deployer,
-        args: [decusSystem.address],
+        args: [],
         log: true,
     });
 };
 
 export default func;
 func.tags = ["All", "Token"];
-func.dependencies = ["System"];
