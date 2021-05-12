@@ -54,26 +54,32 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
             uint256 required,
             uint256 maxSatoshi,
             uint256 currSatoshi,
-            uint256 nonce
+            uint256 nonce,
+            uint256 allowance,
+            bytes32 workingReceiptId,
+            address[] memory keepers
         )
     {
         Group storage group = groups[btcAddress];
-        return (group.required, group.maxSatoshi, group.currSatoshi, group.nonce);
-    }
 
-    function getGroupAllowance(string calldata btcAddress) external view returns (uint256) {
-        Group storage group = groups[btcAddress];
-        return (group.maxSatoshi).sub(group.currSatoshi);
-    }
+        uint256 _allowance = (group.maxSatoshi).sub(group.currSatoshi);
 
-    function listGroupKeeper(string calldata btcAddress) external view returns (address[] memory) {
-        Group storage group = groups[btcAddress];
+        bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
 
         address[] memory keeperArray = new address[](group.keeperSet.length());
         for (uint256 i = 0; i < group.keeperSet.length(); i++) {
             keeperArray[i] = group.keeperSet.at(i);
         }
-        return keeperArray;
+
+        return (
+            group.required,
+            group.maxSatoshi,
+            group.currSatoshi,
+            group.nonce,
+            _allowance,
+            receiptId,
+            keeperArray
+        );
     }
 
     function addGroup(
