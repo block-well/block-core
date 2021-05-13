@@ -72,11 +72,10 @@ describe("DeCusSystem", function () {
             expect(group.maxSatoshi).equal(BigNumber.from(GROUP_SATOSHI));
             expect(group.currSatoshi).equal(BigNumber.from(0));
             expect(group.nonce).equal(BigNumber.from(0));
-            expect(group.allowance).equal(BigNumber.from(GROUP_SATOSHI));
+            expect(group.keepers).deep.equal(keepers);
             expect(group.workingReceiptId).equal(
                 await system.getReceiptId(BTC_ADDRESS[0], group.nonce)
             );
-            expect(group.keepers).deep.equal(keepers);
         });
     });
 
@@ -101,11 +100,10 @@ describe("DeCusSystem", function () {
             expect(group.maxSatoshi).equal(BigNumber.from(GROUP_SATOSHI));
             expect(group.currSatoshi).equal(BigNumber.from(0));
             expect(group.nonce).equal(BigNumber.from(0));
-            expect(group.allowance).equal(BigNumber.from(GROUP_SATOSHI));
+            expect(group.keepers).deep.equal(keepers);
             expect(group.workingReceiptId).equal(
                 await system.getReceiptId(BTC_ADDRESS[0], group.nonce)
             );
-            expect(group.keepers).deep.equal(keepers);
 
             await expect(system.deleteGroup(BTC_ADDRESS[0]))
                 .to.emit(system, "GroupDeleted")
@@ -116,11 +114,10 @@ describe("DeCusSystem", function () {
             expect(deletedGroup.maxSatoshi).equal(BigNumber.from(0));
             expect(deletedGroup.currSatoshi).equal(BigNumber.from(0));
             expect(deletedGroup.nonce).equal(BigNumber.from(0));
-            expect(deletedGroup.allowance).equal(BigNumber.from(0));
+            expect(deletedGroup.keepers).deep.equal([]);
             expect(deletedGroup.workingReceiptId).equal(
                 await system.getReceiptId(BTC_ADDRESS[0], 0)
             );
-            expect(deletedGroup.keepers).deep.equal([]);
         });
 
         it("delete group twice", async function () {
