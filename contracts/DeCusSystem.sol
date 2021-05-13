@@ -21,7 +21,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     // uint256 public constant WITHDRAW_VERIFICATION_START = 1 hours;
     uint256 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
     uint256 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
-    uint256 public constant GROUP_RESUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
+    uint256 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint256 public minKeeperSatoshi = 1e5;
 
     IEBTC public eBTC;
@@ -54,26 +54,28 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
             uint256 required,
             uint256 maxSatoshi,
             uint256 currSatoshi,
-            uint256 nonce
+            uint256 nonce,
+            address[] memory keepers,
+            bytes32 workingReceiptId
         )
     {
         Group storage group = groups[btcAddress];
-        return (group.required, group.maxSatoshi, group.currSatoshi, group.nonce);
-    }
 
-    function getGroupAllowance(string calldata btcAddress) external view returns (uint256) {
-        Group storage group = groups[btcAddress];
-        return (group.maxSatoshi).sub(group.currSatoshi);
-    }
-
-    function listGroupKeeper(string calldata btcAddress) external view returns (address[] memory) {
-        Group storage group = groups[btcAddress];
-
-        address[] memory keeperArray = new address[](group.keeperSet.length());
+        keepers = new address[](group.keeperSet.length());
         for (uint256 i = 0; i < group.keeperSet.length(); i++) {
-            keeperArray[i] = group.keeperSet.at(i);
+            keepers[i] = group.keeperSet.at(i);
         }
-        return keeperArray;
+
+        workingReceiptId = getReceiptId(btcAddress, group.nonce);
+
+        return (
+            group.required,
+            group.maxSatoshi,
+            group.currSatoshi,
+            group.nonce,
+            keepers,
+            workingReceiptId
+        );
     }
 
     function addGroup(
@@ -134,7 +136,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         Receipt storage prevReceipt = receipts[prevReceiptId];
         require(prevReceipt.status == Status.Available, "working receipt in progress");
         require(
-            block.timestamp - prevReceipt.updateTimestamp > GROUP_RESUSING_GAP,
+            block.timestamp - prevReceipt.updateTimestamp > GROUP_REUSING_GAP,
             "group cooling down"
         );
         delete receipts[prevReceiptId];
@@ -195,7 +197,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     ) public {
         Receipt storage receipt = receipts[request.receiptId];
         Group storage group = groups[receipt.groupBtcAddress];
-        _subGroupAllowance(group, receipt.amountInSatoshi);
+        group.currSatoshi = (group.currSatoshi).add(receipt.amountInSatoshi);
+        require(group.currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
 
         _verifyMintRequest(group, request, keepers, r, s, packedV);
         _approveDeposit(receipt, request.txId, request.height);
@@ -225,7 +228,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         _burnEBTC(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
-        _addGroupAllowance(group, receipt.amountInSatoshi);
+        group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
 
         emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
     }
@@ -247,16 +250,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     }
 
     // -------------------------------- group ----------------------------------
-    function _subGroupAllowance(Group storage group, uint256 amountInSatoshi) private {
-        group.currSatoshi = (group.currSatoshi).add(amountInSatoshi);
-        require(group.currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
-    }
-
-    function _addGroupAllowance(Group storage group, uint256 amountInSatoshi) private {
-        require(group.currSatoshi >= amountInSatoshi, "amount exceed min allowance");
-        group.currSatoshi = (group.currSatoshi).sub(amountInSatoshi);
-    }
-
     function _revokeMint(bytes32 receiptId, Receipt storage receipt) private {
         _revokeDeposit(receipt);
 
@@ -304,7 +297,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         _burnEBTC(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
-        _addGroupAllowance(group, receipt.amountInSatoshi);
+        group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
 
         emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
     }
@@ -351,8 +344,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
             "receipt is not in DepositReceived state"
         );
 
-        receipt.updateTimestamp = block.timestamp;
         receipt.withdrawBtcAddress = withdrawBtcAddress;
+        receipt.updateTimestamp = block.timestamp;
         receipt.status = Status.WithdrawRequested;
     }
 
@@ -375,8 +368,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     }
 
     function _markFinish(Receipt storage receipt) private {
-        receipt.status = Status.Available;
         receipt.updateTimestamp = block.timestamp;
+        receipt.status = Status.Available;
     }
 
     // -------------------------------- eBTC -----------------------------------
