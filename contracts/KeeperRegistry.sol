@@ -65,35 +65,27 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         emit KeeperDeleted(keeper);
     }
 
-    // TODO: each keeper only have one non-zero asset
-    /*function importKeepers(
-        address[] calldata assets,
-        address[] calldata keepers,
-        uint256[][] calldata keeperAmounts
+    function importKeepers(
+        uint256 amount,
+        address asset,
+        address[] calldata keepers
     ) external override {
-        require(keeperAmounts.length == keepers.length, "amounts length does not match");
-        require(keeperAmounts[0].length == assets.length, "amounts length does not match");
+        require(assetSet.contains(asset), "unknown asset");
+        require(amount > 0, "amount != 0");
 
-        // transfer
-        for (uint256 i = 0; i < assets.length; i++) {
-            require(assetSet.contains(assets[i]), "assets not accepted");
-            uint256 sumAmounts = 0;
-            for (uint256 j = 0; j < keepers.length; j++) {
-                sumAmounts = sumAmounts.add(keeperAmounts[i][j]);
-            }
-            require(
-                ERC20(assets[i]).transferFrom(msg.sender, address(this), sumAmounts),
-                "transfer failed"
-            );
-        }
-
-        // add keeper
+        uint256 totalAmount;
         for (uint256 i = 0; i < keepers.length; i++) {
-            _addKeeper(keepers[i], assets, keeperAmounts[i]);
+            address keeper = keepers[i];
+            if (keeper != address(0)) {
+                _addKeeper(keeper, asset, amount);
+                totalAmount = totalAmount.add(amount);
+            }
         }
 
-        emit KeeperImported(msg.sender, assets, keepers, keeperAmounts);
-    }*/
+        require(IERC20(asset).transferFrom(msg.sender, address(this), totalAmount));
+
+        emit KeeperImported(msg.sender, asset, keepers, amount);
+    }
 
     function punishKeeper(address[] calldata keepers, uint256 overissuedAmount) external onlyOwner {
         for (uint256 i = 0; i < keepers.length; i++) {

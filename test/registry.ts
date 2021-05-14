@@ -81,6 +81,9 @@ describe("KeeperRegistry", function () {
 
     describe("addKeeper()", function () {
         it("should add keeper", async function () {
+            const amount = parseBtc("10");
+            const asset = wbtc.address;
+
             expect(await registry.collaterals(users[0].address, wbtc.address)).to.be.equal(0);
             expect(await registry.collaterals(users[0].address, hbtc.address)).to.be.equal(0);
             expect(await wbtc.balanceOf(users[0].address)).to.be.equal(parseBtc("100"));
@@ -88,8 +91,6 @@ describe("KeeperRegistry", function () {
             expect(await hbtc.balanceOf(users[0].address)).to.be.equal(parseEther("100"));
             expect(await hbtc.balanceOf(registry.address)).to.be.equal(0);
 
-            const asset = wbtc.address;
-            const amount = parseBtc("10");
             await expect(registry.connect(users[0]).addKeeper(asset, amount))
                 .to.emit(registry, "KeeperAdded")
                 .withArgs(users[0].address, asset, amount);
@@ -102,6 +103,64 @@ describe("KeeperRegistry", function () {
             expect(await wbtc.balanceOf(registry.address)).to.be.equal(parseBtc("10"));
             expect(await hbtc.balanceOf(users[0].address)).to.be.equal(parseEther("100"));
             expect(await hbtc.balanceOf(registry.address)).to.be.equal(0);
+        });
+
+        it("import keepers", async function () {
+            const amount = parseBtc("10");
+            const asset = wbtc;
+            const keepers = [users[0], users[1]];
+            const keeperAddresses = keepers.map((x) => x.address);
+            const auction = deployer;
+            for (const keeper of keepers) {
+                await asset.connect(keeper).transfer(auction.address, amount);
+            }
+
+            const transferAmount = amount.mul(keepers.length);
+            await asset.connect(auction).approve(registry.address, transferAmount);
+            expect(await asset.balanceOf(auction.address)).to.be.equal(transferAmount);
+
+            await expect(
+                registry.connect(auction).importKeepers(amount, asset.address, keeperAddresses)
+            )
+                .to.emit(registry, "KeeperImported")
+                .withArgs(auction.address, asset.address, keeperAddresses, amount);
+
+            expect(await asset.balanceOf(registry.address)).to.be.equal(transferAmount);
+            expect(await asset.balanceOf(auction.address)).to.be.equal(0);
+            for (const keeper of keepers) {
+                expect(await registry.collaterals(keeper.address, asset.address)).to.be.equal(
+                    parseEther("10")
+                );
+            }
+        });
+
+        it("import keepers hbtc", async function () {
+            const amount = parseEther("10");
+            const asset = hbtc;
+            const keepers = [users[0], users[1]];
+            const keeperAddresses = keepers.map((x) => x.address);
+            const auction = deployer;
+            for (const keeper of keepers) {
+                await asset.connect(keeper).transfer(auction.address, amount);
+            }
+
+            const transferAmount = amount.mul(keepers.length);
+            await asset.connect(auction).approve(registry.address, transferAmount);
+            expect(await asset.balanceOf(auction.address)).to.be.equal(transferAmount);
+
+            await expect(
+                registry.connect(auction).importKeepers(amount, asset.address, keeperAddresses)
+            )
+                .to.emit(registry, "KeeperImported")
+                .withArgs(auction.address, asset.address, keeperAddresses, amount);
+
+            expect(await asset.balanceOf(registry.address)).to.be.equal(transferAmount);
+            expect(await asset.balanceOf(auction.address)).to.be.equal(0);
+            for (const keeper of keepers) {
+                expect(await registry.collaterals(keeper.address, asset.address)).to.be.equal(
+                    amount
+                );
+            }
         });
     });
 
