@@ -81,6 +81,9 @@ describe("KeeperRegistry", function () {
 
     describe("addKeeper()", function () {
         it("should add keeper", async function () {
+            const amount = parseBtc("10");
+            const asset = wbtc.address;
+
             expect(await registry.collaterals(users[0].address, wbtc.address)).to.be.equal(0);
             expect(await registry.collaterals(users[0].address, hbtc.address)).to.be.equal(0);
             expect(await wbtc.balanceOf(users[0].address)).to.be.equal(parseBtc("100"));
@@ -88,8 +91,6 @@ describe("KeeperRegistry", function () {
             expect(await hbtc.balanceOf(users[0].address)).to.be.equal(parseEther("100"));
             expect(await hbtc.balanceOf(registry.address)).to.be.equal(0);
 
-            const asset = wbtc.address;
-            const amount = parseBtc("10");
             await expect(registry.connect(users[0]).addKeeper(asset, amount))
                 .to.emit(registry, "KeeperAdded")
                 .withArgs(users[0].address, asset, amount);
@@ -102,6 +103,26 @@ describe("KeeperRegistry", function () {
             expect(await wbtc.balanceOf(registry.address)).to.be.equal(parseBtc("10"));
             expect(await hbtc.balanceOf(users[0].address)).to.be.equal(parseEther("100"));
             expect(await hbtc.balanceOf(registry.address)).to.be.equal(0);
+        });
+
+        it("import keepers", async function () {
+            const amount = parseBtc("10");
+            const asset = wbtc.address;
+            const keepers = [users[0].address, users[1].address];
+            const auction = deployer;
+            await wbtc.connect(users[0]).transfer(auction.address, amount);
+            await wbtc.connect(users[1]).transfer(auction.address, amount);
+
+            const transferAmount = amount.mul(keepers.length);
+            await wbtc.connect(auction).approve(registry.address, transferAmount);
+            expect(await wbtc.balanceOf(auction.address)).to.be.equal(transferAmount);
+
+            await expect(registry.connect(auction).importKeepers(amount, asset, keepers))
+                .to.emit(registry, "KeeperImported")
+                .withArgs(auction.address, asset, keepers, amount);
+
+            expect(await wbtc.balanceOf(registry.address)).to.be.equal(transferAmount);
+            expect(await wbtc.balanceOf(auction.address)).to.be.equal(0);
         });
     });
 
