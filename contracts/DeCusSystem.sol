@@ -197,6 +197,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     ) public {
         Receipt storage receipt = receipts[request.receiptId];
         Group storage group = groups[receipt.groupBtcAddress];
+        require(
+            // if using getReceiptId(), invalid conversion from string storage ref to string calldata
+            // request.receiptId == getReceiptId(receipt.groupBtcAddress, group.nonce),
+            request.receiptId == keccak256(abi.encodePacked(receipt.groupBtcAddress, group.nonce)),
+            "outdated receipt id"
+        );
+
         group.currSatoshi = (group.currSatoshi).add(receipt.amountInSatoshi);
         require(group.currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
 

@@ -235,7 +235,6 @@ describe("DeCusSystem", function () {
             expect((await system.getGroup(btcAddress))[3]).to.equal(nonce);
         });
 
-        // TODO: force mint request
         it("force mint request", async function () {
             expect((await system.getGroup(btcAddress))[3]).to.equal(nonce - 1);
 
@@ -310,6 +309,58 @@ describe("DeCusSystem", function () {
             expect(group[3]).to.be.equal(nonce);
 
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
+        });
+
+        it("forbit verify for outdated mint", async function () {
+            advanceTimeAndBlock(24 * 3600);
+
+            const nonce2 = nonce + 1;
+            const receiptId2 = getReceiptId(btcAddress, nonce2);
+            await expect(
+                system.connect(users[1]).forceRequestMint(btcAddress, GROUP_SATOSHI, nonce2)
+            )
+                .to.emit(system, "MintRevoked")
+                .withArgs(receiptId, btcAddress, users[1].address)
+                .to.emit(system, "MintRequested")
+                .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
+
+            const keepers = [users[1], users[2], users[3]];
+            const [rList, sList, packedV] = await prepareSignature(
+                keepers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+
+            const keeperAddresses = keepers.map((x) => x.address);
+            await expect(
+                system
+                    .connect(users[0])
+                    .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
+            ).to.revertedWith("outdated receipt id");
+        });
+
+        it("forbit verify for cancelled", async function () {
+            await expect(system.connect(users[0]).revokeMint(receiptId))
+                .to.emit(system, "MintRevoked")
+                .withArgs(receiptId, btcAddress, users[0].address);
+
+            const keepers = [users[1], users[2], users[3]];
+            const [rList, sList, packedV] = await prepareSignature(
+                keepers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+
+            const keeperAddresses = keepers.map((x) => x.address);
+            await expect(
+                system
+                    .connect(users[0])
+                    .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
+            ).to.revertedWith("receipt is not in DepositRequested state");
         });
     });
 
