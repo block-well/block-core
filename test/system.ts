@@ -311,7 +311,7 @@ describe("DeCusSystem", function () {
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
         });
 
-        it("forbit verify for outdated mint", async function () {
+        it("forbit verify for outdated receipt", async function () {
             advanceTimeAndBlock(24 * 3600);
 
             const nonce2 = nonce + 1;
