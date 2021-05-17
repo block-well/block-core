@@ -338,7 +338,7 @@ describe("DeCusSystem", function () {
                 system
                     .connect(users[0])
                     .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
-            ).to.revertedWith("outdated receipt id");
+            ).to.revertedWith("keeper is not in group");
         });
 
         it("forbit verify for cancelled", async function () {
