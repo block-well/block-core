@@ -3,7 +3,7 @@ import { BigNumber, Wallet, constants } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
 const { parseUnits, solidityKeccak256 } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
-import { prepareSignature, advanceTimeAndBlock } from "./helper";
+import { prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
 import { DeCusSystem, EBTC, ERC20, KeeperRegistry } from "../build/typechain";
 
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
@@ -40,9 +40,16 @@ describe("DeCusSystem", function () {
     let users: Wallet[];
     let system: DeCusSystem;
     let ebtc: EBTC;
+    let group1Keepers: Wallet[];
+    let group2Keepers: Wallet[];
+    let group1Verifiers: Wallet[];
 
     beforeEach(async function () {
         ({ users, system, ebtc } = await setupFixture());
+        group1Keepers = [users[0], users[1], users[2], users[3]];
+        group2Keepers = [users[0], users[1], users[4], users[5]];
+
+        group1Verifiers = group1Keepers.slice(1);
     });
 
     describe("getReceiptId()", function () {
@@ -57,12 +64,7 @@ describe("DeCusSystem", function () {
 
     describe("addGroup()", function () {
         it("should add group", async function () {
-            const keepers = [
-                users[0].address,
-                users[1].address,
-                users[2].address,
-                users[3].address,
-            ];
+            const keepers = group1Keepers.map((x) => x.address);
             await expect(system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers))
                 .to.emit(system, "GroupAdded")
                 .withArgs(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers);
@@ -83,7 +85,7 @@ describe("DeCusSystem", function () {
         let keepers: string[];
 
         beforeEach(async function () {
-            keepers = [users[0].address, users[1].address, users[2].address, users[3].address];
+            keepers = group1Keepers.map((x) => x.address);
 
             await system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers);
         });
@@ -145,18 +147,18 @@ describe("DeCusSystem", function () {
     });
 
     const addMockGroup = async (): Promise<void> => {
-        await system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, [
-            users[0].address,
-            users[1].address,
-            users[2].address,
-            users[3].address,
-        ]);
-        await system.addGroup(BTC_ADDRESS[1], 3, GROUP_SATOSHI, [
-            users[0].address,
-            users[1].address,
-            users[4].address,
-            users[5].address,
-        ]);
+        await system.addGroup(
+            BTC_ADDRESS[0],
+            3,
+            GROUP_SATOSHI,
+            group1Keepers.map((x) => x.address)
+        );
+        await system.addGroup(
+            BTC_ADDRESS[1],
+            3,
+            GROUP_SATOSHI,
+            group2Keepers.map((x) => x.address)
+        );
     };
 
     const requestMint = async (
@@ -282,7 +284,7 @@ describe("DeCusSystem", function () {
             expect(group[2]).to.be.equal(0);
             expect(group[3]).to.be.equal(nonce);
 
-            const keepers = [users[1], users[2], users[3]];
+            const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
                 keepers,
                 system.address,
@@ -324,7 +326,7 @@ describe("DeCusSystem", function () {
                 .to.emit(system, "MintRequested")
                 .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
 
-            const keepers = [users[1], users[2], users[3]];
+            const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
                 keepers,
                 system.address,
@@ -346,7 +348,7 @@ describe("DeCusSystem", function () {
                 .to.emit(system, "MintRevoked")
                 .withArgs(receiptId, btcAddress, users[0].address);
 
-            const keepers = [users[1], users[2], users[3]];
+            const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
                 keepers,
                 system.address,
@@ -378,7 +380,7 @@ describe("DeCusSystem", function () {
 
             receiptId = await requestMint(users[0], btcAddress, nonce);
 
-            await verifyMint(users[0], [users[1], users[2], users[3]], receiptId, txId, height);
+            await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
         });
 
         it("request burn", async function () {
@@ -409,7 +411,7 @@ describe("DeCusSystem", function () {
 
             receiptId = await requestMint(users[0], btcAddress, nonce);
 
-            await verifyMint(users[0], [users[1], users[2], users[3]], receiptId, txId, height);
+            await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
 
             await ebtc.connect(users[0]).approve(system.address, userEbtcAmount);
             await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
@@ -460,6 +462,58 @@ describe("DeCusSystem", function () {
             expect(group[3]).to.be.equal(nonce2);
             const receipt = await system.getReceipt(receiptId2);
             expect(receipt.status).to.be.equal(1);
+        });
+    });
+
+    describe("refundBtc()", function () {
+        const btcAddress = BTC_ADDRESS[0];
+        const nonce = 1;
+        let receiptId: string;
+        const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
+        const height = 1940801;
+
+        beforeEach(async function () {
+            await addMockGroup();
+
+            receiptId = await requestMint(users[0], btcAddress, nonce);
+        });
+
+        it("refund recorded", async function () {
+            const expiryTimestamp = (await system.REFUND_GAP()).add(1 + (await currentTime()));
+            await expect(system.refundBtc(btcAddress, txId))
+                .to.emit(system, "BtcRefunded")
+                .withArgs(btcAddress, txId, expiryTimestamp);
+
+            const refundData = await system.getRefundData();
+            expect(refundData.groupBtcAddress).to.be.equal(btcAddress);
+            expect(refundData.txId).to.be.equal(txId);
+            expect(refundData.expiryTimestamp).to.be.equal(expiryTimestamp);
+        });
+
+        it("refund conflict with verified txId", async function () {
+            await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
+
+            await expect(system.refundBtc(btcAddress, txId)).to.revertedWith(
+                "txId is already verified"
+            );
+        });
+
+        it("refund cool down", async function () {
+            const refundGap = await system.REFUND_GAP();
+            const expiryTimestamp = refundGap.add(1 + (await currentTime()));
+            await expect(system.refundBtc(btcAddress, txId))
+                .to.emit(system, "BtcRefunded")
+                .withArgs(btcAddress, txId, expiryTimestamp);
+
+            const txId2 = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169be";
+            await expect(system.refundBtc(btcAddress, txId2)).to.revertedWith("refund cool down");
+
+            await advanceTimeAndBlock(24 * 3600);
+
+            const expiryTimestamp2 = refundGap.add(1 + (await currentTime()));
+            await expect(system.refundBtc(btcAddress, txId2))
+                .to.emit(system, "BtcRefunded")
+                .withArgs(btcAddress, txId2, expiryTimestamp2);
         });
     });
 });
