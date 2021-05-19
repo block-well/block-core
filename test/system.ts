@@ -4,7 +4,7 @@ import { deployments, ethers, waffle } from "hardhat";
 const { parseUnits, solidityKeccak256 } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
-import { DeCusSystem, EBTC, ERC20, KeeperRegistry } from "../build/typechain";
+import { DeCusSystem, EBTC, ERC20, KeeperRegistry, Verifier } from "../build/typechain";
 
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
 const GROUP_SATOSHI = parseBtc("0.6");
@@ -26,6 +26,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
     const ebtc = (await ethers.getContract("EBTC")) as EBTC;
+    const verifier = (await ethers.getContract("Verifier")) as Verifier;
 
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
@@ -33,19 +34,20 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return { deployer, users, system, ebtc };
+    return { deployer, users, system, ebtc, verifier };
 });
 
 describe("DeCusSystem", function () {
     let users: Wallet[];
     let system: DeCusSystem;
+    let verifier: Verifier;
     let ebtc: EBTC;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
     let group1Verifiers: Wallet[];
 
     beforeEach(async function () {
-        ({ users, system, ebtc } = await setupFixture());
+        ({ users, system, ebtc, verifier } = await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
@@ -179,7 +181,7 @@ describe("DeCusSystem", function () {
     ): Promise<void> => {
         const [rList, sList, packedV] = await prepareSignature(
             keepers,
-            system.address,
+            verifier.address,
             receiptId,
             txId,
             height
@@ -287,7 +289,7 @@ describe("DeCusSystem", function () {
             const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
                 keepers,
-                system.address,
+                verifier.address,
                 receiptId,
                 txId,
                 height
@@ -329,7 +331,7 @@ describe("DeCusSystem", function () {
             const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
                 keepers,
-                system.address,
+                verifier.address,
                 receiptId,
                 txId,
                 height
@@ -351,7 +353,7 @@ describe("DeCusSystem", function () {
             const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
                 keepers,
-                system.address,
+                verifier.address,
                 receiptId,
                 txId,
                 height

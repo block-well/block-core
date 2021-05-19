@@ -18,13 +18,15 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     );
 
     const registry = await deployments.get("KeeperRegistry");
+    const verifier = await deployments.get("Verifier");
 
     await deployments.execute(
         "DeCusSystem",
         { from: deployer, log: true },
         "initialize",
         ebtc.address,
-        registry.address
+        registry.address,
+        verifier.address
     );
 };
 

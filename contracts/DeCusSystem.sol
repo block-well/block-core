@@ -6,19 +6,16 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
-import "@openzeppelin/contracts/drafts/EIP712.sol";
 
 import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IEBTC} from "./interfaces/IEBTC.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
+import {Verifier} from "./utils/Verifier.sol";
 
-contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
+contract DeCusSystem is Ownable, Pausable, IDeCusSystem {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
-
-    bytes32 private constant REQUEST_TYPEHASH =
-        keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
 
     uint256 public constant KEEPER_COOLDOWN = 10 minutes;
     uint256 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
@@ -29,6 +26,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
     IEBTC public eBTC;
     IKeeperRegistry public keeperRegistry;
+    Verifier public verifier;
 
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
@@ -37,11 +35,14 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     BtcRefundData private btcRefundData;
 
     //================================= Public =================================
-    constructor() public EIP712("DeCus", "1.0") {}
-
-    function initialize(address _eBTC, address _registry) external {
+    function initialize(
+        address _eBTC,
+        address _registry,
+        Verifier _verifier
+    ) external {
         eBTC = IEBTC(_eBTC);
         keeperRegistry = IKeeperRegistry(_registry);
+        verifier = _verifier;
     }
 
     // ------------------------------ keeper -----------------------------------
@@ -280,13 +281,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         require(keepers.length >= group.required, "not enough keepers");
 
         uint256 cooldownTime = (block.timestamp).add(KEEPER_COOLDOWN);
-        // bytes32 requestHash = getMintRequestHash(request);
-        bytes32 digest =
-            _hashTypedDataV4(
-                keccak256(
-                    abi.encode(REQUEST_TYPEHASH, request.receiptId, request.txId, request.height)
-                )
-            );
+        bytes32 digest = verifier.getMintRequestHash(request);
 
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];

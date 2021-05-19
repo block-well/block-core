@@ -10,6 +10,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [],
         log: true,
     });
+
+    await deployments.deploy("Verifier", {
+        from: deployer,
+        args: [],
+        log: true,
+    });
 };
 
 export default func;
