@@ -26,6 +26,12 @@ interface IDeCusSystem {
         string withdrawBtcAddress;
     }
 
+    struct BtcRefundData {
+        uint256 expiryTimestamp;
+        bytes32 txId;
+        string groupBtcAddress;
+    }
+
     // events
     event GroupAdded(string btcAddress, uint256 required, uint256 maxSatoshi, address[] keepers);
     event GroupDeleted(string btcAddress);
@@ -48,4 +54,6 @@ interface IDeCusSystem {
     event BurnVerified(bytes32 indexed receiptId, string groupBtcAddress, address operator);
 
     event Cooldown(address indexed keeper, uint256 endTime);
+
+    event BtcRefunded(string groupBtcAddress, bytes32 txId, uint256 expiryTimestamp);
 }

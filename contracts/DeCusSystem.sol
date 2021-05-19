@@ -22,6 +22,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     uint256 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
     uint256 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
     uint256 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
+    uint256 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
     uint256 public minKeeperSatoshi = 1e5;
 
     IEBTC public eBTC;
@@ -30,6 +31,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
     mapping(address => uint256) private cooldownUntil; // keeper address -> cooldown end timestamp
+
+    BtcRefundData private btcRefundData;
 
     //================================= Public =================================
     function initialize(address _eBTC, address _registry) external {
@@ -400,5 +403,25 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
 
         eBTC.transferFrom(from, to, amount);
+    }
+
+    // -------------------------------- BTC refund -----------------------------------
+    function getRefundData() external view returns (BtcRefundData memory) {
+        return btcRefundData;
+    }
+
+    function refundBtc(string calldata groupBtcAddress, bytes32 txId) public onlyOwner {
+        Receipt storage receipt =
+            receipts[getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce)];
+        require(txId != receipt.txId, "txId is already verified");
+
+        require(btcRefundData.expiryTimestamp < block.timestamp, "refund cool down");
+
+        uint256 expiryTimestamp = block.timestamp + REFUND_GAP;
+        btcRefundData.expiryTimestamp = expiryTimestamp;
+        btcRefundData.txId = txId;
+        btcRefundData.groupBtcAddress = groupBtcAddress;
+
+        emit BtcRefunded(groupBtcAddress, txId, expiryTimestamp);
     }
 }
