@@ -6,19 +6,21 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
+import "@openzeppelin/contracts/drafts/EIP712.sol";
 
 import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IEBTC} from "./interfaces/IEBTC.sol";
-import {LibRequest} from "./utils/LibRequest.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
-contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
+contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    bytes32 private constant REQUEST_TYPEHASH =
+        keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
+
     uint256 public constant KEEPER_COOLDOWN = 10 minutes;
-    // uint256 public constant WITHDRAW_VERIFICATION_START = 1 hours;
     uint256 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
     uint256 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
     uint256 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
@@ -35,6 +37,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     BtcRefundData private btcRefundData;
 
     //================================= Public =================================
+    constructor() public EIP712("DeCus", "1.0") {}
+
     function initialize(address _eBTC, address _registry) external {
         eBTC = IEBTC(_eBTC);
         keeperRegistry = IKeeperRegistry(_registry);
@@ -192,7 +196,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
     }
 
     function verifyMint(
-        LibRequest.MintRequest calldata request,
+        MintRequest calldata request,
         address[] calldata keepers, // keepers must be in ascending orders
         bytes32[] calldata r,
         bytes32[] calldata s,
@@ -267,7 +271,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
 
     function _verifyMintRequest(
         Group storage group,
-        LibRequest.MintRequest calldata request,
+        MintRequest calldata request,
         address[] calldata keepers,
         bytes32[] calldata r,
         bytes32[] calldata s,
@@ -276,17 +280,20 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, LibRequest {
         require(keepers.length >= group.required, "not enough keepers");
 
         uint256 cooldownTime = (block.timestamp).add(KEEPER_COOLDOWN);
-        bytes32 requestHash = getMintRequestHash(request);
+        // bytes32 requestHash = getMintRequestHash(request);
+        bytes32 digest =
+            _hashTypedDataV4(
+                keccak256(
+                    abi.encode(REQUEST_TYPEHASH, request.receiptId, request.txId, request.height)
+                )
+            );
 
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
 
             require(cooldownUntil[keeper] <= block.timestamp, "keeper is in cooldown");
             require(group.keeperSet.contains(keeper), "keeper is not in group");
-            require(
-                ecrecover(requestHash, uint8(packedV), r[i], s[i]) == keeper,
-                "invalid signature"
-            );
+            require(ecrecover(digest, uint8(packedV), r[i], s[i]) == keeper, "invalid signature");
             // assert keepers.length <= 32
             packedV >>= 8;
 
