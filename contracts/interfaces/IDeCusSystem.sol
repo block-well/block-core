@@ -32,6 +32,12 @@ interface IDeCusSystem {
         string groupBtcAddress;
     }
 
+    struct MintRequest {
+        bytes32 receiptId;
+        bytes32 txId;
+        uint256 height;
+    }
+
     // events
     event GroupAdded(string btcAddress, uint256 required, uint256 maxSatoshi, address[] keepers);
     event GroupDeleted(string btcAddress);
