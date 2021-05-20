@@ -1,6 +1,10 @@
 import { ethers } from "hardhat";
 import { BigNumber, BigNumberish, Wallet } from "ethers";
 
+export function parseBtc(value: string): BigNumber {
+    return ethers.utils.parseUnits(value, 8);
+}
+
 const mintRequestTypes = [
     { name: "receiptId", type: "bytes32" },
     { name: "txId", type: "bytes32" },
@@ -57,18 +61,20 @@ export async function prepareSignature(
     return [rList, sList, packedV];
 }
 
-export const currentTime = async (): Promise<number> => {
-    return (await ethers.provider.getBlock("latest")).timestamp;
-};
+export async function currentTime(): Promise<number> {
+    const block = await ethers.provider.getBlock("latest");
+    return block.timestamp;
+}
 
-export const advanceTime = async (time: number): Promise<unknown> => {
+export async function advanceTime(time: number): Promise<unknown> {
     return ethers.provider.send("evm_increaseTime", [time]);
-};
+}
 
-export const advanceBlock = async (): Promise<unknown> => {
+export async function advanceBlock(): Promise<unknown> {
     return ethers.provider.send("evm_mine", []);
-};
+}
 
-export const advanceTimeAndBlock = async (time: number): Promise<void> => {
-    return ethers.provider.send("evm_mine", [(await currentTime()) + time]);
-};
+export async function advanceTimeAndBlock(time: number): Promise<void> {
+    const timestamp = await currentTime();
+    return ethers.provider.send("evm_mine", [timestamp + time]);
+}

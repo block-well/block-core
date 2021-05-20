@@ -1,14 +1,16 @@
-import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
-import { ethers } from "hardhat";
+import { ethers, deployments, getNamedAccounts } from "hardhat";
 
-const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-    const { deployments, getNamedAccounts } = hre;
+const func: DeployFunction = async function () {
     const { deployer } = await getNamedAccounts();
 
-    const ebtc = await deployments.get("EBTC");
-    const decusSystem = await deployments.get("DeCusSystem");
+    await deployments.deploy("DeCusSystem", {
+        from: deployer,
+        args: [],
+        log: true,
+    });
 
+    const decusSystem = await deployments.get("DeCusSystem");
     await deployments.execute(
         "EBTC",
         { from: deployer, log: true },
@@ -17,8 +19,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         decusSystem.address
     );
 
+    const ebtc = await deployments.get("EBTC");
     const registry = await deployments.get("KeeperRegistry");
-
     await deployments.execute(
         "DeCusSystem",
         { from: deployer, log: true },
@@ -29,5 +31,3 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 };
 
 export default func;
-func.tags = ["All", "Init"];
-func.dependencies = ["System", "Token", "Keeper"];

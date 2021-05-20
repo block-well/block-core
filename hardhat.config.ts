@@ -5,7 +5,7 @@ import "solidity-coverage";
 import "hardhat-gas-reporter";
 import "hardhat-typechain";
 import "hardhat-deploy";
-import { HardhatUserConfig, NetworksUserConfig } from "hardhat/types";
+import { HardhatUserConfig } from "hardhat/types";
 
 // Prevent to load scripts before compilation and typechain
 if (!process.env.SKIP_LOAD) {
@@ -17,15 +17,12 @@ if (!process.env.SKIP_LOAD) {
         });
 }
 
-const networks: NetworksUserConfig = {
-    hardhat: {
-        saveDeployments: false,
-    },
-    localhost: {},
-};
-
 const config: HardhatUserConfig = {
-    networks: networks,
+    networks: {
+        hardhat: {
+            saveDeployments: false,
+        },
+    },
     solidity: {
         version: "0.6.12",
         settings: {
@@ -63,20 +60,21 @@ if (etherscanKey) {
 const infuraId = process.env.INFURA_PROJECT_ID;
 if (infuraId) {
     const privateKey = `0x${process.env.PRIVATE_KEY}`;
-    config.networks = {
-        ...config.networks,
-        kovan: {
-            url: `https://kovan.infura.io/v3/${infuraId}`,
-            accounts: [privateKey],
-            throwOnTransactionFailures: true,
-            throwOnCallFailures: true,
-        },
-        ropsten: {
-            url: `https://ropsten.infura.io/v3/${infuraId}`,
-            accounts: [privateKey],
-            throwOnTransactionFailures: true,
-            throwOnCallFailures: true,
-        },
+
+    config.networks = config.networks || {};
+
+    config.networks.kovan = {
+        url: `https://kovan.infura.io/v3/${infuraId}`,
+        accounts: [privateKey],
+        throwOnTransactionFailures: true,
+        throwOnCallFailures: true,
+    };
+
+    config.networks.ropsten = {
+        url: `https://ropsten.infura.io/v3/${infuraId}`,
+        accounts: [privateKey],
+        throwOnTransactionFailures: true,
+        throwOnCallFailures: true,
     };
 }
 

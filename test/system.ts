@@ -1,11 +1,10 @@
 import { expect } from "chai";
 import { BigNumber, Wallet, constants } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
-const { parseUnits, solidityKeccak256 } = ethers.utils;
-const parseBtc = (value: string) => parseUnits(value, 8);
-import { prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
-import { DeCusSystem, EBTC, ERC20, KeeperRegistry } from "../build/typechain";
+import { parseBtc, prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
+import { ERC20, EBTC, KeeperRegistry, DeCusSystem } from "../build/typechain";
 
+// -----------------------------------------------------------------------------
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
 const GROUP_SATOSHI = parseBtc("0.6");
 const BTC_ADDRESS = [
@@ -14,41 +13,80 @@ const BTC_ADDRESS = [
     "38aNsdfsdfsdfsdfsdfdsfsdf2",
 ];
 
+let users: Wallet[];
+let wbtc: ERC20;
+// let hbtc: ERC20; XXX: not add `hbtc` in `deploy/xx_keeper.ts` yet
+let ebtc: EBTC;
+let registry: KeeperRegistry;
+let system: DeCusSystem;
+
+let group1Keepers: Wallet[];
+let group2Keepers: Wallet[];
+let group1Verifiers: Wallet[];
+
 function getReceiptId(btcAddress: string, nonce: number): string {
-    return solidityKeccak256(["string", "uint256"], [btcAddress, nonce]);
+    return ethers.utils.solidityKeccak256(["string", "uint256"], [btcAddress, nonce]);
 }
 
-const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
-    await deployments.fixture();
+async function addMockGroup(): Promise<void> {
+    await system.addGroup(
+        BTC_ADDRESS[0],
+        3,
+        GROUP_SATOSHI,
+        group1Keepers.map((x) => x.address)
+    );
+    await system.addGroup(
+        BTC_ADDRESS[1],
+        3,
+        GROUP_SATOSHI,
+        group2Keepers.map((x) => x.address)
+    );
+}
 
-    const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
-    const wbtc = (await ethers.getContract("WBTC")) as ERC20;
-    const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
-    const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
-    const ebtc = (await ethers.getContract("EBTC")) as EBTC;
+async function requestMint(user: Wallet, btcAddress: string, nonce: number): Promise<string> {
+    await system.connect(user).requestMint(btcAddress, GROUP_SATOSHI, nonce);
+    return getReceiptId(btcAddress, nonce);
+}
 
-    for (const user of users) {
-        await wbtc.mint(user.address, parseBtc("100"));
-        await wbtc.connect(user).approve(registry.address, parseBtc("100"));
-        await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
-    }
+async function verifyMint(
+    user: Wallet,
+    keepers: Wallet[],
+    receiptId: string,
+    txId: string,
+    height: number
+): Promise<void> {
+    const [rList, sList, packedV] = await prepareSignature(
+        keepers,
+        system.address,
+        receiptId,
+        txId,
+        height
+    );
 
-    return { deployer, users, system, ebtc };
-});
+    const keeperAddresses = keepers.map((x) => x.address);
+    await system
+        .connect(user)
+        .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
+}
 
 describe("DeCusSystem", function () {
-    let users: Wallet[];
-    let system: DeCusSystem;
-    let ebtc: EBTC;
-    let group1Keepers: Wallet[];
-    let group2Keepers: Wallet[];
-    let group1Verifiers: Wallet[];
-
     beforeEach(async function () {
-        ({ users, system, ebtc } = await setupFixture());
+        await deployments.fixture();
+
+        [, /* deployer */ ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
+        wbtc = (await ethers.getContract("WBTC")) as ERC20;
+        ebtc = (await ethers.getContract("EBTC")) as EBTC;
+        registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
+        system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+
+        for (const user of users) {
+            await wbtc.mint(user.address, parseBtc("100"));
+            await wbtc.connect(user).approve(registry.address, parseBtc("100"));
+            await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
+        }
+
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
-
         group1Verifiers = group1Keepers.slice(1);
     });
 
@@ -145,51 +183,6 @@ describe("DeCusSystem", function () {
             expect(group.required).equal(BigNumber.from(2)); // new group `required`
         });
     });
-
-    const addMockGroup = async (): Promise<void> => {
-        await system.addGroup(
-            BTC_ADDRESS[0],
-            3,
-            GROUP_SATOSHI,
-            group1Keepers.map((x) => x.address)
-        );
-        await system.addGroup(
-            BTC_ADDRESS[1],
-            3,
-            GROUP_SATOSHI,
-            group2Keepers.map((x) => x.address)
-        );
-    };
-
-    const requestMint = async (
-        user: Wallet,
-        btcAddress: string,
-        nonce: number
-    ): Promise<string> => {
-        await system.connect(user).requestMint(btcAddress, GROUP_SATOSHI, nonce);
-        return getReceiptId(btcAddress, nonce);
-    };
-
-    const verifyMint = async (
-        user: Wallet,
-        keepers: Wallet[],
-        receiptId: string,
-        txId: string,
-        height: number
-    ): Promise<void> => {
-        const [rList, sList, packedV] = await prepareSignature(
-            keepers,
-            system.address,
-            receiptId,
-            txId,
-            height
-        );
-
-        const keeperAddresses = keepers.map((x) => x.address);
-        await system
-            .connect(user)
-            .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
-    };
 
     describe("requestMint()", function () {
         const btcAddress = BTC_ADDRESS[0];

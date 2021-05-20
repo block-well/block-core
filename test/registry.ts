@@ -1,64 +1,70 @@
 import { expect } from "chai";
 import { Wallet } from "ethers";
-import { deployments, ethers, waffle } from "hardhat";
-import { KeeperRegistry, ERC20 } from "../build/typechain";
+import { ethers, waffle, deployments, getNamedAccounts } from "hardhat";
+import { parseBtc } from "./helper";
+import { ERC20, EBTC, KeeperRegistry } from "../build/typechain";
 
-const { parseEther, parseUnits } = ethers.utils;
-const parseBtc = (value: string) => parseUnits(value, 8);
+const { parseEther } = ethers.utils;
 
-const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
-    const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
+// -----------------------------------------------------------------------------
+const fixture = deployments.createFixture(async () => {
+    const { deployer } = await getNamedAccounts();
 
     await deployments.deploy("MockWBTC", {
-        from: deployer.address,
+        from: deployer,
         log: true,
     });
-    const wbtc = (await ethers.getContract("MockWBTC")) as ERC20;
 
     await deployments.deploy("MockEBTC", {
         contract: "MockERC20",
-        from: deployer.address,
+        from: deployer,
         log: true,
     });
-    const ebtc = (await ethers.getContract("MockEBTC")) as ERC20;
 
     await deployments.deploy("MockHBTC", {
         contract: "MockERC20",
-        from: deployer.address,
+        from: deployer,
         log: true,
     });
-    const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
+
+    const wbtc = await deployments.get("MockWBTC");
+    const hbtc = await deployments.get("MockHBTC");
+    const ebtc = await deployments.get("MockEBTC");
 
     await deployments.deploy("KeeperRegistry", {
-        from: deployer.address,
+        from: deployer,
         args: [[wbtc.address, hbtc.address], ebtc.address],
         log: true,
     });
-    const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
-
-    for (const user of users) {
-        await wbtc.mint(user.address, parseBtc("100"));
-        await hbtc.mint(user.address, parseEther("100"));
-        await ebtc.mint(user.address, parseEther("100"));
-
-        await wbtc.connect(user).approve(registry.address, parseBtc("100"));
-        await hbtc.connect(user).approve(registry.address, parseEther("100"));
-        await ebtc.connect(user).approve(registry.address, parseEther("100"));
-    }
-
-    return { users, deployer, wbtc, hbtc, ebtc, registry };
 });
 
-describe("KeeperRegistry", function () {
-    let deployer: Wallet;
-    let users: Wallet[];
-    let wbtc: ERC20;
-    let hbtc: ERC20;
-    let ebtc: ERC20;
-    let registry: KeeperRegistry;
+// -----------------------------------------------------------------------------
+let deployer: Wallet;
+let users: Wallet[];
+let wbtc: ERC20;
+let hbtc: ERC20;
+let ebtc: EBTC;
+let registry: KeeperRegistry;
 
+describe("KeeperRegistry", function () {
     beforeEach(async function () {
-        ({ users, deployer, wbtc, hbtc, ebtc, registry } = await setupFixture());
+        await fixture();
+
+        [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
+        wbtc = (await ethers.getContract("MockWBTC")) as ERC20;
+        hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
+        ebtc = (await ethers.getContract("MockEBTC")) as EBTC;
+        registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
+
+        for (const user of users) {
+            await wbtc.mint(user.address, parseBtc("100"));
+            await hbtc.mint(user.address, parseEther("100"));
+            await ebtc.mint(user.address, parseEther("100"));
+
+            await wbtc.connect(user).approve(registry.address, parseBtc("100"));
+            await hbtc.connect(user).approve(registry.address, parseEther("100"));
+            await ebtc.connect(user).approve(registry.address, parseEther("100"));
+        }
     });
 
     describe("addAsset()", function () {
