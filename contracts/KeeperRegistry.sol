@@ -13,10 +13,6 @@ import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IBtcRater} from "./interfaces/IBtcRater.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
-interface IERC20Extension {
-    function decimals() external returns (uint8);
-}
-
 contract KeeperRegistry is Ownable, IKeeperRegistry {
     using Math for uint256;
     using SafeMath for uint256;
@@ -131,11 +127,9 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         }
     }
 
-    function offsetOverissue(uint256 congAmount) external {
-        cong.burnFrom(msg.sender, congAmount);
-        overissuedTotal = overissuedTotal.sub(
-            btcRater.calcValueInSatoshi(address(cong), congAmount)
-        );
+    function offsetOverissue(uint256 amountInWei) external {
+        cong.burnFrom(msg.sender, amountInWei.mul(cong.BTC_MULTIPLIER()));
+        overissuedTotal = overissuedTotal.sub(amountInWei);
     }
 
     function _burnCONG(uint256 amountInWei) private {

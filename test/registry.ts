@@ -251,6 +251,9 @@ describe("KeeperRegistry", function () {
             expect(await registry.collaterals(users[0].address, cong.address)).to.be.equal(0);
             expect(await registry.overissuedTotal()).to.be.equal(parseEther("2"));
             expect(await registry.confiscations(cong.address)).to.be.equal(0);
+
+            await registry.connect(users[3]).offsetOverissue(parseEther("1"));
+            expect(await registry.overissuedTotal()).to.be.equal(parseEther("1"));
         });
 
         it("should punish cong & non-cong keepers and confiscate the rest", async function () {
