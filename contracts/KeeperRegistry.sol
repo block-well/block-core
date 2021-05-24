@@ -146,7 +146,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         address asset,
         uint256 amount
     ) private {
-        collaterals[keeper][asset] = btcRater.calcValueInWei(asset, amount);
+        collaterals[keeper][asset] = btcRater.calcAmountInWei(asset, amount);
         perUserCollateral[keeper] = asset;
 
         emit KeeperAdded(keeper, asset, amount);

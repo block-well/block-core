@@ -26,7 +26,7 @@ contract BtcRater is Ownable, IBtcRater {
         btcConversionRates[asset] = rate;
     }
 
-    function calcValueInSatoshi(address asset, uint256 amount)
+    function calcAmountInSatoshi(address asset, uint256 amount)
         external
         view
         override
@@ -40,7 +40,7 @@ contract BtcRater is Ownable, IBtcRater {
         return valueInSatoshiDecimal.div(btcConversionRates[asset]);
     }
 
-    function calcValueInWei(address asset, uint256 amount)
+    function calcAmountInWei(address asset, uint256 amount)
         external
         view
         override
