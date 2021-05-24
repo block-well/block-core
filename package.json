@@ -9,7 +9,9 @@
         "compile": "SKIP_LOAD=1 hardhat compile",
         "deploy": "hardhat deploy",
         "deploy:kovan": "hardhat deploy --network kovan",
-        "verify:kovan": "npx hardhat etherscan-verify --network kovan"
+        "verify:kovan": "npx hardhat etherscan-verify --network kovan",
+        "deploy:ropsten": "hardhat deploy --network ropsten",
+        "verify:ropsten": "npx hardhat etherscan-verify --network ropsten"
     },
     "devDependencies": {
         "@ethersproject/experimental": "^5.1.2",

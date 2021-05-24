@@ -1,10 +1,12 @@
 import { expect } from "chai";
 import { Wallet } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
-import { KeeperRegistry, ERC20 } from "../build/typechain";
+import { KeeperRegistry, ERC20, BtcRater } from "../build/typechain";
 
 const { parseEther, parseUnits } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
+const parseBtcInCong = (value: string) => parseUnits(value, 18);
+const BTC_TO_CONG = 1e8;
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
@@ -15,12 +17,18 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const wbtc = (await ethers.getContract("MockWBTC")) as ERC20;
 
-    await deployments.deploy("MockEBTC", {
-        contract: "MockERC20",
+    await deployments.deploy("CONG", {
         from: deployer.address,
         log: true,
     });
-    const ebtc = (await ethers.getContract("MockEBTC")) as ERC20;
+    await deployments.execute(
+        "CONG",
+        { from: deployer.address, log: true },
+        "grantRole",
+        ethers.utils.id("MINTER_ROLE"),
+        deployer.address
+    );
+    const cong = (await ethers.getContract("CONG")) as ERC20;
 
     await deployments.deploy("MockHBTC", {
         contract: "MockERC20",
@@ -29,9 +37,20 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
 
+    await deployments.deploy("BtcRater", {
+        from: deployer.address,
+        args: [
+            [wbtc.address, hbtc.address],
+            [1, 1],
+        ],
+        log: true,
+    });
+
+    const rater = (await ethers.getContract("BtcRater")) as BtcRater;
+
     await deployments.deploy("KeeperRegistry", {
         from: deployer.address,
-        args: [[wbtc.address, hbtc.address], ebtc.address],
+        args: [[wbtc.address, hbtc.address], cong.address, rater.address],
         log: true,
     });
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
@@ -39,14 +58,14 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
         await hbtc.mint(user.address, parseEther("100"));
-        await ebtc.mint(user.address, parseEther("100"));
+        await cong.connect(deployer).mint(user.address, parseEther("100"));
 
         await wbtc.connect(user).approve(registry.address, parseBtc("100"));
         await hbtc.connect(user).approve(registry.address, parseEther("100"));
-        await ebtc.connect(user).approve(registry.address, parseEther("100"));
+        await cong.connect(user).approve(registry.address, parseEther("100"));
     }
 
-    return { users, deployer, wbtc, hbtc, ebtc, registry };
+    return { users, deployer, wbtc, hbtc, cong, registry, rater };
 });
 
 describe("KeeperRegistry", function () {
@@ -54,11 +73,12 @@ describe("KeeperRegistry", function () {
     let users: Wallet[];
     let wbtc: ERC20;
     let hbtc: ERC20;
-    let ebtc: ERC20;
+    let cong: ERC20;
+    let rater: BtcRater;
     let registry: KeeperRegistry;
 
     beforeEach(async function () {
-        ({ users, deployer, wbtc, hbtc, ebtc, registry } = await setupFixture());
+        ({ users, deployer, wbtc, hbtc, cong, registry, rater } = await setupFixture());
     });
 
     describe("addAsset()", function () {
@@ -80,6 +100,16 @@ describe("KeeperRegistry", function () {
     });
 
     describe("addKeeper()", function () {
+        it("not enough collateral", async function () {
+            const amount = parseBtc("0.00001");
+            const asset = wbtc.address;
+            expect(await registry.collaterals(users[0].address, wbtc.address)).to.be.equal(0);
+
+            await expect(registry.connect(users[0]).addKeeper(asset, amount))
+                .to.emit(registry, "KeeperAdded")
+                .withArgs(users[0].address, asset, amount);
+        });
+
         it("should add keeper", async function () {
             const amount = parseBtc("10");
             const asset = wbtc.address;
@@ -166,10 +196,11 @@ describe("KeeperRegistry", function () {
 
     describe("punishKeeper()", function () {
         beforeEach(async function () {
-            await registry.connect(deployer).addAsset(ebtc.address);
+            await registry.connect(deployer).addAsset(cong.address);
+            await rater.connect(deployer).updateRates(cong.address, BTC_TO_CONG);
         });
 
-        it("should punish keeper using non-EBTC assets", async function () {
+        it("should punish keeper using non-CONG assets", async function () {
             await registry.connect(users[0]).addKeeper(wbtc.address, parseBtc("10"));
             await registry.connect(users[1]).addKeeper(hbtc.address, parseEther("10"));
 
@@ -202,40 +233,40 @@ describe("KeeperRegistry", function () {
             expect(await registry.confiscations(hbtc.address)).to.be.equal(parseEther("10"));
         });
 
-        it("should punish ebtc keeper and confiscate the rest", async function () {
-            await registry.connect(users[0]).addKeeper(ebtc.address, parseEther("10"));
+        it("should punish cong keeper and confiscate the rest", async function () {
+            await registry.connect(users[0]).addKeeper(cong.address, parseBtcInCong("10"));
 
             await registry.connect(deployer).punishKeeper([users[0].address], parseEther("7"));
 
-            expect(await registry.collaterals(users[0].address, ebtc.address)).to.be.equal(0);
+            expect(await registry.collaterals(users[0].address, cong.address)).to.be.equal(0);
             expect(await registry.overissuedTotal()).to.be.equal(0);
-            expect(await registry.confiscations(ebtc.address)).to.be.equal(parseEther("3"));
+            expect(await registry.confiscations(cong.address)).to.be.equal(parseEther("3"));
         });
 
-        it("should punish ebtc keeper and record the rest as overissues", async function () {
-            const collateralAmount = parseEther("10");
-            await registry.connect(users[0]).addKeeper(ebtc.address, collateralAmount);
+        it("should punish cong keeper and record the rest as overissues", async function () {
+            const collateralAmount = parseBtcInCong("10");
+            await registry.connect(users[0]).addKeeper(cong.address, collateralAmount);
 
             const overissuedAmount = parseEther("12");
             await registry.connect(deployer).punishKeeper([users[0].address], overissuedAmount);
 
             const remainOverissuedAmount = overissuedAmount.sub(collateralAmount);
-            expect(await registry.collaterals(users[0].address, ebtc.address)).to.be.equal(0);
+            expect(await registry.collaterals(users[0].address, cong.address)).to.be.equal(0);
             expect(await registry.overissuedTotal()).to.be.equal(remainOverissuedAmount);
-            expect(await registry.confiscations(ebtc.address)).to.be.equal(0);
+            expect(await registry.confiscations(cong.address)).to.be.equal(0);
 
-            const ebtcAmount = parseEther("1.5");
-            const leftAmount = remainOverissuedAmount.sub(ebtcAmount);
-            await expect(registry.connect(users[3]).offsetOverissue(ebtcAmount))
+            const congAmount = parseBtcInCong("1.5");
+            const leftAmount = remainOverissuedAmount.sub(congAmount);
+            await expect(registry.connect(users[3]).offsetOverissue(congAmount))
                 .to.emit(registry, "OffsetOverissued")
-                .withArgs(users[3].address, ebtcAmount, leftAmount);
+                .withArgs(users[3].address, congAmount, leftAmount);
             expect(await registry.overissuedTotal()).to.be.equal(leftAmount);
         });
 
-        it("should punish ebtc & non-ebtc keepers and confiscate the rest", async function () {
-            await registry.connect(users[0]).addKeeper(ebtc.address, parseEther("10"));
+        it("should punish cong & non-cong keepers and confiscate the rest", async function () {
+            await registry.connect(users[0]).addKeeper(cong.address, parseBtcInCong("10"));
             await registry.connect(users[1]).addKeeper(wbtc.address, parseBtc("10"));
-            await registry.connect(users[2]).addKeeper(ebtc.address, parseEther("10"));
+            await registry.connect(users[2]).addKeeper(cong.address, parseBtcInCong("10"));
 
             await registry
                 .connect(deployer)
@@ -244,18 +275,18 @@ describe("KeeperRegistry", function () {
                     parseEther("9")
                 );
 
-            expect(await registry.collaterals(users[0].address, ebtc.address)).to.be.equal(0);
-            expect(await registry.collaterals(users[1].address, ebtc.address)).to.be.equal(0);
+            expect(await registry.collaterals(users[0].address, cong.address)).to.be.equal(0);
+            expect(await registry.collaterals(users[1].address, cong.address)).to.be.equal(0);
             expect(await registry.collaterals(users[2].address, wbtc.address)).to.be.equal(0);
             expect(await registry.overissuedTotal()).to.be.equal(0);
-            expect(await registry.confiscations(ebtc.address)).to.be.equal(parseEther("11"));
+            expect(await registry.confiscations(cong.address)).to.be.equal(parseEther("11"));
             expect(await registry.confiscations(wbtc.address)).to.be.equal(parseEther("10"));
         });
 
-        it("should punish ebtc & non-ebtc keepers and record the rest as overissues", async function () {
-            await registry.connect(users[0]).addKeeper(ebtc.address, parseEther("10"));
+        it("should punish cong & non-cong keepers and record the rest as overissues", async function () {
+            await registry.connect(users[0]).addKeeper(cong.address, parseBtcInCong("10"));
             await registry.connect(users[1]).addKeeper(wbtc.address, parseBtc("10"));
-            await registry.connect(users[2]).addKeeper(ebtc.address, parseEther("10"));
+            await registry.connect(users[2]).addKeeper(cong.address, parseBtcInCong("10"));
 
             await registry
                 .connect(deployer)
@@ -264,11 +295,11 @@ describe("KeeperRegistry", function () {
                     parseEther("21")
                 );
 
-            expect(await registry.collaterals(users[0].address, ebtc.address)).to.be.equal(0);
-            expect(await registry.collaterals(users[1].address, ebtc.address)).to.be.equal(0);
+            expect(await registry.collaterals(users[0].address, cong.address)).to.be.equal(0);
+            expect(await registry.collaterals(users[1].address, cong.address)).to.be.equal(0);
             expect(await registry.collaterals(users[2].address, wbtc.address)).to.be.equal(0);
             expect(await registry.overissuedTotal()).to.be.equal(parseEther("1"));
-            expect(await registry.confiscations(ebtc.address)).to.be.equal(0);
+            expect(await registry.confiscations(cong.address)).to.be.equal(0);
             expect(await registry.confiscations(wbtc.address)).to.be.equal(parseEther("10"));
         });
     });

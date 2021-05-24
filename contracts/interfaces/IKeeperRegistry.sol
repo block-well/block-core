@@ -21,7 +21,7 @@ interface IKeeperRegistry {
     event Confiscated(address indexed treasury, address asset, uint256 amount);
     event OffsetOverissued(
         address indexed operator,
-        uint256 ebtcAmount,
+        uint256 congAmount,
         uint256 remainingOverissueAmount
     );
 }
