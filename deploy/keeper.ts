@@ -6,11 +6,17 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployer } = await getNamedAccounts();
 
     const wbtc = await deployments.get("WBTC");
-    const ebtc = await deployments.get("EBTC");
+    await deployments.deploy("BtcRater", {
+        from: deployer,
+        args: [[wbtc.address], [1]],
+        log: true,
+    });
 
+    const cong = await deployments.get("CONG");
+    const rater = await deployments.get("BtcRater");
     await deployments.deploy("KeeperRegistry", {
         from: deployer,
-        args: [[wbtc.address], ebtc.address],
+        args: [[wbtc.address], cong.address, rater.address],
         log: true,
     });
 };

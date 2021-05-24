@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/drafts/EIP712.sol";
 
 import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
-import {IEBTC} from "./interfaces/IEBTC.sol";
+import {IToken} from "./interfaces/IToken.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
 contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
@@ -26,8 +26,9 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     uint256 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint256 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
     uint256 public minKeeperSatoshi = 1e5;
+    uint256 public minKeeperWei = 1e13;
 
-    IEBTC public eBTC;
+    IToken public cong;
     IKeeperRegistry public keeperRegistry;
 
     mapping(string => Group) private groups; // btc address -> Group
@@ -39,8 +40,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     //================================= Public =================================
     constructor() public EIP712("DeCus", "1.0") {}
 
-    function initialize(address _eBTC, address _registry) external {
-        eBTC = IEBTC(_eBTC);
+    function initialize(address _cong, address _registry) external {
+        cong = IToken(_cong);
         keeperRegistry = IKeeperRegistry(_registry);
     }
 
@@ -99,7 +100,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             require(
-                keeperRegistry.getCollateralValue(keeper) >= minKeeperSatoshi,
+                keeperRegistry.getCollateralWei(keeper) >= minKeeperWei,
                 "keeper has not enough collateral"
             );
             group.keeperSet.add(keeper);
@@ -210,7 +211,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         _verifyMintRequest(group, request, keepers, r, s, packedV);
         _approveDeposit(receipt, request.txId, request.height);
 
-        _mintEBTC(receipt.recipient, receipt.amountInSatoshi);
+        _mintCONG(receipt.recipient, receipt.amountInSatoshi);
 
         emit MintVerified(request.receiptId, receipt.groupBtcAddress, keepers);
     }
@@ -221,7 +222,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
         _requestWithdraw(receipt, withdrawBtcAddress);
 
-        _transferFromEBTC(msg.sender, address(this), receipt.amountInSatoshi);
+        _transferFromCONG(msg.sender, address(this), receipt.amountInSatoshi);
 
         emit BurnRequested(receiptId, receipt.groupBtcAddress, withdrawBtcAddress, msg.sender);
     }
@@ -232,7 +233,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
         _approveWithdraw(receipt);
 
-        _burnEBTC(receipt.amountInSatoshi);
+        _burnCONG(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
@@ -244,7 +245,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         Receipt storage receipt = receipts[receiptId];
         _revokeWithdraw(receipt);
 
-        _transferEBTC(msg.sender, receipt.amountInSatoshi);
+        _transferCONG(msg.sender, receipt.amountInSatoshi);
 
         emit BurnRevoked(receiptId, receipt.groupBtcAddress, msg.sender);
     }
@@ -304,7 +305,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     function _forceVerifyBurn(bytes32 receiptId, Receipt storage receipt) private {
         receipt.status = Status.Available;
 
-        _burnEBTC(receipt.amountInSatoshi);
+        _burnCONG(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
@@ -382,34 +383,34 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         receipt.status = Status.Available;
     }
 
-    // -------------------------------- eBTC -----------------------------------
-    function _mintEBTC(address to, uint256 amountInSatoshi) private {
+    // -------------------------------- CONG -----------------------------------
+    function _mintCONG(address to, uint256 amountInSatoshi) private {
         // TODO: add fee deduction
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        eBTC.mint(to, amount);
+        cong.mint(to, amount);
     }
 
-    function _burnEBTC(uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+    function _burnCONG(uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        eBTC.burn(amount);
+        cong.burn(amount);
     }
 
-    function _transferEBTC(address to, uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+    function _transferCONG(address to, uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        eBTC.transfer(to, amount);
+        cong.transfer(to, amount);
     }
 
-    function _transferFromEBTC(
+    function _transferFromCONG(
         address from,
         address to,
         uint256 amountInSatoshi
     ) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatoshiMultiplierForEBTC());
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        eBTC.transferFrom(from, to, amount);
+        cong.transferFrom(from, to, amount);
     }
 
     // -------------------------------- BTC refund -----------------------------------

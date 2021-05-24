@@ -3,7 +3,7 @@ pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 interface IKeeperRegistry {
-    function getCollateralValue(address keeper) external view returns (uint256);
+    function getCollateralWei(address keeper) external view returns (uint256);
 
     function importKeepers(
         uint256 amount,

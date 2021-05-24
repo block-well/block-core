@@ -5,7 +5,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    await deployments.deploy("EBTC", {
+    await deployments.deploy("CONG", {
         from: deployer,
         args: [],
         log: true,
