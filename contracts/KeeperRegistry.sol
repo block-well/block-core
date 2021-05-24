@@ -13,10 +13,6 @@ import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IBtcRater} from "./interfaces/IBtcRater.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
-interface IERC20Extension {
-    function decimals() external returns (uint8);
-}
-
 contract KeeperRegistry is Ownable, IKeeperRegistry {
     using Math for uint256;
     using SafeMath for uint256;
