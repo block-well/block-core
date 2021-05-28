@@ -112,21 +112,21 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         Receipt storage receipt = receipts[_receiptId];
 
         if (group.required == 0) {
-            status = GroupStatus.NotExist;
+            status = GroupStatus.None;
         } else if (receipt.status == Status.Available) {
             status = block.timestamp - receipt.updateTimestamp > GROUP_REUSING_GAP
-                ? GroupStatus.MintWaiting
-                : GroupStatus.Reusing;
+                ? GroupStatus.Available
+                : GroupStatus.MintGap;
         } else if (receipt.status == Status.DepositRequested) {
             status = block.timestamp - receipt.updateTimestamp > MINT_REQUEST_GRACE_PERIOD
                 ? GroupStatus.Timeout
-                : GroupStatus.MintProcessing;
+                : GroupStatus.MintRequested;
         } else if (receipt.status == Status.DepositReceived) {
-            status = GroupStatus.BurnWaiting;
+            status = GroupStatus.MintVerified;
         } else if (receipt.status == Status.WithdrawRequested) {
             status = block.timestamp - receipt.updateTimestamp > WITHDRAW_VERIFICATION_END
                 ? GroupStatus.Timeout
-                : GroupStatus.BurnProcessing;
+                : GroupStatus.BurnRequested;
         }
         return status;
     }

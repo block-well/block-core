@@ -7,13 +7,13 @@ import { prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
 import { DeCusSystem, EBTC, ERC20, KeeperRegistry } from "../build/typechain";
 
 enum GroupStatus {
-    NotExist,
-    MintWaiting,
-    MintProcessing,
-    BurnWaiting,
-    BurnProcessing,
+    None,
+    Available,
+    MintRequested,
+    MintVerified,
+    BurnRequested,
+    MintGap,
     Timeout,
-    Reusing,
 }
 
 enum Status {
@@ -107,7 +107,7 @@ describe("DeCusSystem", function () {
             expect(group.maxSatoshi).equal(BigNumber.from(GROUP_SATOSHI));
             expect(group.currSatoshi).equal(BigNumber.from(0));
             expect(group.nonce).equal(BigNumber.from(0));
-            expect(group.status).equal(GroupStatus.MintWaiting);
+            expect(group.status).equal(GroupStatus.Available);
             expect(group.keepers).deep.equal(keepers);
             expect(group.workingReceiptId).equal(
                 await system.getReceiptId(BTC_ADDRESS[0], group.nonce)
@@ -136,7 +136,7 @@ describe("DeCusSystem", function () {
             expect(group.maxSatoshi).equal(BigNumber.from(GROUP_SATOSHI));
             expect(group.currSatoshi).equal(BigNumber.from(0));
             expect(group.nonce).equal(BigNumber.from(0));
-            expect(group.status).equal(GroupStatus.MintWaiting);
+            expect(group.status).equal(GroupStatus.Available);
             expect(group.keepers).deep.equal(keepers);
             expect(group.workingReceiptId).equal(
                 await system.getReceiptId(BTC_ADDRESS[0], group.nonce)
@@ -151,7 +151,7 @@ describe("DeCusSystem", function () {
             expect(group.maxSatoshi).equal(BigNumber.from(0));
             expect(group.currSatoshi).equal(BigNumber.from(0));
             expect(group.nonce).equal(BigNumber.from(0));
-            expect(group.status).equal(GroupStatus.NotExist);
+            expect(group.status).equal(GroupStatus.None);
             expect(group.keepers).deep.equal([]);
             expect(group.workingReceiptId).equal(await system.getReceiptId(BTC_ADDRESS[0], 0));
         });
@@ -244,7 +244,7 @@ describe("DeCusSystem", function () {
         it("should request mint", async function () {
             let group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce - 1);
-            expect(group.status).equal(GroupStatus.MintWaiting);
+            expect(group.status).equal(GroupStatus.Available);
 
             await expect(system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce))
                 .to.emit(system, "MintRequested")
@@ -252,20 +252,20 @@ describe("DeCusSystem", function () {
 
             group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce);
-            expect(group.status).equal(GroupStatus.MintProcessing);
+            expect(group.status).equal(GroupStatus.MintRequested);
         });
 
         it("revoke mint", async function () {
             let group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce - 1);
-            expect(group.status).equal(GroupStatus.MintWaiting);
+            expect(group.status).equal(GroupStatus.Available);
             expect((await system.getGroup(btcAddress))[3]).to.equal(nonce - 1);
 
             await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
 
             group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce);
-            expect(group.status).equal(GroupStatus.MintProcessing);
+            expect(group.status).equal(GroupStatus.MintRequested);
             expect((await system.getReceipt(receiptId)).status).to.equal(1);
 
             await expect(system.connect(users[1]).revokeMint(receiptId)).to.revertedWith(
@@ -278,7 +278,7 @@ describe("DeCusSystem", function () {
 
             group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce);
-            expect(group.status).equal(GroupStatus.Reusing);
+            expect(group.status).equal(GroupStatus.MintGap);
             expect((await system.getReceipt(receiptId)).status).to.equal(0);
         });
 
@@ -290,7 +290,7 @@ describe("DeCusSystem", function () {
 
             group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce);
-            expect(group.status).equal(GroupStatus.MintProcessing);
+            expect(group.status).equal(GroupStatus.MintRequested);
 
             const nonce2 = nonce + 1;
             await expect(
@@ -314,13 +314,13 @@ describe("DeCusSystem", function () {
 
             group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce + 1);
-            expect(group.status).equal(GroupStatus.MintProcessing);
+            expect(group.status).equal(GroupStatus.MintRequested);
 
             const statusArray = await system.listGroupStatus(BTC_ADDRESS);
             expect(statusArray).deep.equal([
-                GroupStatus.MintProcessing,
-                GroupStatus.MintWaiting,
-                GroupStatus.NotExist,
+                GroupStatus.MintRequested,
+                GroupStatus.Available,
+                GroupStatus.None,
             ]);
         });
     });
@@ -346,7 +346,7 @@ describe("DeCusSystem", function () {
             expect(receipt.height).to.be.equal(0);
             expect(group[2]).to.be.equal(0);
             expect(group[3]).to.be.equal(nonce);
-            expect(group.status).equal(GroupStatus.MintProcessing);
+            expect(group.status).equal(GroupStatus.MintRequested);
 
             const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
@@ -373,7 +373,7 @@ describe("DeCusSystem", function () {
             expect(receipt.height).to.be.equal(height);
             expect(group[2]).to.be.equal(GROUP_SATOSHI);
             expect(group[3]).to.be.equal(nonce);
-            expect(group.status).equal(GroupStatus.BurnWaiting);
+            expect(group.status).equal(GroupStatus.MintVerified);
 
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
         });
@@ -450,7 +450,7 @@ describe("DeCusSystem", function () {
 
         it("request burn", async function () {
             let group = await system.getGroup(btcAddress);
-            expect(group.status).equal(GroupStatus.BurnWaiting);
+            expect(group.status).equal(GroupStatus.MintVerified);
 
             await ebtc.connect(users[0]).approve(system.address, userEbtcAmount);
             await expect(system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress))
@@ -458,7 +458,7 @@ describe("DeCusSystem", function () {
                 .withArgs(receiptId, btcAddress, withdrawBtcAddress, users[0].address);
 
             group = await system.getGroup(btcAddress);
-            expect(group.status).equal(GroupStatus.BurnProcessing);
+            expect(group.status).equal(GroupStatus.BurnRequested);
 
             const receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.be.equal(3);
@@ -490,14 +490,14 @@ describe("DeCusSystem", function () {
 
         it("verify burn", async function () {
             let group = await system.getGroup(btcAddress);
-            expect(group.status).equal(GroupStatus.BurnProcessing);
+            expect(group.status).equal(GroupStatus.BurnRequested);
 
             await expect(system.connect(users[0]).verifyBurn(receiptId))
                 .to.emit(system, "BurnVerified")
                 .withArgs(receiptId, btcAddress, users[0].address);
 
             group = await system.getGroup(btcAddress);
-            expect(group.status).equal(GroupStatus.Reusing);
+            expect(group.status).equal(GroupStatus.MintGap);
 
             const receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.be.equal(0);
@@ -514,7 +514,7 @@ describe("DeCusSystem", function () {
             await advanceTimeAndBlock(3600);
 
             group = await system.getGroup(btcAddress);
-            expect(group.status).equal(GroupStatus.MintWaiting);
+            expect(group.status).equal(GroupStatus.Available);
 
             await expect(system.connect(users[1]).requestMint(btcAddress, GROUP_SATOSHI, nonce2))
                 .to.emit(system, "MintRequested")
@@ -523,7 +523,7 @@ describe("DeCusSystem", function () {
 
         it("mint without verify burn", async function () {
             let group = await system.getGroup(btcAddress);
-            expect(group.status).equal(GroupStatus.BurnProcessing);
+            expect(group.status).equal(GroupStatus.BurnRequested);
 
             await advanceTimeAndBlock(24 * 60 * 60);
 
@@ -547,7 +547,7 @@ describe("DeCusSystem", function () {
             group = await system.getGroup(btcAddress);
             expect(group[2]).to.be.equal(0);
             expect(group[3]).to.be.equal(nonce2);
-            expect(group.status).equal(GroupStatus.MintProcessing);
+            expect(group.status).equal(GroupStatus.MintRequested);
             const receipt = await system.getReceipt(receiptId2);
             expect(receipt.status).to.be.equal(1);
         });
