@@ -25,7 +25,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     uint256 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
     uint256 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint256 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
-    uint256 public minKeeperSatoshi = 1e5;
+    uint256 public minKeeperWei = 1e13;
 
     IEBTC public eBTC;
     IKeeperRegistry public keeperRegistry;
@@ -51,6 +51,11 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
     function getCooldownTime(address keeper) external view returns (uint256) {
         return cooldownUntil[keeper];
+    }
+
+    function updateMinKeeperWei(uint256 amount) external onlyOwner {
+        minKeeperWei = amount;
+        emit MinKeeperWeiUpdated(amount);
     }
 
     // -------------------------------- group ----------------------------------
@@ -140,7 +145,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             require(
-                keeperRegistry.getCollateralValue(keeper) >= minKeeperSatoshi,
+                keeperRegistry.getCollateralWei(keeper) >= minKeeperWei,
                 "keeper has not enough collateral"
             );
             group.keeperSet.add(keeper);

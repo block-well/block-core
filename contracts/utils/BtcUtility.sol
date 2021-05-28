@@ -13,9 +13,6 @@ library BtcUtility {
     function getSatoshiDivisor(uint256 decimal) internal pure returns (uint256) {
         require(ERC20_DECIMAL >= decimal, "asset decimal not supported");
 
-        uint256 res = 10**uint256(ERC20_DECIMAL - decimal);
-        require(res > 0, "Power overflow");
-
-        return res;
+        return 10**uint256(ERC20_DECIMAL - decimal);
     }
 }

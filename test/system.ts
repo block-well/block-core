@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { BigNumber, Wallet, constants } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
-const { parseUnits, solidityKeccak256 } = ethers.utils;
+const { parseUnits, solidityKeccak256, parseEther } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
 import { DeCusSystem, EBTC, ERC20, KeeperRegistry } from "../build/typechain";
@@ -54,6 +54,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 });
 
 describe("DeCusSystem", function () {
+    let deployer: Wallet;
     let users: Wallet[];
     let system: DeCusSystem;
     let ebtc: EBTC;
@@ -62,7 +63,7 @@ describe("DeCusSystem", function () {
     let group1Verifiers: Wallet[];
 
     beforeEach(async function () {
-        ({ users, system, ebtc } = await setupFixture());
+        ({ deployer, users, system, ebtc } = await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
@@ -80,6 +81,21 @@ describe("DeCusSystem", function () {
     });
 
     describe("addGroup()", function () {
+        it("update minKeeperWei", async function () {
+            expect(await system.minKeeperWei()).to.be.gt(parseEther("0.000001"));
+            const minKeeperWei = parseEther("1");
+            expect(await system.minKeeperWei()).to.be.lt(minKeeperWei);
+
+            await expect(system.connect(deployer).updateMinKeeperWei(minKeeperWei))
+                .to.emit(system, "MinKeeperWeiUpdated")
+                .withArgs(minKeeperWei);
+
+            const keepers = group1Keepers.map((x) => x.address);
+            await expect(
+                system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers)
+            ).to.revertedWith("keeper has not enough collateral");
+        });
+
         it("should add group", async function () {
             const keepers = group1Keepers.map((x) => x.address);
             await expect(system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers))
