@@ -108,12 +108,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
     function getGroupStatus(string calldata btcAddress) public view returns (GroupStatus status) {
         Group storage group = groups[btcAddress];
+        if (group.required == 0) {
+            return GroupStatus.None;
+        }
+
         bytes32 _receiptId = getReceiptId(btcAddress, group.nonce);
         Receipt storage receipt = receipts[_receiptId];
-
-        if (group.required == 0) {
-            status = GroupStatus.None;
-        } else if (receipt.status == Status.Available) {
+        if (receipt.status == Status.Available) {
             status = block.timestamp - receipt.updateTimestamp > GROUP_REUSING_GAP
                 ? GroupStatus.Available
                 : GroupStatus.MintGap;
@@ -127,6 +128,8 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
             status = block.timestamp - receipt.updateTimestamp > WITHDRAW_VERIFICATION_END
                 ? GroupStatus.Timeout
                 : GroupStatus.BurnRequested;
+        } else {
+            status = GroupStatus.None;
         }
         return status;
     }
