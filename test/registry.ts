@@ -213,13 +213,23 @@ describe("KeeperRegistry", function () {
         });
 
         it("should punish ebtc keeper and record the rest as overissues", async function () {
-            await registry.connect(users[0]).addKeeper(ebtc.address, parseEther("10"));
+            const collateralAmount = parseEther("10");
+            await registry.connect(users[0]).addKeeper(ebtc.address, collateralAmount);
 
-            await registry.connect(deployer).punishKeeper([users[0].address], parseEther("12"));
+            const overissuedAmount = parseEther("12");
+            await registry.connect(deployer).punishKeeper([users[0].address], overissuedAmount);
 
+            const remainOverissuedAmount = overissuedAmount.sub(collateralAmount);
             expect(await registry.collaterals(users[0].address, ebtc.address)).to.be.equal(0);
-            expect(await registry.overissuedTotal()).to.be.equal(parseEther("2"));
+            expect(await registry.overissuedTotal()).to.be.equal(remainOverissuedAmount);
             expect(await registry.confiscations(ebtc.address)).to.be.equal(0);
+
+            const ebtcAmount = parseEther("1.5");
+            const leftAmount = remainOverissuedAmount.sub(ebtcAmount);
+            await expect(registry.connect(users[3]).offsetOverissue(ebtcAmount))
+                .to.emit(registry, "OffsetOverissued")
+                .withArgs(users[3].address, ebtcAmount, leftAmount);
+            expect(await registry.overissuedTotal()).to.be.equal(leftAmount);
         });
 
         it("should punish ebtc & non-ebtc keepers and confiscate the rest", async function () {

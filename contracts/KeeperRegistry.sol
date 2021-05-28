@@ -38,7 +38,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         eBTC = IEBTC(_eBTC);
     }
 
-    function getCollateralValue(address keeper) external view override returns (uint256) {
+    function getCollateralWei(address keeper) external view override returns (uint256) {
         return collaterals[keeper][perUserCollateral[keeper]];
     }
 
@@ -126,6 +126,8 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     function offsetOverissue(uint256 ebtcAmount) external {
         eBTC.burnFrom(msg.sender, ebtcAmount);
         overissuedTotal = overissuedTotal.sub(ebtcAmount);
+
+        emit OffsetOverissued(msg.sender, ebtcAmount, overissuedTotal);
     }
 
     function _addAsset(address asset) private {

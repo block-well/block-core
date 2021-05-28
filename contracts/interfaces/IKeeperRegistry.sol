@@ -3,7 +3,7 @@ pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 interface IKeeperRegistry {
-    function getCollateralValue(address keeper) external view returns (uint256);
+    function getCollateralWei(address keeper) external view returns (uint256);
 
     function importKeepers(
         uint256 amount,
@@ -19,4 +19,9 @@ interface IKeeperRegistry {
 
     event TreasuryTransferred(address indexed previousTreasury, address indexed newTreasury);
     event Confiscated(address indexed treasury, address asset, uint256 amount);
+    event OffsetOverissued(
+        address indexed operator,
+        uint256 ebtcAmount,
+        uint256 remainingOverissueAmount
+    );
 }
