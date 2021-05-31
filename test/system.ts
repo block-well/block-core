@@ -11,9 +11,10 @@ enum GroupStatus {
     Available,
     MintRequested,
     MintVerified,
+    MintTimeout,
     BurnRequested,
+    BurnTimeout,
     MintGap,
-    Timeout,
 }
 
 enum Status {
@@ -301,7 +302,7 @@ describe("DeCusSystem", function () {
 
             group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce);
-            expect(group.status).equal(GroupStatus.Timeout);
+            expect(group.status).equal(GroupStatus.MintTimeout);
 
             const receiptId2 = getReceiptId(btcAddress, nonce2);
             await expect(
@@ -376,6 +377,37 @@ describe("DeCusSystem", function () {
             expect(group.status).equal(GroupStatus.MintVerified);
 
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
+        });
+
+        it("verify mint timeout", async function () {
+            let group = await system.getGroup(btcAddress);
+            expect(group.status).equal(GroupStatus.MintRequested);
+
+            await advanceTimeAndBlock(24 * 3600); // > MINT_REQUEST_GRACE_PERIOD
+
+            group = await system.getGroup(btcAddress);
+            expect(group.status).equal(GroupStatus.MintTimeout);
+
+            const keepers = group1Verifiers;
+            const [rList, sList, packedV] = await prepareSignature(
+                keepers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+
+            const keeperAddresses = keepers.map((x) => x.address);
+            await expect(
+                system
+                    .connect(users[0])
+                    .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
+            )
+                .to.emit(system, "MintVerified")
+                .withArgs(receiptId, btcAddress, keeperAddresses);
+
+            group = await system.getGroup(btcAddress);
+            expect(group.status).equal(GroupStatus.MintVerified);
         });
 
         it("forbit verify for outdated receipt", async function () {
@@ -521,6 +553,23 @@ describe("DeCusSystem", function () {
                 .withArgs(receiptId2, users[1].address, GROUP_SATOSHI, btcAddress);
         });
 
+        it("verify burn timeout", async function () {
+            let group = await system.getGroup(btcAddress);
+            expect(group.status).equal(GroupStatus.BurnRequested);
+
+            await advanceTimeAndBlock(24 * 3600); // > WITHDRAW_VERIFICATION_END
+
+            group = await system.getGroup(btcAddress);
+            expect(group.status).equal(GroupStatus.BurnTimeout);
+
+            await expect(system.connect(users[0]).verifyBurn(receiptId))
+                .to.emit(system, "BurnVerified")
+                .withArgs(receiptId, btcAddress, users[0].address);
+
+            group = await system.getGroup(btcAddress);
+            expect(group.status).equal(GroupStatus.MintGap);
+        });
+
         it("mint without verify burn", async function () {
             let group = await system.getGroup(btcAddress);
             expect(group.status).equal(GroupStatus.BurnRequested);
@@ -528,7 +577,7 @@ describe("DeCusSystem", function () {
             await advanceTimeAndBlock(24 * 60 * 60);
 
             group = await system.getGroup(btcAddress);
-            expect(group.status).equal(GroupStatus.Timeout);
+            expect(group.status).equal(GroupStatus.BurnTimeout);
 
             const nonce2 = nonce + 1;
             await expect(

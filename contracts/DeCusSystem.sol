@@ -120,13 +120,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
                 : GroupStatus.MintGap;
         } else if (receipt.status == Status.DepositRequested) {
             status = block.timestamp - receipt.updateTimestamp > MINT_REQUEST_GRACE_PERIOD
-                ? GroupStatus.Timeout
+                ? GroupStatus.MintTimeout
                 : GroupStatus.MintRequested;
         } else if (receipt.status == Status.DepositReceived) {
             status = GroupStatus.MintVerified;
         } else if (receipt.status == Status.WithdrawRequested) {
             status = block.timestamp - receipt.updateTimestamp > WITHDRAW_VERIFICATION_END
-                ? GroupStatus.Timeout
+                ? GroupStatus.BurnTimeout
                 : GroupStatus.BurnRequested;
         } else {
             status = GroupStatus.None;

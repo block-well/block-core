@@ -13,7 +13,16 @@ interface IDeCusSystem {
         EnumerableSet.AddressSet keeperSet;
     }
 
-    enum GroupStatus {None, Available, MintRequested, MintVerified, BurnRequested, MintGap, Timeout}
+    enum GroupStatus {
+        None,
+        Available,
+        MintRequested,
+        MintVerified,
+        MintTimeout,
+        BurnRequested,
+        BurnTimeout,
+        MintGap
+    }
     enum Status {Available, DepositRequested, DepositReceived, WithdrawRequested}
 
     struct Receipt {
