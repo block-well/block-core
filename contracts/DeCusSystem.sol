@@ -69,6 +69,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
             uint256 nonce,
             GroupStatus status,
             address[] memory keepers,
+            uint256 cooldown,
             bytes32 workingReceiptId
         )
     {
@@ -77,8 +78,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         status = getGroupStatus(btcAddress);
 
         keepers = new address[](group.keeperSet.length());
+        cooldown = 0;
         for (uint256 i = 0; i < group.keeperSet.length(); i++) {
-            keepers[i] = group.keeperSet.at(i);
+            address keeper = group.keeperSet.at(i);
+            if (cooldownUntil[keeper] <= block.timestamp) {
+                cooldown += 1;
+            }
+            keepers[i] = keeper;
         }
 
         workingReceiptId = getReceiptId(btcAddress, group.nonce);
@@ -90,6 +96,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
             group.nonce,
             status,
             keepers,
+            cooldown,
             workingReceiptId
         );
     }

@@ -348,6 +348,7 @@ describe("DeCusSystem", function () {
             expect(group[2]).to.be.equal(0);
             expect(group[3]).to.be.equal(nonce);
             expect(group.status).equal(GroupStatus.MintRequested);
+            expect(group.cooldown).equal(BigNumber.from(group.keepers.length));
 
             const keepers = group1Verifiers;
             const [rList, sList, packedV] = await prepareSignature(
@@ -375,6 +376,9 @@ describe("DeCusSystem", function () {
             expect(group[2]).to.be.equal(GROUP_SATOSHI);
             expect(group[3]).to.be.equal(nonce);
             expect(group.status).equal(GroupStatus.MintVerified);
+            expect(group.cooldown).equal(
+                BigNumber.from(group.keepers.length - keeperAddresses.length)
+            );
 
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
         });
