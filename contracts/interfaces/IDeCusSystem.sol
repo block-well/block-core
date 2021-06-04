@@ -13,6 +13,17 @@ interface IDeCusSystem {
         EnumerableSet.AddressSet keeperSet;
     }
 
+    struct GroupInfo {
+        uint256 required;
+        uint256 maxSatoshi;
+        uint256 currSatoshi;
+        uint256 nonce;
+        address[] keepers;
+        uint256 cooldown;
+        bytes32 workingReceiptId;
+        GroupStatus status;
+    }
+
     enum GroupStatus {
         None,
         Available,

@@ -59,58 +59,41 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     }
 
     // -------------------------------- group ----------------------------------
-    function getGroup(string calldata btcAddress)
+    function listGroup(string[] calldata btcAddressArray)
         external
         view
-        returns (
-            uint256 required,
-            uint256 maxSatoshi,
-            uint256 currSatoshi,
-            uint256 nonce,
-            GroupStatus status,
-            address[] memory keepers,
-            uint256 cooldown,
-            bytes32 workingReceiptId
-        )
+        returns (GroupInfo[] memory GroupInfoArray)
     {
-        Group storage group = groups[btcAddress];
-
-        status = getGroupStatus(btcAddress);
-
-        keepers = new address[](group.keeperSet.length());
-        cooldown = 0;
-        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
-            address keeper = group.keeperSet.at(i);
-            if (cooldownUntil[keeper] <= block.timestamp) {
-                cooldown += 1;
-            }
-            keepers[i] = keeper;
+        GroupInfoArray = new GroupInfo[](btcAddressArray.length);
+        for (uint256 i = 0; i < btcAddressArray.length; i++) {
+            GroupInfoArray[i] = getGroup(btcAddressArray[i]);
         }
-
-        workingReceiptId = getReceiptId(btcAddress, group.nonce);
-
-        return (
-            group.required,
-            group.maxSatoshi,
-            group.currSatoshi,
-            group.nonce,
-            status,
-            keepers,
-            cooldown,
-            workingReceiptId
-        );
+        return GroupInfoArray;
     }
 
-    function listGroupStatus(string[] calldata btcAddressArray)
-        external
-        view
-        returns (GroupStatus[] memory statusArray)
-    {
-        statusArray = new GroupStatus[](btcAddressArray.length);
-        for (uint256 i = 0; i < btcAddressArray.length; i++) {
-            statusArray[i] = getGroupStatus(btcAddressArray[i]);
+    function getGroup(string calldata btcAddress) public view returns (GroupInfo memory groupInfo) {
+        Group storage group = groups[btcAddress];
+
+        groupInfo.required = group.required;
+        groupInfo.maxSatoshi = group.maxSatoshi;
+        groupInfo.currSatoshi = group.currSatoshi;
+        groupInfo.nonce = group.nonce;
+
+        groupInfo.keepers = new address[](group.keeperSet.length());
+        groupInfo.cooldown = 0;
+        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
+            address keeper = group.keeperSet.at(i);
+            groupInfo.keepers[i] = keeper;
+
+            if (cooldownUntil[keeper] <= block.timestamp) {
+                groupInfo.cooldown += 1;
+            }
         }
-        return statusArray;
+
+        groupInfo.workingReceiptId = getReceiptId(btcAddress, group.nonce);
+        groupInfo.status = getGroupStatus(btcAddress);
+
+        return groupInfo;
     }
 
     function getGroupStatus(string calldata btcAddress) public view returns (GroupStatus status) {

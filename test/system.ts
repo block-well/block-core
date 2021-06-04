@@ -316,13 +316,6 @@ describe("DeCusSystem", function () {
             group = await system.getGroup(btcAddress);
             expect(group.nonce).equal(nonce + 1);
             expect(group.status).equal(GroupStatus.MintRequested);
-
-            const statusArray = await system.listGroupStatus(BTC_ADDRESS);
-            expect(statusArray).deep.equal([
-                GroupStatus.MintRequested,
-                GroupStatus.Available,
-                GroupStatus.None,
-            ]);
         });
     });
 
