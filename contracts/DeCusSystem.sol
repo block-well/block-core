@@ -122,17 +122,17 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         bytes32 _receiptId = getReceiptId(btcAddress, group.nonce);
         Receipt storage receipt = receipts[_receiptId];
         if (receipt.status == Status.Available) {
-            status = block.timestamp - receipt.updateTimestamp > GROUP_REUSING_GAP
+            status = block.timestamp > receipt.updateTimestamp.add(GROUP_REUSING_GAP)
                 ? GroupStatus.Available
                 : GroupStatus.MintGap;
         } else if (receipt.status == Status.DepositRequested) {
-            status = block.timestamp - receipt.updateTimestamp > MINT_REQUEST_GRACE_PERIOD
+            status = block.timestamp > MINT_REQUEST_GRACE_PERIOD.add(receipt.updateTimestamp)
                 ? GroupStatus.MintTimeout
                 : GroupStatus.MintRequested;
         } else if (receipt.status == Status.DepositReceived) {
             status = GroupStatus.MintVerified;
         } else if (receipt.status == Status.WithdrawRequested) {
-            status = block.timestamp - receipt.updateTimestamp > WITHDRAW_VERIFICATION_END
+            status = block.timestamp > WITHDRAW_VERIFICATION_END.add(receipt.updateTimestamp)
                 ? GroupStatus.BurnTimeout
                 : GroupStatus.BurnRequested;
         } else {
@@ -165,7 +165,19 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     }
 
     function deleteGroup(string calldata btcAddress) external onlyOwner {
-        require(groups[btcAddress].currSatoshi == 0, "group balance is not empty");
+        Group storage group = groups[btcAddress];
+
+        bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
+        Receipt storage receipt = receipts[receiptId];
+        require(
+            (receipt.status != Status.Available) ||
+                (block.timestamp > receipt.updateTimestamp.add(GROUP_REUSING_GAP)),
+            "receipt in resuing gap"
+        );
+
+        _clearReceipt(receipt, receiptId);
+
+        require(group.currSatoshi == 0, "group balance > 0");
 
         delete groups[btcAddress];
 
@@ -199,7 +211,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         Receipt storage prevReceipt = receipts[prevReceiptId];
         require(prevReceipt.status == Status.Available, "working receipt in progress");
         require(
-            block.timestamp - prevReceipt.updateTimestamp > GROUP_REUSING_GAP,
+            block.timestamp > prevReceipt.updateTimestamp.add(GROUP_REUSING_GAP),
             "group cooling down"
         );
         delete receipts[prevReceiptId];
@@ -230,23 +242,10 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         uint256 amountInSatoshi,
         uint256 nonce
     ) public {
-        Group storage group = groups[groupBtcAddress];
-        bytes32 prevReceiptId = getReceiptId(groupBtcAddress, group.nonce);
+        bytes32 prevReceiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
         Receipt storage prevReceipt = receipts[prevReceiptId];
 
-        if (prevReceipt.status == Status.WithdrawRequested) {
-            require(
-                (prevReceipt.updateTimestamp).add(WITHDRAW_VERIFICATION_END) < block.timestamp,
-                "withdraw in progress"
-            );
-            _forceVerifyBurn(prevReceiptId, prevReceipt);
-        } else if (prevReceipt.status == Status.DepositRequested) {
-            require(
-                (prevReceipt.updateTimestamp).add(MINT_REQUEST_GRACE_PERIOD) < block.timestamp,
-                "deposit in progress"
-            );
-            _forceRevokeMint(prevReceiptId, prevReceipt);
-        }
+        _clearReceipt(prevReceipt, prevReceiptId);
 
         requestMint(groupBtcAddress, amountInSatoshi, nonce);
     }
@@ -310,6 +309,22 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     function _cooldown(address keeper, uint256 cooldownEnd) private {
         cooldownUntil[keeper] = cooldownEnd;
         emit Cooldown(keeper, cooldownEnd);
+    }
+
+    function _clearReceipt(Receipt storage receipt, bytes32 receiptId) private {
+        if (receipt.status == Status.WithdrawRequested) {
+            require(
+                block.timestamp > (receipt.updateTimestamp).add(WITHDRAW_VERIFICATION_END),
+                "withdraw in progress"
+            );
+            _forceVerifyBurn(receiptId, receipt);
+        } else if (receipt.status == Status.DepositRequested) {
+            require(
+                block.timestamp > (receipt.updateTimestamp).add(MINT_REQUEST_GRACE_PERIOD),
+                "deposit in progress"
+            );
+            _forceRevokeMint(receiptId, receipt);
+        }
     }
 
     // -------------------------------- group ----------------------------------
@@ -480,7 +495,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
         require(btcRefundData.expiryTimestamp < block.timestamp, "refund cool down");
 
-        uint256 expiryTimestamp = block.timestamp + REFUND_GAP;
+        uint256 expiryTimestamp = block.timestamp.add(REFUND_GAP);
         btcRefundData.expiryTimestamp = expiryTimestamp;
         btcRefundData.txId = txId;
         btcRefundData.groupBtcAddress = groupBtcAddress;

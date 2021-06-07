@@ -117,12 +117,20 @@ describe("DeCusSystem", function () {
     });
 
     describe("deleteGroup()", function () {
+        const btcAddress = BTC_ADDRESS[0];
+        const withdrawBtcAddress = BTC_ADDRESS[1];
+        const amountInSatoshi = GROUP_SATOSHI;
+        const userEbtcAmount = amountInSatoshi.mul(10 ** 10);
+        const nonce = 1;
+        const receiptId = getReceiptId(btcAddress, nonce);
         let keepers: string[];
+        const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
+        const height = 1940801;
 
         beforeEach(async function () {
             keepers = group1Keepers.map((x) => x.address);
 
-            await system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers);
+            await system.addGroup(btcAddress, 3, amountInSatoshi, keepers);
         });
 
         it("delete not exist", async function () {
@@ -132,52 +140,163 @@ describe("DeCusSystem", function () {
         });
 
         it("should delete group", async function () {
-            let group = await system.getGroup(BTC_ADDRESS[0]);
+            let group = await system.getGroup(btcAddress);
             expect(group.required).equal(BigNumber.from(3));
-            expect(group.maxSatoshi).equal(BigNumber.from(GROUP_SATOSHI));
+            expect(group.maxSatoshi).equal(BigNumber.from(amountInSatoshi));
             expect(group.currSatoshi).equal(BigNumber.from(0));
             expect(group.nonce).equal(BigNumber.from(0));
             expect(group.status).equal(GroupStatus.Available);
             expect(group.keepers).deep.equal(keepers);
             expect(group.workingReceiptId).equal(
-                await system.getReceiptId(BTC_ADDRESS[0], group.nonce)
+                await system.getReceiptId(btcAddress, group.nonce)
             );
 
-            await expect(system.deleteGroup(BTC_ADDRESS[0]))
+            await expect(system.deleteGroup(btcAddress))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS[0]);
+                .withArgs(btcAddress);
 
-            group = await system.getGroup(BTC_ADDRESS[0]);
+            group = await system.getGroup(btcAddress);
             expect(group.required).equal(BigNumber.from(0));
             expect(group.maxSatoshi).equal(BigNumber.from(0));
             expect(group.currSatoshi).equal(BigNumber.from(0));
             expect(group.nonce).equal(BigNumber.from(0));
             expect(group.status).equal(GroupStatus.None);
             expect(group.keepers).deep.equal([]);
-            expect(group.workingReceiptId).equal(await system.getReceiptId(BTC_ADDRESS[0], 0));
+            expect(group.workingReceiptId).equal(await system.getReceiptId(btcAddress, 0));
         });
 
         it("delete group twice", async function () {
-            await expect(system.deleteGroup(BTC_ADDRESS[0]))
+            await expect(system.deleteGroup(btcAddress))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS[0]);
+                .withArgs(btcAddress);
 
-            await expect(system.deleteGroup(BTC_ADDRESS[0]))
+            await expect(system.deleteGroup(btcAddress))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS[0]);
+                .withArgs(btcAddress);
         });
 
         it("add same address", async function () {
-            await expect(system.deleteGroup(BTC_ADDRESS[0]))
+            await expect(system.deleteGroup(btcAddress))
                 .to.emit(system, "GroupDeleted")
-                .withArgs(BTC_ADDRESS[0]);
+                .withArgs(btcAddress);
 
-            await system.addGroup(BTC_ADDRESS[0], 2, GROUP_SATOSHI, [
+            await system.addGroup(btcAddress, 2, amountInSatoshi, [
                 users[2].address,
                 users[3].address,
             ]);
-            const group = await system.getGroup(BTC_ADDRESS[0]);
+            const group = await system.getGroup(btcAddress);
             expect(group.required).equal(BigNumber.from(2)); // new group `required`
+        });
+
+        it("delete group when deposit in progress", async function () {
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
+                "deposit in progress"
+            );
+        });
+
+        it("delete group when mint timeout", async function () {
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
+
+            await advanceTimeAndBlock(24 * 3600);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress);
+        });
+
+        it("delete group when mint revoked", async function () {
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
+
+            await system.connect(users[0]).revokeMint(receiptId);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
+                "receipt in resuing gap"
+            );
+
+            await advanceTimeAndBlock(3600);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress);
+        });
+
+        it("delete group when mint verified", async function () {
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
+
+            const [rList, sList, packedV] = await prepareSignature(
+                group1Verifiers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+
+            const keeperAddresses = group1Verifiers.map((x) => x.address);
+            await system
+                .connect(users[0])
+                .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
+                "group balance > 0"
+            );
+        });
+
+        it("delete group when burn requested", async function () {
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
+            const [rList, sList, packedV] = await prepareSignature(
+                group1Verifiers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+            const keeperAddresses = group1Verifiers.map((x) => x.address);
+            await system
+                .connect(users[0])
+                .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
+            await ebtc.connect(users[0]).approve(system.address, userEbtcAmount);
+            await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
+                "withdraw in progress"
+            );
+
+            await advanceTimeAndBlock(48 * 3600);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress);
+        });
+
+        it("delete group when burn verified", async function () {
+            await system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce);
+            const [rList, sList, packedV] = await prepareSignature(
+                group1Verifiers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+
+            const keeperAddresses = group1Verifiers.map((x) => x.address);
+            await system
+                .connect(users[0])
+                .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
+            await ebtc.connect(users[0]).approve(system.address, userEbtcAmount);
+            await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
+            await system.connect(users[0]).verifyBurn(receiptId);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
+                "receipt in resuing gap"
+            );
+
+            await advanceTimeAndBlock(3600);
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress);
         });
     });
 
