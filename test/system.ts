@@ -502,6 +502,26 @@ describe("DeCusSystem", function () {
             expect(await ebtc.balanceOf(users[0].address)).to.be.equal(GROUP_SATOSHI.mul(10 ** 10));
         });
 
+        it("verify mint repeated keeper", async function () {
+            const verifier = [group1Verifiers[0], group1Verifiers[1], group1Verifiers[1]];
+
+            const keepers = verifier;
+            const [rList, sList, packedV] = await prepareSignature(
+                keepers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+
+            const keeperAddresses = keepers.map((x) => x.address);
+            await expect(
+                system
+                    .connect(users[0])
+                    .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
+            ).to.revertedWith("keeper is in cooldown");
+        });
+
         it("verify mint timeout", async function () {
             let group = await system.getGroup(btcAddress);
             expect(group.status).equal(GroupStatus.MintRequested);
@@ -734,8 +754,6 @@ describe("DeCusSystem", function () {
 
         beforeEach(async function () {
             await addMockGroup();
-
-            receiptId = await requestMint(users[0], btcAddress, nonce);
         });
 
         it("refund recorded", async function () {
@@ -750,12 +768,29 @@ describe("DeCusSystem", function () {
             expect(refundData.expiryTimestamp).to.be.equal(expiryTimestamp);
         });
 
-        it("refund conflict with verified txId", async function () {
+        it("refund fail with verified mint", async function () {
+            receiptId = await requestMint(users[0], btcAddress, nonce);
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
 
             await expect(system.refundBtc(btcAddress, txId)).to.revertedWith(
-                "txId is already verified"
+                "receipt not in available state"
             );
+        });
+
+        it("refund with clear receipt", async function () {
+            receiptId = await requestMint(users[0], btcAddress, nonce);
+
+            await expect(system.refundBtc(btcAddress, txId)).to.revertedWith("deposit in progress");
+
+            await advanceTimeAndBlock(24 * 3600);
+
+            const expiryTimestamp = (await system.REFUND_GAP()).add(1 + (await currentTime()));
+
+            await expect(system.refundBtc(btcAddress, txId))
+                .to.emit(system, "MintRevoked")
+                .withArgs(receiptId, btcAddress, users[0].address)
+                .to.emit(system, "BtcRefunded")
+                .withArgs(btcAddress, txId, expiryTimestamp);
         });
 
         it("refund cool down", async function () {
