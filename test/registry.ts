@@ -58,11 +58,11 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
         await hbtc.mint(user.address, parseEther("100"));
-        await cong.connect(deployer).mint(user.address, parseEther("100"));
+        await cong.connect(deployer).mint(user.address, parseBtcInCong("100"));
 
         await wbtc.connect(user).approve(registry.address, parseBtc("100"));
         await hbtc.connect(user).approve(registry.address, parseEther("100"));
-        await cong.connect(user).approve(registry.address, parseEther("100"));
+        await cong.connect(user).approve(registry.address, parseBtcInCong("100"));
     }
 
     return { users, deployer, wbtc, hbtc, cong, registry, rater };
