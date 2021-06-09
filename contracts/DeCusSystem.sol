@@ -252,7 +252,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
     function verifyMint(
         MintRequest calldata request,
-        address[] calldata keepers, // keepers must be in ascending orders
+        address[] calldata keepers,
         bytes32[] calldata r,
         bytes32[] calldata s,
         uint256 packedV
@@ -489,10 +489,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     }
 
     function refundBtc(string calldata groupBtcAddress, bytes32 txId) public onlyOwner {
-        Receipt storage receipt =
-            receipts[getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce)];
-        require(txId != receipt.txId, "txId is already verified");
+        bytes32 receiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
+        Receipt storage receipt = receipts[receiptId];
 
+        _clearReceipt(receipt, receiptId);
+
+        require(receipt.status == Status.Available, "receipt not in available state");
         require(btcRefundData.expiryTimestamp < block.timestamp, "refund cool down");
 
         uint256 expiryTimestamp = block.timestamp.add(REFUND_GAP);
