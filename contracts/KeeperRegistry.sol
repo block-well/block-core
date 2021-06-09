@@ -8,34 +8,37 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+import {CONG} from "./CONG.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
-import {IEBTC} from "./interfaces/IEBTC.sol";
+import {IBtcRater} from "./interfaces/IBtcRater.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
-
-interface IERC20Extension {
-    function decimals() external returns (uint8);
-}
 
 contract KeeperRegistry is Ownable, IKeeperRegistry {
     using Math for uint256;
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    IEBTC public eBTC;
+    CONG public cong;
     address public treasury;
 
     EnumerableSet.AddressSet assetSet;
+    IBtcRater public btcRater;
     mapping(address => mapping(address => uint256)) public collaterals;
     mapping(address => address) public perUserCollateral;
 
     uint256 public overissuedTotal;
     mapping(address => uint256) public confiscations;
 
-    constructor(address[] memory _assets, address _eBTC) public {
+    constructor(
+        address[] memory _assets,
+        address _cong,
+        address _btcRater
+    ) public {
+        btcRater = IBtcRater(_btcRater);
         for (uint256 i = 0; i < _assets.length; i++) {
             _addAsset(_assets[i]);
         }
-        eBTC = IEBTC(_eBTC);
+        cong = CONG(_cong);
     }
 
     function getCollateralWei(address keeper) external view override returns (uint256) {
@@ -57,6 +60,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     function deleteKeeper(address keeper) external onlyOwner {
         // require admin role because we need to make sure keeper is not in any working groups
+        // TODO: apply commission fee
         address asset = perUserCollateral[keeper];
         require(IERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
         delete collaterals[keeper][asset];
@@ -93,9 +97,9 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
             address asset = perUserCollateral[keeper];
             uint256 collateral = collaterals[keeper][asset];
 
-            if (asset == address(eBTC)) {
+            if (asset == address(cong)) {
                 uint256 deduction = overissuedAmount.min(collateral);
-                eBTC.burn(deduction);
+                cong.burn(deduction);
                 overissuedAmount = overissuedAmount.sub(deduction);
                 collateral = collateral.sub(deduction);
             }
@@ -123,11 +127,11 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         }
     }
 
-    function offsetOverissue(uint256 ebtcAmount) external {
-        eBTC.burnFrom(msg.sender, ebtcAmount);
-        overissuedTotal = overissuedTotal.sub(ebtcAmount);
+    function offsetOverissue(uint256 congAmount) external {
+        cong.burnFrom(msg.sender, congAmount);
+        overissuedTotal = overissuedTotal.sub(congAmount);
 
-        emit OffsetOverissued(msg.sender, ebtcAmount, overissuedTotal);
+        emit OffsetOverissued(msg.sender, congAmount, overissuedTotal);
     }
 
     function _addAsset(address asset) private {
@@ -140,8 +144,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         address asset,
         uint256 amount
     ) private {
-        uint256 divisor = BtcUtility.getSatoshiDivisor(IERC20Extension(asset).decimals());
-        collaterals[keeper][asset] = amount.mul(divisor);
+        collaterals[keeper][asset] = btcRater.calcAmountInWei(asset, amount);
         perUserCollateral[keeper] = asset;
 
         emit KeeperAdded(keeper, asset, amount);
