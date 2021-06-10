@@ -1,28 +1,17 @@
 import { expect } from "chai";
 import { BigNumber, Wallet, constants } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
-const { parseUnits, solidityKeccak256, parseEther } = ethers.utils;
+const { parseUnits, parseEther } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
-import { prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
-import { DeCusSystem, CONG, ERC20, KeeperRegistry } from "../build/typechain";
-
-enum GroupStatus {
-    None,
-    Available,
-    MintRequested,
-    MintVerified,
-    MintTimeout,
-    BurnRequested,
-    BurnTimeout,
-    MintGap,
-}
-
-enum Status {
-    Available,
-    DepositRequested,
-    DepositReceived,
-    WithdrawRequested,
-}
+import {
+    prepareSignature,
+    advanceTimeAndBlock,
+    currentTime,
+    getReceiptId,
+    GroupStatus,
+    Status,
+} from "./helper";
+import { DeCusSystem, CONG, ERC20, KeeperRegistry, Fee } from "../build/typechain";
 
 const SATOSHI_CONG_MULTIPLIER = BigNumber.from(10).pow(10);
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
@@ -33,10 +22,6 @@ const BTC_ADDRESS = [
     "38aNsdfsdfsdfsdfsdfdsfsdf2",
 ];
 
-function getReceiptId(btcAddress: string, nonce: number): string {
-    return solidityKeccak256(["string", "uint256"], [btcAddress, nonce]);
-}
-
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture();
 
@@ -45,6 +30,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
     const cong = (await ethers.getContract("CONG")) as CONG;
+    const fee = (await ethers.getContract("Fee")) as Fee;
 
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
@@ -52,7 +38,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return { deployer, users, system, cong };
+    return { deployer, users, system, cong, fee };
 });
 
 describe("DeCusSystem", function () {
@@ -60,16 +46,19 @@ describe("DeCusSystem", function () {
     let users: Wallet[];
     let system: DeCusSystem;
     let cong: CONG;
+    let fee: Fee;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
     let group1Verifiers: Wallet[];
+    let group2Verifiers: Wallet[];
 
     beforeEach(async function () {
-        ({ deployer, users, system, cong } = await setupFixture());
+        ({ deployer, users, system, cong, fee } = await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
         group1Verifiers = group1Keepers.slice(1);
+        group2Verifiers = group2Keepers.slice(1);
     });
 
     describe("constant", function () {
@@ -458,6 +447,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
+        const groupCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
 
         beforeEach(async function () {
             await addMockGroup();
@@ -506,9 +496,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(group.keepers.length - keeperAddresses.length)
             );
 
-            expect(await cong.balanceOf(users[0].address)).to.be.equal(
-                GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER)
-            );
+            expect(await cong.balanceOf(users[0].address)).to.be.equal(groupCongAmount);
         });
 
         it("verify mint repeated keeper", async function () {
@@ -818,6 +806,61 @@ describe("DeCusSystem", function () {
             await expect(system.refundBtc(btcAddress, txId2))
                 .to.emit(system, "BtcRefunded")
                 .withArgs(btcAddress, txId2, expiryTimestamp2);
+        });
+    });
+    describe("fee()", function () {
+        const btcAddress = BTC_ADDRESS[0];
+        const btcAddress2 = BTC_ADDRESS[1];
+        const withdrawBtcAddress = BTC_ADDRESS[2];
+        const nonce = 1;
+        let receiptId: string;
+        const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
+        const height = 1940801;
+        const groupCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
+        const mintFeeBps = 1;
+        const burnFeeBps = 5;
+
+        beforeEach(async function () {
+            await addMockGroup();
+            fee.updateMintFeeBps(mintFeeBps);
+            fee.updateBurnFeeBps(burnFeeBps);
+        });
+
+        it("mint & burn", async function () {
+            // first mint
+            receiptId = await requestMint(users[0], btcAddress, nonce);
+            await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
+
+            let userAmount = groupCongAmount.mul(10000 - mintFeeBps).div(10000);
+            let systemAmount = groupCongAmount.mul(mintFeeBps).div(10000);
+            expect(await cong.balanceOf(users[0].address)).to.equal(userAmount);
+            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+
+            await advanceTimeAndBlock(24 * 3600);
+
+            // second mint
+            const receiptId2 = await requestMint(users[0], btcAddress2, nonce);
+            await verifyMint(users[0], group2Verifiers, receiptId2, txId, height);
+
+            systemAmount = systemAmount.mul(2);
+            userAmount = userAmount.mul(2);
+            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+            expect(await cong.balanceOf(users[0].address)).to.equal(userAmount);
+
+            // burn
+            const payAmount = groupCongAmount.mul(10000 + burnFeeBps).div(10000);
+            systemAmount = systemAmount.add(groupCongAmount.mul(burnFeeBps).div(10000));
+            await cong.connect(users[0]).approve(system.address, payAmount);
+            await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
+
+            expect(await cong.balanceOf(system.address)).to.equal(
+                systemAmount.add(groupCongAmount)
+            );
+
+            // verify burn
+            await system.connect(users[0]).verifyBurn(receiptId);
+
+            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
         });
     });
 });
