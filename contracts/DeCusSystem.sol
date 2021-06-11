@@ -524,4 +524,10 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
         emit BtcRefunded(groupBtcAddress, txId, expiryTimestamp);
     }
+
+    // -------------------------------- Collect Fee -----------------------------------
+    function collectFee(uint256 amount) public onlyOwner {
+        // be careful not to transfer unburned Cong
+        cong.transfer(msg.sender, amount);
+    }
 }

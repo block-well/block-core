@@ -861,6 +861,14 @@ describe("DeCusSystem", function () {
             await system.connect(users[0]).verifyBurn(receiptId);
 
             expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+
+            // admin collect fee
+            expect(await cong.balanceOf(deployer.address)).to.equal(0);
+
+            await system.connect(deployer).collectFee(systemAmount);
+
+            expect(await cong.balanceOf(system.address)).to.equal(0);
+            expect(await cong.balanceOf(deployer.address)).to.equal(systemAmount);
         });
     });
 });
