@@ -865,7 +865,9 @@ describe("DeCusSystem", function () {
             // admin collect fee
             expect(await cong.balanceOf(deployer.address)).to.equal(0);
 
-            await system.connect(deployer).collectFee(systemAmount);
+            await expect(system.connect(deployer).collectFee(systemAmount))
+                .to.emit(system, "FeeCollected")
+                .withArgs(deployer.address, systemAmount);
 
             expect(await cong.balanceOf(system.address)).to.equal(0);
             expect(await cong.balanceOf(deployer.address)).to.equal(systemAmount);

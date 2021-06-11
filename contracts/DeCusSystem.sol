@@ -529,5 +529,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     function collectFee(uint256 amount) public onlyOwner {
         // be careful not to transfer unburned Cong
         cong.transfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, amount);
     }
 }
