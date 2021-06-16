@@ -24,7 +24,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         { from: deployer, log: true },
         "initialize",
         cong.address,
-        registry.address
+        registry.address,
+        0,
+        0
     );
 };
 

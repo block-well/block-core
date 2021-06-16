@@ -1,5 +1,6 @@
 import { ethers } from "hardhat";
 import { BigNumber, BigNumberish, Wallet } from "ethers";
+const { solidityKeccak256 } = ethers.utils;
 
 const mintRequestTypes = [
     { name: "receiptId", type: "bytes32" },
@@ -72,3 +73,25 @@ export const advanceBlock = async (): Promise<unknown> => {
 export const advanceTimeAndBlock = async (time: number): Promise<void> => {
     return ethers.provider.send("evm_mine", [(await currentTime()) + time]);
 };
+
+export const getReceiptId = (btcAddress: string, nonce: number): string => {
+    return solidityKeccak256(["string", "uint256"], [btcAddress, nonce]);
+};
+
+export const enum GroupStatus {
+    None,
+    Available,
+    MintRequested,
+    MintVerified,
+    MintTimeout,
+    BurnRequested,
+    BurnTimeout,
+    MintGap,
+}
+
+export const enum Status {
+    Available,
+    DepositRequested,
+    DepositReceived,
+    WithdrawRequested,
+}

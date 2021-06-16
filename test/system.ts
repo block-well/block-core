@@ -1,28 +1,17 @@
 import { expect } from "chai";
 import { BigNumber, Wallet, constants } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
-const { parseUnits, solidityKeccak256, parseEther } = ethers.utils;
+const { parseUnits, parseEther } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
-import { prepareSignature, advanceTimeAndBlock, currentTime } from "./helper";
+import {
+    prepareSignature,
+    advanceTimeAndBlock,
+    currentTime,
+    getReceiptId,
+    GroupStatus,
+    Status,
+} from "./helper";
 import { DeCusSystem, CONG, ERC20, KeeperRegistry } from "../build/typechain";
-
-enum GroupStatus {
-    None,
-    Available,
-    MintRequested,
-    MintVerified,
-    MintTimeout,
-    BurnRequested,
-    BurnTimeout,
-    MintGap,
-}
-
-enum Status {
-    Available,
-    DepositRequested,
-    DepositReceived,
-    WithdrawRequested,
-}
 
 const SATOSHI_CONG_MULTIPLIER = BigNumber.from(10).pow(10);
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
@@ -32,10 +21,6 @@ const BTC_ADDRESS = [
     "38aNsdfsdfsdfsdfsdfdsfsdf1",
     "38aNsdfsdfsdfsdfsdfdsfsdf2",
 ];
-
-function getReceiptId(btcAddress: string, nonce: number): string {
-    return solidityKeccak256(["string", "uint256"], [btcAddress, nonce]);
-}
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture();
@@ -63,6 +48,7 @@ describe("DeCusSystem", function () {
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
     let group1Verifiers: Wallet[];
+    let group2Verifiers: Wallet[];
 
     beforeEach(async function () {
         ({ deployer, users, system, cong } = await setupFixture());
@@ -70,6 +56,7 @@ describe("DeCusSystem", function () {
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
         group1Verifiers = group1Keepers.slice(1);
+        group2Verifiers = group2Keepers.slice(1);
     });
 
     describe("constant", function () {
@@ -458,6 +445,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
+        const groupCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
 
         beforeEach(async function () {
             await addMockGroup();
@@ -506,9 +494,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(group.keepers.length - keeperAddresses.length)
             );
 
-            expect(await cong.balanceOf(users[0].address)).to.be.equal(
-                GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER)
-            );
+            expect(await cong.balanceOf(users[0].address)).to.be.equal(groupCongAmount);
         });
 
         it("verify mint repeated keeper", async function () {
@@ -524,6 +510,7 @@ describe("DeCusSystem", function () {
             );
 
             const keeperAddresses = keepers.map((x) => x.address);
+            // TODO: not sure why below code shows warning as "failed to generate 1 stack trace"
             await expect(
                 system
                     .connect(users[0])
@@ -818,6 +805,71 @@ describe("DeCusSystem", function () {
             await expect(system.refundBtc(btcAddress, txId2))
                 .to.emit(system, "BtcRefunded")
                 .withArgs(btcAddress, txId2, expiryTimestamp2);
+        });
+    });
+    describe("fee()", function () {
+        const btcAddress = BTC_ADDRESS[0];
+        const btcAddress2 = BTC_ADDRESS[1];
+        const withdrawBtcAddress = BTC_ADDRESS[2];
+        const nonce = 1;
+        let receiptId: string;
+        const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
+        const height = 1940801;
+        const groupCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
+        const mintFeeBps = 1;
+        const burnFeeBps = 5;
+
+        beforeEach(async function () {
+            await addMockGroup();
+            await system.updateMintFeeBps(mintFeeBps);
+            await system.updateBurnFeeBps(burnFeeBps);
+        });
+
+        it("mint & burn", async function () {
+            // first mint
+            receiptId = await requestMint(users[0], btcAddress, nonce);
+            await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
+
+            let userAmount = groupCongAmount.mul(10000 - mintFeeBps).div(10000);
+            let systemAmount = groupCongAmount.mul(mintFeeBps).div(10000);
+            expect(await cong.balanceOf(users[0].address)).to.equal(userAmount);
+            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+
+            await advanceTimeAndBlock(24 * 3600);
+
+            // second mint
+            const receiptId2 = await requestMint(users[0], btcAddress2, nonce);
+            await verifyMint(users[0], group2Verifiers, receiptId2, txId, height);
+
+            systemAmount = systemAmount.mul(2);
+            userAmount = userAmount.mul(2);
+            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+            expect(await cong.balanceOf(users[0].address)).to.equal(userAmount);
+
+            // burn
+            const payAmount = groupCongAmount.mul(10000 + burnFeeBps).div(10000);
+            systemAmount = systemAmount.add(groupCongAmount.mul(burnFeeBps).div(10000));
+            await cong.connect(users[0]).approve(system.address, payAmount);
+            await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
+
+            expect(await cong.balanceOf(system.address)).to.equal(
+                systemAmount.add(groupCongAmount)
+            );
+
+            // verify burn
+            await system.connect(users[0]).verifyBurn(receiptId);
+
+            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+
+            // admin collect fee
+            expect(await cong.balanceOf(deployer.address)).to.equal(0);
+
+            await expect(system.connect(deployer).collectFee(systemAmount))
+                .to.emit(system, "FeeCollected")
+                .withArgs(deployer.address, systemAmount);
+
+            expect(await cong.balanceOf(system.address)).to.equal(0);
+            expect(await cong.balanceOf(deployer.address)).to.equal(systemAmount);
         });
     });
 });

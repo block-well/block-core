@@ -30,6 +30,9 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     IToken public cong;
     IKeeperRegistry public keeperRegistry;
 
+    uint8 private _mintFeeBps;
+    uint8 private _burnFeeBps;
+
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
     mapping(address => uint256) private cooldownUntil; // keeper address -> cooldown end timestamp
@@ -39,9 +42,16 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     //================================= Public =================================
     constructor() public EIP712("DeCus", "1.0") {}
 
-    function initialize(address _cong, address _registry) external {
+    function initialize(
+        address _cong,
+        address _registry,
+        uint8 mintFeeBps,
+        uint8 burnFeeBps
+    ) external {
         cong = IToken(_cong);
         keeperRegistry = IKeeperRegistry(_registry);
+        _mintFeeBps = mintFeeBps;
+        _burnFeeBps = burnFeeBps;
     }
 
     // ------------------------------ keeper -----------------------------------
@@ -271,7 +281,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     }
 
     function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {
-        // TODO: add fee deduction
         Receipt storage receipt = receipts[receiptId];
 
         _requestWithdraw(receipt, withdrawBtcAddress);
@@ -297,6 +306,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
     function recoverBurn(bytes32 receiptId) public onlyOwner {
         Receipt storage receipt = receipts[receiptId];
+
         _revokeWithdraw(receipt);
 
         _transferCONG(msg.sender, receipt.amountInSatoshi);
@@ -455,10 +465,16 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
     // -------------------------------- CONG -----------------------------------
     function _mintCONG(address to, uint256 amountInSatoshi) private {
-        // TODO: add fee deduction
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        cong.mint(to, amount);
+        uint8 fee = _mintFeeBps;
+        if (fee > 0) {
+            uint256 reserveAmount = amount.mul(fee).div(10000);
+            cong.mint(address(this), reserveAmount);
+            cong.mint(to, amount.sub(reserveAmount));
+        } else {
+            cong.mint(to, amount);
+        }
     }
 
     function _burnCONG(uint256 amountInSatoshi) private {
@@ -480,7 +496,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     ) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        cong.transferFrom(from, to, amount);
+        uint8 fee = _burnFeeBps;
+        if (fee > 0) {
+            uint256 reserveAmount = amount.mul(fee).div(10000);
+            cong.transferFrom(from, to, amount.add(reserveAmount));
+        } else {
+            cong.transferFrom(from, to, amount);
+        }
     }
 
     // -------------------------------- BTC refund -----------------------------------
@@ -503,5 +525,32 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         btcRefundData.groupBtcAddress = groupBtcAddress;
 
         emit BtcRefunded(groupBtcAddress, txId, expiryTimestamp);
+    }
+
+    // -------------------------------- Collect Fee -----------------------------------
+    function getMintFeeBps() external view returns (uint8) {
+        return _mintFeeBps;
+    }
+
+    function getBurnFeeBps() external view returns (uint8) {
+        return _burnFeeBps;
+    }
+
+    function updateMintFeeBps(uint8 bps) external onlyOwner {
+        _mintFeeBps = bps;
+
+        emit MintFeeBpsUpdate(bps);
+    }
+
+    function updateBurnFeeBps(uint8 bps) external onlyOwner {
+        _burnFeeBps = bps;
+
+        emit MintFeeBpsUpdate(bps);
+    }
+
+    function collectFee(uint256 amount) public onlyOwner {
+        // be careful not to transfer unburned Cong
+        cong.transfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, amount);
     }
 }
