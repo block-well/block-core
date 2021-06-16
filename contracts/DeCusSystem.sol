@@ -267,7 +267,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
         _mintCONG(receipt.recipient, receipt.amountInSatoshi);
 
-        emit MintVerified(request.receiptId, receipt.groupBtcAddress, keepers, receipt.txId, receipt.height);
+        emit MintVerified(
+            request.receiptId,
+            receipt.groupBtcAddress,
+            keepers,
+            receipt.txId,
+            receipt.height
+        );
     }
 
     function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {

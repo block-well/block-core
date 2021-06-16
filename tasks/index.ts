@@ -92,7 +92,7 @@ task("traceReceipt", "get receipt history")
         );
 
         const verifyEvents = await decusSystem.queryFilter(
-            decusSystem.filters.MintVerified(id, null, null)
+            decusSystem.filters.MintVerified(id, null, null, null, null)
         );
 
         if (verifyEvents.length > 0) {
@@ -103,3 +103,39 @@ task("traceReceipt", "get receipt history")
             );
         }
     });
+
+task("traceMREvents", "get all MintRequested events").setAction(async (args, { ethers }) => {
+    const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+    const events = await decusSystem.queryFilter(
+        decusSystem.filters.MintRequested(null, null, null, null)
+    );
+    console.log(`blocknumber,timestamp,receiptId,recipient,group`);
+    for (const event of events) {
+        const blockNumber = event["blockNumber"];
+        const timestamp = (await decusSystem.provider.getBlock(blockNumber)).timestamp;
+        const receiptId = event["args"]["receiptId"];
+        const recipient = event["args"]["recipient"];
+        const group = event["args"]["groupBtcAddress"];
+        console.log(`${blockNumber},${timestamp},${receiptId},${recipient},${group}`);
+    }
+});
+
+// task("traceMVEvents", "get all MintVerified events").setAction(async (args, { ethers }) => {
+//     const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+//     const events = await decusSystem.queryFilter(
+//         decusSystem.filters.MintVerified(null, null, null, null, null)
+//     );
+//     console.log(`blocknumber,timestamp,receiptId,recipient,group,btcTxId,btcSender`);
+//     for (const event of events) {
+//         const blockNumber = event["blockNumber"];
+//         const timestamp = (await decusSystem.provider.getBlock(blockNumber)).timestamp;
+//         const receiptId = event["args"]["receiptId"];
+//         const receipt = await decusSystem.getReceipt(receiptId);
+//         console.log(receiptId);
+//         console.log(receipt);
+//         const recipient = receipt["recipient"];
+//         const group = receipt["groupBtcAddress"];
+//         const btcTxId = receipt["txId"];
+//         // console.log(`${blockNumber},${timestamp},${receiptId},${recipient},${group},${btcTxId}`);
+//     }
+// });
