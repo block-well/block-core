@@ -11,7 +11,7 @@ import {
     GroupStatus,
     Status,
 } from "./helper";
-import { DeCusSystem, CONG, ERC20, KeeperRegistry, Fee } from "../build/typechain";
+import { DeCusSystem, CONG, ERC20, KeeperRegistry } from "../build/typechain";
 
 const SATOSHI_CONG_MULTIPLIER = BigNumber.from(10).pow(10);
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
@@ -30,7 +30,6 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
     const cong = (await ethers.getContract("CONG")) as CONG;
-    const fee = (await ethers.getContract("Fee")) as Fee;
 
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
@@ -38,7 +37,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return { deployer, users, system, cong, fee };
+    return { deployer, users, system, cong };
 });
 
 describe("DeCusSystem", function () {
@@ -46,14 +45,13 @@ describe("DeCusSystem", function () {
     let users: Wallet[];
     let system: DeCusSystem;
     let cong: CONG;
-    let fee: Fee;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
     let group1Verifiers: Wallet[];
     let group2Verifiers: Wallet[];
 
     beforeEach(async function () {
-        ({ deployer, users, system, cong, fee } = await setupFixture());
+        ({ deployer, users, system, cong } = await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
@@ -512,6 +510,7 @@ describe("DeCusSystem", function () {
             );
 
             const keeperAddresses = keepers.map((x) => x.address);
+            // TODO: not sure why below code shows warning as "failed to generate 1 stack trace"
             await expect(
                 system
                     .connect(users[0])
@@ -822,8 +821,8 @@ describe("DeCusSystem", function () {
 
         beforeEach(async function () {
             await addMockGroup();
-            fee.updateMintFeeBps(mintFeeBps);
-            fee.updateBurnFeeBps(burnFeeBps);
+            await system.updateMintFeeBps(mintFeeBps);
+            await system.updateBurnFeeBps(burnFeeBps);
         });
 
         it("mint & burn", async function () {

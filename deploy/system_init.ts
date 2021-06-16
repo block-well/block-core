@@ -7,7 +7,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployer } = await getNamedAccounts();
 
     const cong = await deployments.get("CONG");
-    const fee = await deployments.get("Fee");
     const decusSystem = await deployments.get("DeCusSystem");
 
     await deployments.execute(
@@ -26,7 +25,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         "initialize",
         cong.address,
         registry.address,
-        fee.address
+        0,
+        0
     );
 };
 

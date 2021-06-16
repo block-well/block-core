@@ -12,7 +12,6 @@ import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IToken} from "./interfaces/IToken.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
-import {IFee} from "./interfaces/IFee.sol";
 
 contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     using SafeMath for uint256;
@@ -28,9 +27,11 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     uint256 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
     uint256 public minKeeperWei = 1e13;
 
-    IFee public fee;
     IToken public cong;
     IKeeperRegistry public keeperRegistry;
+
+    uint8 private _mintFeeBps;
+    uint8 private _burnFeeBps;
 
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
@@ -44,11 +45,13 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     function initialize(
         address _cong,
         address _registry,
-        address _fee
+        uint8 mintFeeBps,
+        uint8 burnFeeBps
     ) external {
         cong = IToken(_cong);
         keeperRegistry = IKeeperRegistry(_registry);
-        fee = IFee(_fee);
+        _mintFeeBps = mintFeeBps;
+        _burnFeeBps = burnFeeBps;
     }
 
     // ------------------------------ keeper -----------------------------------
@@ -464,9 +467,9 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     function _mintCONG(address to, uint256 amountInSatoshi) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        uint8 feeBps = fee.getMintFeeBps();
-        if (feeBps > 0) {
-            uint256 reserveAmount = amount.mul(feeBps).div(10000);
+        uint8 fee = _mintFeeBps;
+        if (fee > 0) {
+            uint256 reserveAmount = amount.mul(fee).div(10000);
             cong.mint(address(this), reserveAmount);
             cong.mint(to, amount.sub(reserveAmount));
         } else {
@@ -493,10 +496,9 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     ) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        // add fee
-        uint8 feeBps = fee.getBurnFeeBps();
-        if (feeBps > 0) {
-            uint256 reserveAmount = amount.mul(feeBps).div(10000);
+        uint8 fee = _burnFeeBps;
+        if (fee > 0) {
+            uint256 reserveAmount = amount.mul(fee).div(10000);
             cong.transferFrom(from, to, amount.add(reserveAmount));
         } else {
             cong.transferFrom(from, to, amount);
@@ -526,6 +528,26 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     }
 
     // -------------------------------- Collect Fee -----------------------------------
+    function getMintFeeBps() external view returns (uint8) {
+        return _mintFeeBps;
+    }
+
+    function getBurnFeeBps() external view returns (uint8) {
+        return _burnFeeBps;
+    }
+
+    function updateMintFeeBps(uint8 bps) external onlyOwner {
+        _mintFeeBps = bps;
+
+        emit MintFeeBpsUpdate(bps);
+    }
+
+    function updateBurnFeeBps(uint8 bps) external onlyOwner {
+        _burnFeeBps = bps;
+
+        emit MintFeeBpsUpdate(bps);
+    }
+
     function collectFee(uint256 amount) public onlyOwner {
         // be careful not to transfer unburned Cong
         cong.transfer(msg.sender, amount);

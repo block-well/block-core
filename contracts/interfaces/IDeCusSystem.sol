@@ -76,4 +76,8 @@ interface IDeCusSystem {
     event BtcRefunded(string groupBtcAddress, bytes32 txId, uint256 expiryTimestamp);
 
     event FeeCollected(address indexed owner, uint256 amount);
+
+    event MintFeeBpsUpdate(uint8 bps);
+
+    event BurnFeeBpsUpdate(uint8 bps);
 }
