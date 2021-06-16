@@ -480,7 +480,7 @@ describe("DeCusSystem", function () {
                     .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
             )
                 .to.emit(system, "MintVerified")
-                .withArgs(receiptId, btcAddress, keeperAddresses);
+                .withArgs(receiptId, btcAddress, keeperAddresses, txId, height);
 
             receipt = await system.getReceipt(receiptId);
             group = await system.getGroup(btcAddress);
@@ -543,7 +543,7 @@ describe("DeCusSystem", function () {
                     .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
             )
                 .to.emit(system, "MintVerified")
-                .withArgs(receiptId, btcAddress, keeperAddresses);
+                .withArgs(receiptId, btcAddress, keeperAddresses, txId, height);
 
             group = await system.getGroup(btcAddress);
             expect(group.status).equal(GroupStatus.MintVerified);

@@ -43,6 +43,10 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         });
     const now = (await decusSystem.provider.getBlock("latest")).timestamp;
 
+    const groupReusingGap = (await decusSystem.GROUP_REUSING_GAP()).toNumber();
+    const mintRequestGracePeriod = (await decusSystem.MINT_REQUEST_GRACE_PERIOD()).toNumber();
+    const withdrawVerificationEnd = (await decusSystem.WITHDRAW_VERIFICATION_END()).toNumber();
+
     for (const groupId of groupIds) {
         const group = await decusSystem.getGroup(groupId);
         if (group.required.eq(0)) {
@@ -54,15 +58,15 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         let minable = "false";
 
         if (receipt.status == 0) {
-            if (updateTime + (await decusSystem.GROUP_REUSING_GAP()).toNumber() < now) {
+            if (updateTime + groupReusingGap < now) {
                 minable = "true";
             }
         } else if (receipt.status == 1) {
-            if (updateTime + (await decusSystem.MINT_REQUEST_GRACE_PERIOD()).toNumber() < now) {
+            if (updateTime + mintRequestGracePeriod < now) {
                 minable = "true (force)";
             }
         } else if (receipt.status == 3) {
-            if (updateTime + (await decusSystem.WITHDRAW_VERIFICATION_END()).toNumber() < now) {
+            if (updateTime + withdrawVerificationEnd < now) {
                 minable = "true (force)";
             }
         }
@@ -71,3 +75,67 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         console.log(`${groupId} : ${receipt.status} : ${date} : ${minable}`);
     }
 });
+
+task("traceReceipt", "get receipt history")
+    .addParam("id", "receiptId")
+    .setAction(async ({ id }, { ethers }) => {
+        const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+        const mintEvents = await decusSystem.queryFilter(
+            decusSystem.filters.MintRequested(id, null, null, null)
+        );
+        const recipient = mintEvents[0].args.recipient;
+        const groupBtcAddress = mintEvents[0].args.groupBtcAddress;
+        const mintBlock = mintEvents[0].blockNumber;
+        const mintTimestamp = new Date((await mintEvents[0].getBlock()).timestamp * 1000);
+        console.log(
+            `MintRequested: ${mintBlock} ${recipient} ${groupBtcAddress} ${mintTimestamp} ${mintEvents[0].transactionHash}`
+        );
+
+        const verifyEvents = await decusSystem.queryFilter(
+            decusSystem.filters.MintVerified(id, null, null, null, null)
+        );
+
+        if (verifyEvents.length > 0) {
+            const verifyBlock = verifyEvents[0].blockNumber;
+            const verifyTimestamp = new Date((await verifyEvents[0].getBlock()).timestamp * 1000);
+            console.log(
+                `VerifyBlock: ${verifyBlock} ${verifyTimestamp} ${verifyEvents[0].transactionHash}`
+            );
+        }
+    });
+
+task("traceMREvents", "get all MintRequested events").setAction(async (args, { ethers }) => {
+    const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+    const events = await decusSystem.queryFilter(
+        decusSystem.filters.MintRequested(null, null, null, null)
+    );
+    console.log(`blocknumber,timestamp,receiptId,recipient,group`);
+    for (const event of events) {
+        const blockNumber = event["blockNumber"];
+        const timestamp = (await decusSystem.provider.getBlock(blockNumber)).timestamp;
+        const receiptId = event["args"]["receiptId"];
+        const recipient = event["args"]["recipient"];
+        const group = event["args"]["groupBtcAddress"];
+        console.log(`${blockNumber},${timestamp},${receiptId},${recipient},${group}`);
+    }
+});
+
+// task("traceMVEvents", "get all MintVerified events").setAction(async (args, { ethers }) => {
+//     const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+//     const events = await decusSystem.queryFilter(
+//         decusSystem.filters.MintVerified(null, null, null, null, null)
+//     );
+//     console.log(`blocknumber,timestamp,receiptId,recipient,group,btcTxId,btcSender`);
+//     for (const event of events) {
+//         const blockNumber = event["blockNumber"];
+//         const timestamp = (await decusSystem.provider.getBlock(blockNumber)).timestamp;
+//         const receiptId = event["args"]["receiptId"];
+//         const receipt = await decusSystem.getReceipt(receiptId);
+//         console.log(receiptId);
+//         console.log(receipt);
+//         const recipient = receipt["recipient"];
+//         const group = receipt["groupBtcAddress"];
+//         const btcTxId = receipt["txId"];
+//         // console.log(`${blockNumber},${timestamp},${receiptId},${recipient},${group},${btcTxId}`);
+//     }
+// });

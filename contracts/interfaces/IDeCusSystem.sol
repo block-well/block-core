@@ -61,7 +61,13 @@ interface IDeCusSystem {
         string groupBtcAddress
     );
     event MintRevoked(bytes32 indexed receiptId, string groupBtcAddress, address operator);
-    event MintVerified(bytes32 indexed receiptId, string groupBtcAddress, address[] keepers);
+    event MintVerified(
+        bytes32 indexed receiptId,
+        string groupBtcAddress,
+        address[] keepers,
+        bytes32 btcTxId,
+        uint256 btcTxHeight
+    );
     event BurnRequested(
         bytes32 indexed receiptId,
         string groupBtcAddress,
