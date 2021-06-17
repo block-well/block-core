@@ -77,15 +77,12 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
             uint256 maxSatoshi,
             uint256 currSatoshi,
             uint256 nonce,
-            GroupStatus status,
             address[] memory keepers,
             uint256 cooldown,
             bytes32 workingReceiptId
         )
     {
         Group storage group = groups[btcAddress];
-
-        status = getGroupStatus(btcAddress);
 
         keepers = new address[](group.keeperSet.length());
         cooldown = 0;
@@ -104,51 +101,10 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
             group.maxSatoshi,
             group.currSatoshi,
             group.nonce,
-            status,
             keepers,
             cooldown,
             workingReceiptId
         );
-    }
-
-    function listGroupStatus(string[] calldata btcAddressArray)
-        external
-        view
-        returns (GroupStatus[] memory statusArray)
-    {
-        statusArray = new GroupStatus[](btcAddressArray.length);
-        for (uint256 i = 0; i < btcAddressArray.length; i++) {
-            statusArray[i] = getGroupStatus(btcAddressArray[i]);
-        }
-        return statusArray;
-    }
-
-    function getGroupStatus(string calldata btcAddress) public view returns (GroupStatus status) {
-        Group storage group = groups[btcAddress];
-        if (group.required == 0) {
-            return GroupStatus.None;
-        }
-
-        bytes32 _receiptId = getReceiptId(btcAddress, group.nonce);
-        Receipt storage receipt = receipts[_receiptId];
-        if (receipt.status == Status.Available) {
-            status = block.timestamp > receipt.updateTimestamp.add(GROUP_REUSING_GAP)
-                ? GroupStatus.Available
-                : GroupStatus.MintGap;
-        } else if (receipt.status == Status.DepositRequested) {
-            status = block.timestamp > MINT_REQUEST_GRACE_PERIOD.add(receipt.updateTimestamp)
-                ? GroupStatus.MintTimeout
-                : GroupStatus.MintRequested;
-        } else if (receipt.status == Status.DepositReceived) {
-            status = GroupStatus.MintVerified;
-        } else if (receipt.status == Status.WithdrawRequested) {
-            status = block.timestamp > WITHDRAW_VERIFICATION_END.add(receipt.updateTimestamp)
-                ? GroupStatus.BurnTimeout
-                : GroupStatus.BurnRequested;
-        } else {
-            status = GroupStatus.None;
-        }
-        return status;
     }
 
     function addGroup(
