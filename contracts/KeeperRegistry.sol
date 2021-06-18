@@ -59,10 +59,10 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         _addKeeper(msg.sender, asset, amount);
     }
 
-    function deleteKeeper(address keeper) external onlyOwner {
-        // require admin role because we need to make sure keeper is not in any working groups
+    function deleteKeeper(address keeper) external {
         // TODO: apply commission fee
         require(keeperRefCount[keeper] == 0, "keeper refCount not zero");
+
         address asset = perUserCollateral[keeper];
         require(IERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
         delete collaterals[keeper][asset];
@@ -143,12 +143,12 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         emit OffsetOverissued(msg.sender, congAmount, overissuedTotal);
     }
 
-    function incrementRefCount(address keeper) external {
+    function incrementRefCount(address keeper) external override {
         keeperRefCount[keeper] = keeperRefCount[keeper].add(1);
         emit KeeperRefCount(keeper, keeperRefCount[keeper]);
     }
 
-    function decrementRefCount(address keeper) external {
+    function decrementRefCount(address keeper) external override {
         keeperRefCount[keeper] = keeperRefCount[keeper].sub(1);
         emit KeeperRefCount(keeper, keeperRefCount[keeper]);
     }

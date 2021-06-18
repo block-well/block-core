@@ -143,6 +143,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
                 "keeper has not enough collateral"
             );
             group.keeperSet.add(keeper);
+            keeperRegistry.incrementRefCount(keeper);
         }
 
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
@@ -160,6 +161,11 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         );
 
         _clearReceipt(receipt, receiptId);
+
+        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
+            address keeper = group.keeperSet.at(i);
+            keeperRegistry.decrementRefCount(keeper);
+        }
 
         require(group.currSatoshi == 0, "group balance > 0");
 

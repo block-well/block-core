@@ -11,6 +11,10 @@ interface IKeeperRegistry {
         address[] calldata keepers
     ) external;
 
+    function incrementRefCount(address keeper) external;
+
+    function decrementRefCount(address keeper) external;
+
     event AssetAdded(address indexed asset);
 
     event KeeperAdded(address indexed keeper, address asset, uint256 amount);
