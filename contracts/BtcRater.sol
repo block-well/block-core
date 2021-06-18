@@ -35,8 +35,9 @@ contract BtcRater is Ownable, IBtcRater {
         // e.g. wbtc&1e8, returns 1e8
         // e.g. hbtc&1e18, returns 1e8
         // e.g. cong&1e18, returns 1e8
-        uint256 valueInSatoshiDecimal =
-            amount.div(BtcUtility.getSatoshiDivisor(IERC20Extension(asset).decimals()));
+        uint256 valueInSatoshiDecimal = amount.div(
+            BtcUtility.getSatoshiDivisor(IERC20Extension(asset).decimals())
+        );
         return valueInSatoshiDecimal.div(btcConversionRates[asset]);
     }
 
@@ -49,8 +50,9 @@ contract BtcRater is Ownable, IBtcRater {
         // e.g. wbtc&1e8, returns 1e18
         // e.g. hbtc&1e18, returns 1e18
         // e.g. cong&1e18, returns 1e18
-        uint256 valueInWeiDecimal =
-            amount.mul(BtcUtility.getWeiMultiplier(IERC20Extension(asset).decimals()));
+        uint256 valueInWeiDecimal = amount.mul(
+            BtcUtility.getWeiMultiplier(IERC20Extension(asset).decimals())
+        );
         return valueInWeiDecimal.div(btcConversionRates[asset]);
     }
 
