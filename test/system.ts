@@ -69,6 +69,15 @@ describe("DeCusSystem", function () {
     });
 
     describe("addGroup()", function () {
+        const GROUP_ROLE = ethers.utils.id("GROUP_ROLE");
+        let groupAdmin: Wallet;
+
+        beforeEach(async function () {
+            groupAdmin = users[9];
+            await system.connect(deployer).grantRole(GROUP_ROLE, groupAdmin.address);
+            await system.connect(deployer).revokeRole(GROUP_ROLE, deployer.address);
+        });
+
         it("update minKeeperWei", async function () {
             expect(await system.minKeeperWei()).to.be.gt(parseEther("0.000001"));
             const minKeeperWei = parseEther("1");
@@ -80,13 +89,15 @@ describe("DeCusSystem", function () {
 
             const keepers = group1Keepers.map((x) => x.address);
             await expect(
-                system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers)
+                system.connect(groupAdmin).addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers)
             ).to.revertedWith("keeper has not enough collateral");
         });
 
         it("should add group", async function () {
             const keepers = group1Keepers.map((x) => x.address);
-            await expect(system.addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers))
+            await expect(
+                system.connect(groupAdmin).addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers)
+            )
                 .to.emit(system, "GroupAdded")
                 .withArgs(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers);
 
@@ -483,7 +494,6 @@ describe("DeCusSystem", function () {
             );
 
             const keeperAddresses = keepers.map((x) => x.address);
-            // TODO: not sure why below code shows warning as "failed to generate 1 stack trace"
             await expect(
                 system
                     .connect(users[0])

@@ -3,7 +3,7 @@ pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/drafts/EIP712.sol";
@@ -13,9 +13,12 @@ import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IToken} from "./interfaces/IToken.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
-contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
+contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
 
     bytes32 private constant REQUEST_TYPEHASH =
         keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
@@ -40,7 +43,22 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     BtcRefundData private btcRefundData;
 
     //================================= Public =================================
-    constructor() public EIP712("DeCus", "1.0") {}
+    constructor() public EIP712("DeCus", "1.0") {
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+        _setupRole(ADMIN_ROLE, msg.sender);
+        _setupRole(GROUP_ROLE, msg.sender);
+    }
+
+    modifier onlyAdmin() {
+        require(hasRole(ADMIN_ROLE, msg.sender), "require admin role");
+        _;
+    }
+
+    modifier onlyGroupAdmin() {
+        require(hasRole(GROUP_ROLE, msg.sender), "require group admin role");
+        _;
+    }
 
     function initialize(
         address _cong,
@@ -55,7 +73,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
     }
 
     // ------------------------------ keeper -----------------------------------
-    function chill(address keeper, uint256 chillTime) external onlyOwner {
+    function chill(address keeper, uint256 chillTime) external onlyAdmin {
         _cooldown(keeper, (block.timestamp).add(chillTime));
     }
 
@@ -63,7 +81,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         return cooldownUntil[keeper];
     }
 
-    function updateMinKeeperWei(uint256 amount) external onlyOwner {
+    function updateMinKeeperWei(uint256 amount) external onlyAdmin {
         minKeeperWei = amount;
         emit MinKeeperWeiUpdated(amount);
     }
@@ -112,7 +130,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         uint256 required,
         uint256 maxSatoshi,
         address[] calldata keepers
-    ) external onlyOwner whenNotPaused {
+    ) external onlyGroupAdmin whenNotPaused {
         Group storage group = groups[btcAddress];
         require(group.maxSatoshi == 0, "group id already exist");
 
@@ -130,7 +148,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
     }
 
-    function deleteGroup(string calldata btcAddress) external onlyOwner whenNotPaused {
+    function deleteGroup(string calldata btcAddress) external onlyGroupAdmin whenNotPaused {
         Group storage group = groups[btcAddress];
 
         bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
@@ -269,7 +287,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
     }
 
-    function recoverBurn(bytes32 receiptId) public onlyOwner {
+    function recoverBurn(bytes32 receiptId) public onlyAdmin {
         Receipt storage receipt = receipts[receiptId];
 
         _revokeWithdraw(receipt);
@@ -326,7 +344,6 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         require(keepers.length >= group.required, "not enough keepers");
 
         uint256 cooldownTime = (block.timestamp).add(KEEPER_COOLDOWN);
-        // bytes32 requestHash = getMintRequestHash(request);
         bytes32 digest = _hashTypedDataV4(
             keccak256(abi.encode(REQUEST_TYPEHASH, request.receiptId, request.txId, request.height))
         );
@@ -474,7 +491,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
     function refundBtc(string calldata groupBtcAddress, bytes32 txId)
         public
-        onlyOwner
+        onlyAdmin
         whenNotPaused
     {
         bytes32 receiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
@@ -502,30 +519,30 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         return _burnFeeBps;
     }
 
-    function updateMintFeeBps(uint8 bps) external onlyOwner {
+    function updateMintFeeBps(uint8 bps) external onlyAdmin {
         _mintFeeBps = bps;
 
         emit MintFeeBpsUpdate(bps);
     }
 
-    function updateBurnFeeBps(uint8 bps) external onlyOwner {
+    function updateBurnFeeBps(uint8 bps) external onlyAdmin {
         _burnFeeBps = bps;
 
         emit MintFeeBpsUpdate(bps);
     }
 
-    function collectFee(uint256 amount) public onlyOwner whenNotPaused {
+    function collectFee(uint256 amount) public onlyAdmin whenNotPaused {
         // be careful not to transfer unburned Cong
         cong.transfer(msg.sender, amount);
         emit FeeCollected(msg.sender, amount);
     }
 
     // -------------------------------- Pausable -----------------------------------
-    function pause() public onlyOwner {
+    function pause() public onlyAdmin {
         _pause();
     }
 
-    function unpause() public onlyOwner {
+    function unpause() public onlyAdmin {
         _unpause();
     }
 }
