@@ -13,7 +13,12 @@ interface IDeCusSystem {
         EnumerableSet.AddressSet keeperSet;
     }
 
-    enum Status {Available, DepositRequested, DepositReceived, WithdrawRequested}
+    enum Status {
+        Available,
+        DepositRequested,
+        DepositReceived,
+        WithdrawRequested
+    }
 
     struct Receipt {
         uint256 amountInSatoshi;

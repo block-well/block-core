@@ -811,4 +811,61 @@ describe("DeCusSystem", function () {
             expect(await cong.balanceOf(deployer.address)).to.equal(systemAmount);
         });
     });
+
+    describe("pause()", function () {
+        const btcAddress = BTC_ADDRESS[0];
+        const withdrawBtcAddress = BTC_ADDRESS[1];
+        const amountInSatoshi = GROUP_SATOSHI;
+        const nonce = 1;
+        const receiptId = getReceiptId(btcAddress, nonce);
+        const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
+        const height = 1940801;
+
+        beforeEach(async function () {
+            await addMockGroup();
+
+            await system.pause();
+        });
+
+        it("pause for group", async function () {
+            await expect(
+                system
+                    .connect(deployer)
+                    .addGroup(btcAddress, 2, amountInSatoshi, [users[2].address, users[3].address])
+            ).to.revertedWith("Pausable: paused");
+
+            await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
+                "Pausable: paused"
+            );
+        });
+
+        it("pause for mint & burn", async function () {
+            await expect(
+                system.connect(users[0]).requestMint(btcAddress, amountInSatoshi, nonce)
+            ).to.revertedWith("Pausable: paused");
+
+            const [rList, sList, packedV] = await prepareSignature(
+                group1Verifiers,
+                system.address,
+                receiptId,
+                txId,
+                height
+            );
+
+            const keeperAddresses = group1Verifiers.map((x) => x.address);
+            await expect(
+                system
+                    .connect(users[0])
+                    .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV)
+            ).to.revertedWith("Pausable: paused");
+
+            await expect(
+                system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress)
+            ).to.revertedWith("Pausable: paused");
+
+            await expect(system.connect(users[0]).verifyBurn(receiptId)).to.revertedWith(
+                "Pausable: paused"
+            );
+        });
+    });
 });

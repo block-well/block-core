@@ -112,7 +112,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         uint256 required,
         uint256 maxSatoshi,
         address[] calldata keepers
-    ) external onlyOwner {
+    ) external onlyOwner whenNotPaused {
         Group storage group = groups[btcAddress];
         require(group.maxSatoshi == 0, "group id already exist");
 
@@ -130,7 +130,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
     }
 
-    function deleteGroup(string calldata btcAddress) external onlyOwner {
+    function deleteGroup(string calldata btcAddress) external onlyOwner whenNotPaused {
         Group storage group = groups[btcAddress];
 
         bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
@@ -167,7 +167,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
         uint256 nonce
-    ) public {
+    ) public whenNotPaused {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
 
         Group storage group = groups[groupBtcAddress];
@@ -222,7 +222,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         bytes32[] calldata r,
         bytes32[] calldata s,
         uint256 packedV
-    ) public {
+    ) public whenNotPaused {
         Receipt storage receipt = receipts[request.receiptId];
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi = (group.currSatoshi).add(receipt.amountInSatoshi);
@@ -242,7 +242,10 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         );
     }
 
-    function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress) public {
+    function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress)
+        public
+        whenNotPaused
+    {
         Receipt storage receipt = receipts[receiptId];
 
         _requestWithdraw(receipt, withdrawBtcAddress);
@@ -252,7 +255,7 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         emit BurnRequested(receiptId, receipt.groupBtcAddress, withdrawBtcAddress, msg.sender);
     }
 
-    function verifyBurn(bytes32 receiptId) public {
+    function verifyBurn(bytes32 receiptId) public whenNotPaused {
         // TODO: allow only user or keepers to verify? If someone verified wrongly, we can punish
         Receipt storage receipt = receipts[receiptId];
 
@@ -324,12 +327,9 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
 
         uint256 cooldownTime = (block.timestamp).add(KEEPER_COOLDOWN);
         // bytes32 requestHash = getMintRequestHash(request);
-        bytes32 digest =
-            _hashTypedDataV4(
-                keccak256(
-                    abi.encode(REQUEST_TYPEHASH, request.receiptId, request.txId, request.height)
-                )
-            );
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(abi.encode(REQUEST_TYPEHASH, request.receiptId, request.txId, request.height))
+        );
 
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
@@ -472,7 +472,11 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         return btcRefundData;
     }
 
-    function refundBtc(string calldata groupBtcAddress, bytes32 txId) public onlyOwner {
+    function refundBtc(string calldata groupBtcAddress, bytes32 txId)
+        public
+        onlyOwner
+        whenNotPaused
+    {
         bytes32 receiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
         Receipt storage receipt = receipts[receiptId];
 
@@ -510,9 +514,18 @@ contract DeCusSystem is Ownable, Pausable, IDeCusSystem, EIP712 {
         emit MintFeeBpsUpdate(bps);
     }
 
-    function collectFee(uint256 amount) public onlyOwner {
+    function collectFee(uint256 amount) public onlyOwner whenNotPaused {
         // be careful not to transfer unburned Cong
         cong.transfer(msg.sender, amount);
         emit FeeCollected(msg.sender, amount);
+    }
+
+    // -------------------------------- Pausable -----------------------------------
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
     }
 }
