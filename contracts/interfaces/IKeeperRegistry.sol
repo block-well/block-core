@@ -17,8 +17,12 @@ interface IKeeperRegistry {
     event KeeperDeleted(address indexed keeper);
     event KeeperImported(address indexed from, address asset, address[] keepers, uint256 amount);
 
+    event KeeperRefCount(address indexed keeper, uint256 count);
+    event KeeperPunished(address indexed keeper, address asset, uint256 collateral);
+
     event TreasuryTransferred(address indexed previousTreasury, address indexed newTreasury);
     event Confiscated(address indexed treasury, address asset, uint256 amount);
+    event OverissueAdded(uint256 total, uint256 added, uint256 deduction);
     event OffsetOverissued(
         address indexed operator,
         uint256 congAmount,
