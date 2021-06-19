@@ -20,6 +20,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     CONG public cong;
     address public treasury;
+    address public system;
 
     EnumerableSet.AddressSet assetSet;
     IBtcRater public btcRater;
@@ -29,6 +30,11 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     uint256 public overissuedTotal;
     mapping(address => uint256) public confiscations;
+
+    modifier onlySystem() {
+        require(system == _msgSender(), "require system role");
+        _;
+    }
 
     constructor(
         address[] memory _assets,
@@ -40,6 +46,11 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
             _addAsset(_assets[i]);
         }
         cong = CONG(_cong);
+    }
+
+    function setSystem(address _system) external onlyOwner {
+        emit SystemUpdated(system, _system);
+        system = _system;
     }
 
     function getCollateralWei(address keeper) external view override returns (uint256) {
@@ -59,16 +70,19 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         _addKeeper(msg.sender, asset, amount);
     }
 
-    function deleteKeeper(address keeper) external {
+    function deleteKeeper() external {
         // TODO: apply commission fee
-        require(keeperRefCount[keeper] == 0, "keeper refCount not zero");
+        require(keeperRefCount[msg.sender] == 0, "ref count > 0");
 
-        address asset = perUserCollateral[keeper];
-        require(IERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
-        delete collaterals[keeper][asset];
-        delete perUserCollateral[keeper];
+        address asset = perUserCollateral[msg.sender];
+        require(
+            IERC20(asset).approve(msg.sender, collaterals[msg.sender][asset]),
+            "approve failed"
+        );
+        delete collaterals[msg.sender][asset];
+        delete perUserCollateral[msg.sender];
 
-        emit KeeperDeleted(keeper);
+        emit KeeperDeleted(msg.sender);
     }
 
     function importKeepers(
@@ -143,12 +157,12 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         emit OffsetOverissued(msg.sender, congAmount, overissuedTotal);
     }
 
-    function incrementRefCount(address keeper) external override {
+    function incrementRefCount(address keeper) external override onlySystem {
         keeperRefCount[keeper] = keeperRefCount[keeper].add(1);
         emit KeeperRefCount(keeper, keeperRefCount[keeper]);
     }
 
-    function decrementRefCount(address keeper) external override {
+    function decrementRefCount(address keeper) external override onlySystem {
         keeperRefCount[keeper] = keeperRefCount[keeper].sub(1);
         emit KeeperRefCount(keeper, keeperRefCount[keeper]);
     }

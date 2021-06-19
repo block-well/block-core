@@ -15,6 +15,7 @@ interface IKeeperRegistry {
 
     function decrementRefCount(address keeper) external;
 
+    event SystemUpdated(address oldSystem, address newSystem);
     event AssetAdded(address indexed asset);
 
     event KeeperAdded(address indexed keeper, address asset, uint256 amount);
