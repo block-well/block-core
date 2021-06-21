@@ -298,9 +298,9 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
         _revokeWithdraw(receipt);
 
-        _transferCONG(msg.sender, receipt.amountInSatoshi);
+        _transferCONG(receipt.recipient, receipt.amountInSatoshi);
 
-        emit BurnRevoked(receiptId, receipt.groupBtcAddress, msg.sender);
+        emit BurnRevoked(receiptId, receipt.groupBtcAddress, receipt.recipient, msg.sender);
     }
 
     //=============================== Private ==================================
@@ -420,6 +420,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
             "receipt is not in DepositReceived state"
         );
 
+        receipt.recipient = msg.sender;
         receipt.withdrawBtcAddress = withdrawBtcAddress;
         receipt.updateTimestamp = block.timestamp;
         receipt.status = Status.WithdrawRequested;
