@@ -20,14 +20,21 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     CONG public cong;
     address public treasury;
+    address public system;
 
     EnumerableSet.AddressSet assetSet;
     IBtcRater public btcRater;
     mapping(address => mapping(address => uint256)) public collaterals;
     mapping(address => address) public perUserCollateral;
+    mapping(address => uint256) public keeperRefCount;
 
     uint256 public overissuedTotal;
     mapping(address => uint256) public confiscations;
+
+    modifier onlySystem() {
+        require(system == _msgSender(), "require system role");
+        _;
+    }
 
     constructor(
         address[] memory _assets,
@@ -39,6 +46,11 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
             _addAsset(_assets[i]);
         }
         cong = CONG(_cong);
+    }
+
+    function setSystem(address _system) external onlyOwner {
+        emit SystemUpdated(system, _system);
+        system = _system;
     }
 
     function getCollateralWei(address keeper) external view override returns (uint256) {
@@ -58,15 +70,19 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         _addKeeper(msg.sender, asset, amount);
     }
 
-    function deleteKeeper(address keeper) external onlyOwner {
-        // require admin role because we need to make sure keeper is not in any working groups
+    function deleteKeeper() external {
         // TODO: apply commission fee
-        address asset = perUserCollateral[keeper];
-        require(IERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
-        delete collaterals[keeper][asset];
-        delete perUserCollateral[keeper];
+        require(keeperRefCount[msg.sender] == 0, "ref count > 0");
 
-        emit KeeperDeleted(keeper);
+        address asset = perUserCollateral[msg.sender];
+        require(
+            IERC20(asset).approve(msg.sender, collaterals[msg.sender][asset]),
+            "approve failed"
+        );
+        delete collaterals[msg.sender][asset];
+        delete perUserCollateral[msg.sender];
+
+        emit KeeperDeleted(msg.sender);
     }
 
     function importKeepers(
@@ -91,24 +107,17 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         emit KeeperImported(msg.sender, asset, keepers, amount);
     }
 
-    function punishKeeper(address[] calldata keepers, uint256 overissuedAmount) external onlyOwner {
+    function punishKeeper(address[] calldata keepers) external onlyOwner {
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             address asset = perUserCollateral[keeper];
             uint256 collateral = collaterals[keeper][asset];
 
-            if (asset == address(cong)) {
-                uint256 deduction = overissuedAmount.min(collateral);
-                cong.burn(deduction);
-                overissuedAmount = overissuedAmount.sub(deduction);
-                collateral = collateral.sub(deduction);
-            }
-
             confiscations[asset] = confiscations[asset].add(collateral);
             delete collaterals[keeper][asset];
-        }
 
-        overissuedTotal = overissuedTotal.add(overissuedAmount);
+            emit KeeperPunished(keeper, asset, collateral);
+        }
     }
 
     function updateTreasury(address newTreasury) external onlyOwner {
@@ -127,11 +136,39 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         }
     }
 
+    function addOverissue(uint256 overissuedAmount) external onlyOwner {
+        require(overissuedAmount > 0, "zero overissued amount");
+        uint256 congConfiscation = confiscations[address(cong)];
+        uint256 deduction = 0;
+        if (congConfiscation > 0) {
+            deduction = overissuedAmount.min(congConfiscation);
+            cong.burn(deduction);
+            overissuedAmount = overissuedAmount.sub(deduction);
+            confiscations[address(cong)] = congConfiscation.sub(deduction);
+        }
+        overissuedTotal = overissuedTotal.add(overissuedAmount);
+        emit OverissueAdded(overissuedTotal, overissuedAmount, deduction);
+    }
+
     function offsetOverissue(uint256 congAmount) external {
         cong.burnFrom(msg.sender, congAmount);
         overissuedTotal = overissuedTotal.sub(congAmount);
 
         emit OffsetOverissued(msg.sender, congAmount, overissuedTotal);
+    }
+
+    function incrementRefCount(address keeper) external override onlySystem {
+        keeperRefCount[keeper] = keeperRefCount[keeper].add(1);
+        emit KeeperRefCount(keeper, keeperRefCount[keeper]);
+    }
+
+    function decrementRefCount(address keeper) external override onlySystem {
+        keeperRefCount[keeper] = keeperRefCount[keeper].sub(1);
+        emit KeeperRefCount(keeper, keeperRefCount[keeper]);
+    }
+
+    function getKeeperRefCount(address keeper) external view returns (uint256) {
+        return keeperRefCount[keeper];
     }
 
     function _addAsset(address asset) private {

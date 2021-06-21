@@ -33,8 +33,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     IToken public cong;
     IKeeperRegistry public keeperRegistry;
 
-    uint8 private _mintFeeBps;
-    uint8 private _burnFeeBps;
+    uint8 public mintFeeBps;
+    uint8 public burnFeeBps;
 
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
@@ -63,13 +63,13 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     function initialize(
         address _cong,
         address _registry,
-        uint8 mintFeeBps,
-        uint8 burnFeeBps
+        uint8 _mintFeeBps,
+        uint8 _burnFeeBps
     ) external {
         cong = IToken(_cong);
         keeperRegistry = IKeeperRegistry(_registry);
-        _mintFeeBps = mintFeeBps;
-        _burnFeeBps = burnFeeBps;
+        mintFeeBps = _mintFeeBps;
+        burnFeeBps = _burnFeeBps;
     }
 
     // ------------------------------ keeper -----------------------------------
@@ -143,6 +143,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
                 "keeper has not enough collateral"
             );
             group.keeperSet.add(keeper);
+            keeperRegistry.incrementRefCount(keeper);
         }
 
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
@@ -160,6 +161,11 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         );
 
         _clearReceipt(receipt, receiptId);
+
+        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
+            address keeper = group.keeperSet.at(i);
+            keeperRegistry.decrementRefCount(keeper);
+        }
 
         require(group.currSatoshi == 0, "group balance > 0");
 
@@ -446,7 +452,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     function _mintCONG(address to, uint256 amountInSatoshi) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        uint8 fee = _mintFeeBps;
+        uint8 fee = mintFeeBps;
         if (fee > 0) {
             uint256 reserveAmount = amount.mul(fee).div(10000);
             cong.mint(address(this), reserveAmount);
@@ -475,7 +481,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     ) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
 
-        uint8 fee = _burnFeeBps;
+        uint8 fee = burnFeeBps;
         if (fee > 0) {
             uint256 reserveAmount = amount.mul(fee).div(10000);
             cong.transferFrom(from, to, amount.add(reserveAmount));
@@ -511,22 +517,14 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     }
 
     // -------------------------------- Collect Fee -----------------------------------
-    function getMintFeeBps() external view returns (uint8) {
-        return _mintFeeBps;
-    }
-
-    function getBurnFeeBps() external view returns (uint8) {
-        return _burnFeeBps;
-    }
-
     function updateMintFeeBps(uint8 bps) external onlyAdmin {
-        _mintFeeBps = bps;
+        mintFeeBps = bps;
 
         emit MintFeeBpsUpdate(bps);
     }
 
     function updateBurnFeeBps(uint8 bps) external onlyAdmin {
-        _burnFeeBps = bps;
+        burnFeeBps = bps;
 
         emit MintFeeBpsUpdate(bps);
     }

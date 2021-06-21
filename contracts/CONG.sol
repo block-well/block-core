@@ -19,26 +19,17 @@ contract CONG is AccessControl, ERC20Burnable, ERC20Pausable {
     }
 
     function mint(address to, uint256 amount) public {
-        require(
-            hasRole(MINTER_ROLE, msg.sender),
-            "ERC20PresetMinterPauser: must have minter role to mint"
-        );
+        require(hasRole(MINTER_ROLE, msg.sender), "require minter role");
         _mint(to, amount);
     }
 
     function pause() public {
-        require(
-            hasRole(PAUSER_ROLE, msg.sender),
-            "ERC20PresetMinterPauser: must have pauser role to pause"
-        );
+        require(hasRole(PAUSER_ROLE, msg.sender), "require pauser role");
         _pause();
     }
 
     function unpause() public {
-        require(
-            hasRole(PAUSER_ROLE, msg.sender),
-            "ERC20PresetMinterPauser: must have pauser role to unpause"
-        );
+        require(hasRole(PAUSER_ROLE, msg.sender), "require pauser role");
         _unpause();
     }
 

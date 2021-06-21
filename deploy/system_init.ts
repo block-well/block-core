@@ -17,6 +17,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         decusSystem.address
     );
 
+    await deployments.execute(
+        "KeeperRegistry",
+        { from: deployer, log: true },
+        "setSystem",
+        decusSystem.address
+    );
     const registry = await deployments.get("KeeperRegistry");
 
     await deployments.execute(
