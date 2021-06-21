@@ -600,16 +600,49 @@ describe("DeCusSystem", function () {
         });
 
         it("request burn", async function () {
-            await cong.connect(users[0]).approve(system.address, userCongAmount);
-            await expect(system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress))
-                .to.emit(system, "BurnRequested")
-                .withArgs(receiptId, btcAddress, withdrawBtcAddress, users[0].address);
+            const redeemer = users[1];
+            await cong.connect(users[0]).transfer(redeemer.address, userCongAmount);
 
-            const receipt = await system.getReceipt(receiptId);
+            await cong.connect(redeemer).approve(system.address, userCongAmount);
+            let receipt = await system.getReceipt(receiptId);
+            expect(receipt.recipient).to.equal(users[0].address);
+
+            await expect(system.connect(redeemer).requestBurn(receiptId, withdrawBtcAddress))
+                .to.emit(system, "BurnRequested")
+                .withArgs(receiptId, btcAddress, withdrawBtcAddress, redeemer.address);
+
+            receipt = await system.getReceipt(receiptId);
+            expect(receipt.recipient).to.equal(redeemer.address);
             expect(receipt.status).to.be.equal(3);
             expect(receipt.withdrawBtcAddress).to.be.equal(withdrawBtcAddress);
-            expect(await cong.balanceOf(users[0].address)).to.be.equal(0);
+            expect(await cong.balanceOf(redeemer.address)).to.be.equal(0);
             expect(await cong.balanceOf(system.address)).to.be.equal(userCongAmount);
+        });
+
+        it("recover burn", async function () {
+            const redeemer = users[0];
+            expect(await cong.balanceOf(redeemer.address)).to.be.equal(userCongAmount);
+            await cong.connect(redeemer).approve(system.address, userCongAmount);
+
+            await expect(system.connect(redeemer).requestBurn(receiptId, withdrawBtcAddress))
+                .to.emit(system, "BurnRequested")
+                .withArgs(receiptId, btcAddress, withdrawBtcAddress, redeemer.address);
+
+            expect(await cong.balanceOf(redeemer.address)).to.be.equal(0);
+            let receipt = await system.getReceipt(receiptId);
+            expect(receipt.status).to.equal(Status.WithdrawRequested);
+
+            await expect(system.connect(redeemer).recoverBurn(receiptId)).to.revertedWith(
+                "require admin role"
+            );
+
+            await expect(system.connect(deployer).recoverBurn(receiptId))
+                .to.emit(system, "BurnRevoked")
+                .withArgs(receiptId, btcAddress, redeemer.address, deployer.address);
+
+            receipt = await system.getReceipt(receiptId);
+            expect(receipt.status).to.equal(Status.DepositReceived);
+            expect(await cong.balanceOf(redeemer.address)).to.be.equal(userCongAmount);
         });
     });
 
