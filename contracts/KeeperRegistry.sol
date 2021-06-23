@@ -25,7 +25,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     EnumerableSet.AddressSet assetSet;
     IBtcRater public btcRater;
-    uint32 public MIN_KEEPER_PERIOD = 15552000 ; // 6 month
+    uint32 public MIN_KEEPER_PERIOD = 15552000; // 6 month
     uint8 public earlyExitFeeBps = 100;
 
     mapping(address => KeeperData) public keeperData;
@@ -73,8 +73,10 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     function addKeeper(address asset, uint256 amount) external {
         require(assetSet.contains(asset), "assets not accepted");
-        require(keeperData[msg.sender].asset == address(0), "keeper already exist");
         require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
+
+        address origAsset = keeperData[msg.sender].asset;
+        require((origAsset == address(0)) || (origAsset == asset), "asset not allowed");
 
         _addKeeper(msg.sender, asset, btcRater.calcAmountInWei(asset, amount));
     }
@@ -190,7 +192,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     }
 
     function _blockTimestamp() internal view virtual returns (uint32) {
-        return uint32(block.timestamp); 
+        return uint32(block.timestamp);
     }
 
     function _addKeeper(
@@ -200,8 +202,9 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     ) private {
         KeeperData storage data = keeperData[keeper];
         data.asset = asset;
-        data.amount = amount;
+        data.amount = data.amount.add(amount);
         data.joinTimestamp = _blockTimestamp();
 
-        emit KeeperAdded(keeper, asset, amount); }
+        emit KeeperAdded(keeper, asset, amount);
+    }
 }
