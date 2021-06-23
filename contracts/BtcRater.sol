@@ -26,21 +26,6 @@ contract BtcRater is Ownable, IBtcRater {
         btcConversionRates[asset] = rate;
     }
 
-    function calcAmountInSatoshi(address asset, uint256 amount)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        // e.g. wbtc&1e8, returns 1e8
-        // e.g. hbtc&1e18, returns 1e8
-        // e.g. cong&1e18, returns 1e8
-        uint256 valueInSatoshiDecimal = amount.div(
-            BtcUtility.getSatoshiDivisor(IERC20Extension(asset).decimals())
-        );
-        return valueInSatoshiDecimal.div(btcConversionRates[asset]);
-    }
-
     function calcAmountInWei(address asset, uint256 amount)
         external
         view
@@ -54,6 +39,21 @@ contract BtcRater is Ownable, IBtcRater {
             BtcUtility.getWeiMultiplier(IERC20Extension(asset).decimals())
         );
         return valueInWeiDecimal.div(btcConversionRates[asset]);
+    }
+
+    function calcOrigAmount(address asset, uint256 weiAmount)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        // e.g. 1e18 => wbtc&1e8
+        // e.g. 1e18 => hbtc&1e18
+        // e.g. 1e18 => cong&1e18
+        return
+            (weiAmount.mul(btcConversionRates[asset])).div(
+                BtcUtility.getWeiMultiplier(IERC20Extension(asset).decimals())
+            );
     }
 
     function getConversionRate(address asset) external view override returns (uint256) {

@@ -6,5 +6,5 @@ interface IBtcRater {
 
     function calcAmountInWei(address asset, uint256 amount) external view returns (uint256);
 
-    function calcAmountInSatoshi(address asset, uint256 amount) external view returns (uint256);
+    function calcOrigAmount(address asset, uint256 weiAmount) external view returns (uint256);
 }
