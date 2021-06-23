@@ -28,6 +28,7 @@ interface IKeeperRegistry {
     event KeeperAdded(address indexed keeper, address asset, uint256 amount);
     event KeeperDeleted(address indexed keeper, address asset, uint256 amount);
     event KeeperImported(address indexed from, address asset, address[] keepers, uint256 amount);
+    event KeeperAssetSwapped(address indexed keeper, address asset, uint256 amount);
 
     event KeeperRefCount(address indexed keeper, uint256 count);
     event KeeperPunished(address indexed keeper, address asset, uint256 collateral);
