@@ -65,7 +65,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         address _registry,
         uint8 _mintFeeBps,
         uint8 _burnFeeBps
-    ) external {
+    ) external onlyAdmin {
         cong = IToken(_cong);
         keeperRegistry = IKeeperRegistry(_registry);
         mintFeeBps = _mintFeeBps;
