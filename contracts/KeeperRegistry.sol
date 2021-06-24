@@ -71,6 +71,26 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         emit EarlyExitFeeBpsUpdated(bps);
     }
 
+    function swapAsset(address asset, uint256 amount) external {
+        require(assetSet.contains(asset), "assets not accepted");
+        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
+
+        KeeperData storage data = keeperData[msg.sender];
+        require(data.asset != address(0), "keeper not exist");
+        require(data.asset != asset, "same asset");
+
+        _refundKeeper(data);
+
+        uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
+        require(normalizedAmount >= data.amount, "cannot reduce amount");
+
+        data.asset = asset;
+        data.amount = normalizedAmount;
+        data.joinTimestamp = _blockTimestamp();
+
+        emit KeeperAssetSwapped(msg.sender, asset, amount);
+    }
+
     function addKeeper(address asset, uint256 amount) external {
         require(assetSet.contains(asset), "assets not accepted");
         require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
@@ -85,18 +105,11 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         KeeperData storage data = keeperData[msg.sender];
         require(data.refCount == 0, "ref count > 0");
 
-        uint256 amount = data.amount;
-        if (block.timestamp < data.joinTimestamp.add(MIN_KEEPER_PERIOD)) {
-            amount = amount.mul(10000 - earlyExitFeeBps).div(10000);
-        }
-        address asset = data.asset;
-        require(
-            IERC20(asset).transfer(msg.sender, btcRater.calcOrigAmount(data.asset, amount)),
-            "transfer failed"
-        );
-        delete keeperData[msg.sender];
+        uint256 refundAmount = _refundKeeper(data);
 
-        emit KeeperDeleted(msg.sender, asset, amount);
+        emit KeeperDeleted(msg.sender, data.asset, refundAmount);
+
+        delete keeperData[msg.sender];
     }
 
     function importKeepers(
@@ -206,5 +219,18 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
         data.joinTimestamp = _blockTimestamp();
 
         emit KeeperAdded(keeper, asset, amount);
+    }
+
+    function _refundKeeper(KeeperData storage data) private returns (uint256) {
+        uint256 amount = data.amount;
+        if (_blockTimestamp() < data.joinTimestamp.add(MIN_KEEPER_PERIOD)) {
+            amount = amount.mul(10000 - earlyExitFeeBps).div(10000);
+        }
+        address asset = data.asset;
+        require(
+            IERC20(asset).transfer(msg.sender, btcRater.calcOrigAmount(data.asset, amount)),
+            "transfer failed"
+        );
+        return amount;
     }
 }

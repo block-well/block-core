@@ -356,6 +356,88 @@ describe("KeeperRegistry", function () {
         });
     });
 
+    describe("KeeperSwapAsset()", function () {
+        const keeperBtcAmount = "0.5";
+        const wbtcAmount = parseBtc(keeperBtcAmount);
+        const keeperAmountIn18Decimal = parseEther(keeperBtcAmount);
+        const congAmount = parseBtcInCong(keeperBtcAmount);
+        let keeper: Wallet;
+
+        beforeEach(async function () {
+            keeper = users[0];
+
+            await registry.connect(deployer).addAsset(cong.address);
+            await rater.connect(deployer).updateRates(cong.address, BTC_TO_CONG);
+
+            await expect(registry.connect(keeper).addKeeper(wbtc.address, wbtcAmount))
+                .to.emit(registry, "KeeperAdded")
+                .withArgs(users[0].address, wbtc.address, keeperAmountIn18Decimal);
+        });
+
+        it("swap wbtc with cong", async function () {
+            const origWbtcAmount = await wbtc.balanceOf(keeper.address);
+            const origCongAmount = await cong.balanceOf(keeper.address);
+
+            // no fee after min keeper period
+            const minKeeperPeriod = await registry.MIN_KEEPER_PERIOD();
+            await advanceTimeAndBlock(minKeeperPeriod);
+
+            let keeperData = await registry.getKeeper(keeper.address);
+            expect(keeperData.asset).to.equal(wbtc.address);
+            expect(keeperData.amount).to.equal(keeperAmountIn18Decimal);
+
+            await expect(registry.connect(keeper).swapAsset(cong.address, congAmount))
+                .to.emit(registry, "KeeperAssetSwapped")
+                .withArgs(keeper.address, cong.address, congAmount)
+                .to.emit(cong, "Transfer")
+                .withArgs(keeper.address, registry.address, congAmount)
+                .to.emit(wbtc, "Transfer")
+                .withArgs(registry.address, keeper.address, wbtcAmount);
+
+            keeperData = await registry.getKeeper(keeper.address);
+            expect(keeperData.asset).to.equal(cong.address);
+            expect(keeperData.amount).to.equal(keeperAmountIn18Decimal);
+            expect(keeperData.joinTimestamp).to.equal(await currentTime());
+
+            expect(await wbtc.balanceOf(keeper.address)).to.equal(origWbtcAmount.add(wbtcAmount));
+            expect(await cong.balanceOf(keeper.address)).to.equal(origCongAmount.sub(congAmount));
+        });
+
+        it("non-exist user", async function () {
+            await expect(
+                registry.connect(users[1]).swapAsset(cong.address, congAmount)
+            ).to.revertedWith("keeper not exist");
+        });
+
+        it("same asset", async function () {
+            await expect(
+                registry.connect(keeper).swapAsset(wbtc.address, wbtcAmount)
+            ).to.revertedWith("same asset");
+        });
+
+        it("not enough allowance", async function () {
+            await cong.connect(keeper).approve(registry.address, 0);
+            await expect(
+                registry.connect(keeper).swapAsset(cong.address, congAmount)
+            ).to.revertedWith("ERC20: transfer amount exceeds allowance");
+        });
+
+        it("not enough balance", async function () {
+            await cong
+                .connect(keeper)
+                .transfer(users[1].address, await cong.balanceOf(keeper.address));
+            await expect(
+                registry.connect(keeper).swapAsset(cong.address, congAmount)
+            ).to.revertedWith("ERC20: transfer amount exceeds balance");
+        });
+
+        it("swap with less amount", async function () {
+            await expect(
+                registry.connect(keeper).swapAsset(cong.address, congAmount.div(2))
+            ).to.revertedWith("cannot reduce amount");
+        });
+    });
+
     describe("punishKeeper()", function () {
         beforeEach(async function () {
             await registry.connect(deployer).addAsset(cong.address);
