@@ -735,7 +735,7 @@ describe("DeCusSystem", function () {
         });
 
         it("refund recorded", async function () {
-            const expiryTimestamp = (await system.REFUND_GAP()).add(1 + (await currentTime()));
+            const expiryTimestamp = (await system.REFUND_GAP()) + (1 + (await currentTime()));
             await expect(system.refundBtc(btcAddress, txId))
                 .to.emit(system, "BtcRefunded")
                 .withArgs(btcAddress, txId, expiryTimestamp);
@@ -762,7 +762,7 @@ describe("DeCusSystem", function () {
 
             await advanceTimeAndBlock(24 * 3600);
 
-            const expiryTimestamp = (await system.REFUND_GAP()).add(1 + (await currentTime()));
+            const expiryTimestamp = (await system.REFUND_GAP()) + (1 + (await currentTime()));
 
             await expect(system.refundBtc(btcAddress, txId))
                 .to.emit(system, "MintRevoked")
@@ -773,7 +773,7 @@ describe("DeCusSystem", function () {
 
         it("refund cool down", async function () {
             const refundGap = await system.REFUND_GAP();
-            const expiryTimestamp = refundGap.add(1 + (await currentTime()));
+            const expiryTimestamp = refundGap + (1 + (await currentTime()));
             await expect(system.refundBtc(btcAddress, txId))
                 .to.emit(system, "BtcRefunded")
                 .withArgs(btcAddress, txId, expiryTimestamp);
@@ -783,7 +783,7 @@ describe("DeCusSystem", function () {
 
             await advanceTimeAndBlock(24 * 3600);
 
-            const expiryTimestamp2 = refundGap.add(1 + (await currentTime()));
+            const expiryTimestamp2 = refundGap + (1 + (await currentTime()));
             await expect(system.refundBtc(btcAddress, txId2))
                 .to.emit(system, "BtcRefunded")
                 .withArgs(btcAddress, txId2, expiryTimestamp2);

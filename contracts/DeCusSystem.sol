@@ -23,11 +23,11 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     bytes32 private constant REQUEST_TYPEHASH =
         keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
 
-    uint256 public constant KEEPER_COOLDOWN = 10 minutes;
-    uint256 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
-    uint256 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
-    uint256 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
-    uint256 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
+    uint32 public constant KEEPER_COOLDOWN = 10 minutes;
+    uint32 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
+    uint32 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
+    uint32 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
+    uint32 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
     uint256 public minKeeperWei = 1e13;
 
     IToken public cong;
@@ -38,7 +38,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
-    mapping(address => uint256) private cooldownUntil; // keeper address -> cooldown end timestamp
+    mapping(address => uint32) private cooldownUntil; // keeper address -> cooldown end timestamp
 
     BtcRefundData private btcRefundData;
 
@@ -73,11 +73,11 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     }
 
     // ------------------------------ keeper -----------------------------------
-    function chill(address keeper, uint256 chillTime) external onlyAdmin {
-        _cooldown(keeper, (block.timestamp).add(chillTime));
+    function chill(address keeper, uint32 chillTime) external onlyAdmin {
+        _cooldown(keeper, _safeAdd(_blockTimestamp(), chillTime));
     }
 
-    function getCooldownTime(address keeper) external view returns (uint256) {
+    function getCooldownTime(address keeper) external view returns (uint32) {
         return cooldownUntil[keeper];
     }
 
@@ -106,7 +106,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         cooldown = 0;
         for (uint256 i = 0; i < group.keeperSet.length(); i++) {
             address keeper = group.keeperSet.at(i);
-            if (cooldownUntil[keeper] <= block.timestamp) {
+            if (cooldownUntil[keeper] <= _blockTimestamp()) {
                 cooldown += 1;
             }
             keepers[i] = keeper;
@@ -127,7 +127,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
     function addGroup(
         string calldata btcAddress,
-        uint256 required,
+        uint32 required,
         uint256 maxSatoshi,
         address[] calldata keepers
     ) external onlyGroupAdmin whenNotPaused {
@@ -156,7 +156,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         Receipt storage receipt = receipts[receiptId];
         require(
             (receipt.status != Status.Available) ||
-                (block.timestamp > receipt.updateTimestamp.add(GROUP_REUSING_GAP)),
+                (_blockTimestamp() > receipt.updateTimestamp + GROUP_REUSING_GAP),
             "receipt in resuing gap"
         );
 
@@ -190,18 +190,18 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     function requestMint(
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
-        uint256 nonce
+        uint128 nonce
     ) public whenNotPaused {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
 
         Group storage group = groups[groupBtcAddress];
-        require(nonce == (group.nonce).add(1), "invalid nonce");
+        require(nonce == (group.nonce + 1), "invalid nonce");
 
         bytes32 prevReceiptId = getReceiptId(groupBtcAddress, group.nonce);
         Receipt storage prevReceipt = receipts[prevReceiptId];
         require(prevReceipt.status == Status.Available, "working receipt in progress");
         require(
-            block.timestamp > prevReceipt.updateTimestamp.add(GROUP_REUSING_GAP),
+            _blockTimestamp() > prevReceipt.updateTimestamp + GROUP_REUSING_GAP,
             "group cooling down"
         );
         delete receipts[prevReceiptId];
@@ -230,7 +230,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     function forceRequestMint(
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
-        uint256 nonce
+        uint128 nonce
     ) public {
         bytes32 prevReceiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
         Receipt storage prevReceipt = receipts[prevReceiptId];
@@ -305,7 +305,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
     //=============================== Private ==================================
     // ------------------------------ keeper -----------------------------------
-    function _cooldown(address keeper, uint256 cooldownEnd) private {
+    function _cooldown(address keeper, uint32 cooldownEnd) private {
         cooldownUntil[keeper] = cooldownEnd;
         emit Cooldown(keeper, cooldownEnd);
     }
@@ -313,13 +313,13 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     function _clearReceipt(Receipt storage receipt, bytes32 receiptId) private {
         if (receipt.status == Status.WithdrawRequested) {
             require(
-                block.timestamp > (receipt.updateTimestamp).add(WITHDRAW_VERIFICATION_END),
+                _blockTimestamp() > receipt.updateTimestamp + WITHDRAW_VERIFICATION_END,
                 "withdraw in progress"
             );
             _forceVerifyBurn(receiptId, receipt);
         } else if (receipt.status == Status.DepositRequested) {
             require(
-                block.timestamp > (receipt.updateTimestamp).add(MINT_REQUEST_GRACE_PERIOD),
+                _blockTimestamp() > receipt.updateTimestamp + MINT_REQUEST_GRACE_PERIOD,
                 "deposit in progress"
             );
             _forceRevokeMint(receiptId, receipt);
@@ -349,7 +349,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     ) private {
         require(keepers.length >= group.required, "not enough keepers");
 
-        uint256 cooldownTime = (block.timestamp).add(KEEPER_COOLDOWN);
+        uint32 cooldownTime = _blockTimestamp() + KEEPER_COOLDOWN;
         bytes32 digest = _hashTypedDataV4(
             keccak256(abi.encode(REQUEST_TYPEHASH, request.receiptId, request.txId, request.height))
         );
@@ -357,7 +357,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
 
-            require(cooldownUntil[keeper] <= block.timestamp, "keeper is in cooldown");
+            require(cooldownUntil[keeper] <= _blockTimestamp(), "keeper is in cooldown");
             require(group.keeperSet.contains(keeper), "keeper is not in group");
             require(ecrecover(digest, uint8(packedV), r[i], s[i]) == keeper, "invalid signature");
             // assert keepers.length <= 32
@@ -389,14 +389,14 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         receipt.groupBtcAddress = groupBtcAddress;
         receipt.recipient = msg.sender;
         receipt.amountInSatoshi = amountInSatoshi;
-        receipt.updateTimestamp = block.timestamp;
+        receipt.updateTimestamp = _blockTimestamp();
         receipt.status = Status.DepositRequested;
     }
 
     function _approveDeposit(
         Receipt storage receipt,
         bytes32 txId,
-        uint256 height
+        uint32 height
     ) private {
         require(
             receipt.status == Status.DepositRequested,
@@ -422,7 +422,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
         receipt.recipient = msg.sender;
         receipt.withdrawBtcAddress = withdrawBtcAddress;
-        receipt.updateTimestamp = block.timestamp;
+        receipt.updateTimestamp = _blockTimestamp();
         receipt.status = Status.WithdrawRequested;
     }
 
@@ -445,8 +445,16 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     }
 
     function _markFinish(Receipt storage receipt) private {
-        receipt.updateTimestamp = block.timestamp;
+        receipt.updateTimestamp = _blockTimestamp();
         receipt.status = Status.Available;
+    }
+
+    function _blockTimestamp() internal view virtual returns (uint32) {
+        return uint32(block.timestamp);
+    }
+
+    function _safeAdd(uint32 x, uint32 y) internal pure returns (uint32 z) {
+        require((z = x + y) >= x);
     }
 
     // -------------------------------- CONG -----------------------------------
@@ -507,9 +515,9 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         _clearReceipt(receipt, receiptId);
 
         require(receipt.status == Status.Available, "receipt not in available state");
-        require(btcRefundData.expiryTimestamp < block.timestamp, "refund cool down");
+        require(btcRefundData.expiryTimestamp < _blockTimestamp(), "refund cool down");
 
-        uint256 expiryTimestamp = block.timestamp.add(REFUND_GAP);
+        uint32 expiryTimestamp = _blockTimestamp() + REFUND_GAP;
         btcRefundData.expiryTimestamp = expiryTimestamp;
         btcRefundData.txId = txId;
         btcRefundData.groupBtcAddress = groupBtcAddress;
