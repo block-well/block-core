@@ -4,9 +4,11 @@ import { deployments, waffle } from "hardhat";
 import { BtcRater, ERC20 } from "../build/typechain";
 
 const { parseUnits } = ethers.utils;
+const num_1e8 = parseUnits("1.0", 8);
+const num_1e18 = parseUnits("1.0", 18);
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
-    const [deployer, ...users] = waffle.provider.getWallets();
+    const [deployer] = waffle.provider.getWallets();
 
     await deployments.deploy("MockWBTC", {
         from: deployer.address,
@@ -50,23 +52,19 @@ describe("BtcRater", function () {
         ({ wbtc, hbtc, cong, rater } = await setupFixture());
     });
 
-    describe("calcAmountInSatoshi()", function () {
-        it("should equal when calc in Satoshi", async function () {
-            expect(await rater.calcAmountInSatoshi(wbtc.address, 1e8)).equal(1e8);
-            expect(await rater.calcAmountInSatoshi(hbtc.address, parseUnits("1.0"))).equal(1e8);
-            expect(await rater.calcAmountInSatoshi(cong.address, parseUnits("1.0"))).equal(1e8);
+    describe("calcAmountInWei()", function () {
+        it("should equal", async function () {
+            expect(await rater.calcAmountInWei(wbtc.address, num_1e8)).equal(num_1e18);
+            expect(await rater.calcAmountInWei(hbtc.address, num_1e18)).equal(num_1e18);
+            expect(await rater.calcAmountInWei(cong.address, num_1e18)).equal(num_1e18);
         });
     });
 
-    describe("calcAmountInWei()", function () {
-        it("should equal when calc in Wei", async function () {
-            expect(await rater.calcAmountInWei(wbtc.address, 1e8)).equal(parseUnits("1.0"));
-            expect(await rater.calcAmountInWei(hbtc.address, parseUnits("1.0"))).equal(
-                parseUnits("1.0")
-            );
-            expect(await rater.calcAmountInWei(cong.address, parseUnits("1.0"))).equal(
-                parseUnits("1.0")
-            );
+    describe("calcOrigAmount()", function () {
+        it("should equal", async function () {
+            expect(await rater.calcOrigAmount(wbtc.address, num_1e18)).equal(num_1e8);
+            expect(await rater.calcOrigAmount(hbtc.address, num_1e18)).equal(num_1e18);
+            expect(await rater.calcOrigAmount(cong.address, num_1e18)).equal(num_1e18);
         });
     });
 });
