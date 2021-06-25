@@ -1,6 +1,8 @@
 import { task, types } from "hardhat/config";
 import { KeeperRegistry, DeCusSystem, ERC20 } from "../build/typechain";
 import { NonceManager } from "@ethersproject/experimental";
+import dayjs from "dayjs";
+import axios from "axios";
 
 task("addKeeper", "add keeper")
     .addParam("privKey", "Keeper private key")
@@ -76,30 +78,86 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
     }
 });
 
-task("traceReceipt", "get receipt history")
+const getBtcUtxoUrl = (network: string, address: string) => {
+    return `https://blockstream.info/${network}/api/address/${address}/utxo`;
+};
+
+const formatTimestamp = (timestamp: number) => {
+    return dayjs(timestamp * 1000).format("YYYY.MM.DDTHH:mm:ss");
+};
+
+const findUtxo = (utxos: any, afterTimestamp: number) => {
+    for (const utxo of utxos) {
+        if (utxo.status.block_time > afterTimestamp) {
+            // console.log("utxo", utxo);
+            return utxo;
+        }
+    }
+};
+
+const getDepositSignUrl = (network: string, receiptId: string) => {
+    const domain = network == "kovan" ? "online" : "io"; // temporarily working, need to reconsider after launching mainnet
+    return `http://coordinator.decus.${domain}/deposit/status/${receiptId}`;
+};
+
+task("traceMint", "get receipt history")
     .addParam("id", "receiptId")
-    .setAction(async ({ id }, { ethers }) => {
+    .setAction(async ({ id }, { ethers, network }) => {
+        const btcNetwork = network.name == "mainnet" ? "mainnet" : "testnet";
+        console.log("network:", network.name, "receiptId:", id, "btc:", btcNetwork);
         const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+
+        // 1. request mint
         const mintEvents = await decusSystem.queryFilter(
             decusSystem.filters.MintRequested(id, null, null, null)
         );
         const recipient = mintEvents[0].args.recipient;
         const groupBtcAddress = mintEvents[0].args.groupBtcAddress;
         const mintBlock = mintEvents[0].blockNumber;
-        const mintTimestamp = new Date((await mintEvents[0].getBlock()).timestamp * 1000);
+        const mintTimestamp = (await mintEvents[0].getBlock()).timestamp;
         console.log(
-            `MintRequested: ${mintBlock} ${recipient} ${groupBtcAddress} ${mintTimestamp} ${mintEvents[0].transactionHash}`
+            `1. MintRequested\t=> ${formatTimestamp(
+                mintTimestamp
+            )} ${mintBlock}: recipient=${recipient} btcAddress=${groupBtcAddress} txid=${
+                mintEvents[0].transactionHash
+            }`
         );
 
+        // 2. Find btc utxo
+        const utxos = (await axios.get(getBtcUtxoUrl(btcNetwork, groupBtcAddress))).data;
+        const utxo = findUtxo(utxos, mintTimestamp);
+        if (utxo) {
+            console.log(
+                `2. BtcTransferred\t=> ${formatTimestamp(utxo.status.block_time)} ${
+                    utxo.status.block_height
+                }: txid=${utxo.status.block_hash}`
+            );
+        } else {
+            console.log(`2. BtcTransferred\t=> Fail! utxos=${utxos}`);
+        }
+
+        if (!utxo) return;
+
+        // 3. Keeper sign
+        const depositSign = (await axios.get(getDepositSignUrl(network.name, id))).data;
+        console.log("3. DepositSign  \t=>", depositSign);
+        if (!depositSign.success) return;
+
+        // 4. Verify mint
         const verifyEvents = await decusSystem.queryFilter(
             decusSystem.filters.MintVerified(id, null, null, null, null)
         );
 
         if (verifyEvents.length > 0) {
             const verifyBlock = verifyEvents[0].blockNumber;
-            const verifyTimestamp = new Date((await verifyEvents[0].getBlock()).timestamp * 1000);
+            const event = verifyEvents[0];
+            const verifyTimestamp = (await event.getBlock()).timestamp;
             console.log(
-                `VerifyBlock: ${verifyBlock} ${verifyTimestamp} ${verifyEvents[0].transactionHash}`
+                `4. MintVerified \t=> ${formatTimestamp(verifyTimestamp)} ${verifyBlock}: btcTxId=${
+                    event.args.btcTxId
+                } btcTxHeight=${event.args.btcTxHeight} keepers=${event.args.keepers} txid=${
+                    event.transactionHash
+                }`
             );
         }
     });
