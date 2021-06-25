@@ -3,26 +3,44 @@ pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 interface IKeeperRegistry {
-    struct Asset {
-        uint256 divisor; // 10 ** decimal
+    struct KeeperData {
+        uint256 amount;
+        address asset;
+        uint32 refCount;
+        uint32 joinTimestamp;
     }
 
-    function getSatoshiValue(address keeper) external view returns (uint256);
+    function getCollateralWei(address keeper) external view returns (uint256);
 
     function importKeepers(
-        address[] calldata assets,
-        address[] calldata keepers,
-        uint256[][] calldata keeperAmounts
+        uint256 amount,
+        address asset,
+        address[] calldata keepers
     ) external;
 
-    event AssetAdded(address indexed asset, uint256 divisor);
+    function incrementRefCount(address keeper) external;
 
-    event KeeperAdded(address indexed keeper, address[] assets, uint256[] amounts);
-    event KeeperDeleted(address indexed keeper);
-    event KeeperImported(
-        address indexed from,
-        address[] assets,
-        address[] keepers,
-        uint256[][] keeperAmounts
+    function decrementRefCount(address keeper) external;
+
+    event SystemUpdated(address oldSystem, address newSystem);
+    event AssetAdded(address indexed asset);
+
+    event KeeperAdded(address indexed keeper, address asset, uint256 amount);
+    event KeeperDeleted(address indexed keeper, address asset, uint256 amount);
+    event KeeperImported(address indexed from, address asset, address[] keepers, uint256 amount);
+    event KeeperAssetSwapped(address indexed keeper, address asset, uint256 amount);
+
+    event KeeperRefCount(address indexed keeper, uint256 count);
+    event KeeperPunished(address indexed keeper, address asset, uint256 collateral);
+
+    event EarlyExitFeeBpsUpdated(uint8 bps);
+
+    event TreasuryTransferred(address indexed previousTreasury, address indexed newTreasury);
+    event Confiscated(address indexed treasury, address asset, uint256 amount);
+    event OverissueAdded(uint256 total, uint256 added, uint256 deduction);
+    event OffsetOverissued(
+        address indexed operator,
+        uint256 satsAmount,
+        uint256 remainingOverissueAmount
     );
 }

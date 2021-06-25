@@ -1,5 +1,6 @@
-import { waffle, ethers } from "hardhat";
+import { ethers } from "hardhat";
 import { BigNumber, BigNumberish, Wallet } from "ethers";
+const { solidityKeccak256 } = ethers.utils;
 
 const mintRequestTypes = [
     { name: "receiptId", type: "bytes32" },
@@ -39,8 +40,8 @@ export async function prepareSignature(
     txId: string,
     height: BigNumberish
 ): Promise<[string[], string[], BigNumber]> {
-    let rList: string[] = [];
-    let sList: string[] = [];
+    const rList: string[] = [];
+    const sList: string[] = [];
     let packedV = BigNumber.from(0);
     let vShift = 0;
     for (let i = 0; i < keepers.length; i++) {
@@ -55,4 +56,42 @@ export async function prepareSignature(
         vShift += 8;
     }
     return [rList, sList, packedV];
+}
+
+export const currentTime = async (): Promise<number> => {
+    return (await ethers.provider.getBlock("latest")).timestamp;
+};
+
+export const advanceTime = async (time: number): Promise<unknown> => {
+    return ethers.provider.send("evm_increaseTime", [time]);
+};
+
+export const advanceBlock = async (): Promise<unknown> => {
+    return ethers.provider.send("evm_mine", []);
+};
+
+export const advanceTimeAndBlock = async (time: number): Promise<void> => {
+    return ethers.provider.send("evm_mine", [(await currentTime()) + time]);
+};
+
+export const getReceiptId = (btcAddress: string, nonce: number): string => {
+    return solidityKeccak256(["string", "uint256"], [btcAddress, nonce]);
+};
+
+export const enum GroupStatus {
+    None,
+    Available,
+    MintRequested,
+    MintVerified,
+    MintTimeout,
+    BurnRequested,
+    BurnTimeout,
+    MintGap,
+}
+
+export const enum Status {
+    Available,
+    DepositRequested,
+    DepositReceived,
+    WithdrawRequested,
 }

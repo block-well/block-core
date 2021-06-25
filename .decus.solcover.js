@@ -7,4 +7,5 @@ module.exports = {
             "tuition produce fat desk suggest case essence wreck warfare convince razor bless",
     },
     skipFiles: ["utils", "mock", "interfaces", "EBTC.sol"],
+    istanbulFolder: "./build/coverage",
 };

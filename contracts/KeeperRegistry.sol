@@ -2,119 +2,235 @@
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+import {SATS} from "./SATS.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
-
+import {IBtcRater} from "./interfaces/IBtcRater.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
 contract KeeperRegistry is Ownable, IKeeperRegistry {
+    using Math for uint256;
     using SafeMath for uint256;
+    using SafeMath for uint32;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    EnumerableSet.AddressSet assetSet;
-    mapping(address => Asset) public metadata;
-    mapping(address => mapping(address => uint256)) public collaterals;
-    mapping(address => uint256) public totalCollaterals;
+    SATS public sats;
+    address public treasury;
+    address public system;
 
-    constructor(address[] memory assets) public {
-        for (uint256 i = 0; i < assets.length; i++) {
-            uint256 decimal = ERC20(assets[i]).decimals();
-            _addAsset(assets[i], decimal);
-        }
+    EnumerableSet.AddressSet assetSet;
+    IBtcRater public btcRater;
+    uint32 public MIN_KEEPER_PERIOD = 15552000; // 6 month
+    uint8 public earlyExitFeeBps = 100;
+
+    mapping(address => KeeperData) public keeperData;
+    uint256 public overissuedTotal;
+    mapping(address => uint256) public confiscations;
+
+    modifier onlySystem() {
+        require(system == _msgSender(), "require system role");
+        _;
     }
 
-    function getSatoshiValue(address keeper) external view override returns (uint256) {
-        return totalCollaterals[keeper];
+    constructor(
+        address[] memory _assets,
+        address _sats,
+        address _btcRater
+    ) public {
+        btcRater = IBtcRater(_btcRater);
+        for (uint256 i = 0; i < _assets.length; i++) {
+            _addAsset(_assets[i]);
+        }
+        sats = SATS(_sats);
+    }
+
+    function setSystem(address _system) external onlyOwner {
+        emit SystemUpdated(system, _system);
+        system = _system;
+    }
+
+    function getCollateralWei(address keeper) external view override returns (uint256) {
+        return keeperData[keeper].amount;
+    }
+
+    function getKeeper(address keeper) external view returns (KeeperData memory) {
+        return keeperData[keeper];
     }
 
     function addAsset(address asset) external onlyOwner {
-        uint256 decimal = ERC20(asset).decimals();
-        _addAsset(asset, decimal);
+        _addAsset(asset);
     }
 
-    function addKeeper(address[] calldata assets, uint256[] calldata amounts) external {
-        // transfer assets
-        for (uint256 i = 0; i < assets.length; i++) {
-            require(assetSet.contains(assets[i]), "assets not accepted");
-            require(
-                ERC20(assets[i]).transferFrom(msg.sender, address(this), amounts[i]),
-                "transfer failed"
-            );
-        }
-
-        _addKeeper(msg.sender, assets, amounts);
+    function updateEarlyExitFeeBps(uint8 bps) external onlyOwner {
+        earlyExitFeeBps = bps;
+        emit EarlyExitFeeBpsUpdated(bps);
     }
 
-    function deleteKeeper(address keeper) external onlyOwner {
-        // require admin role because we need to make sure keeper is not in any working groups
-        for (uint256 i = 0; i < assetSet.length(); i++) {
-            address asset = assetSet.at(i);
-            require(ERC20(asset).approve(keeper, collaterals[keeper][asset]), "approve failed");
-            delete collaterals[keeper][asset];
-        }
+    function swapAsset(address asset, uint256 amount) external {
+        require(assetSet.contains(asset), "assets not accepted");
+        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
 
-        delete totalCollaterals[keeper];
+        KeeperData storage data = keeperData[msg.sender];
+        require(data.asset != address(0), "keeper not exist");
+        require(data.asset != asset, "same asset");
 
-        emit KeeperDeleted(keeper);
+        _refundKeeper(data);
+
+        uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
+        require(normalizedAmount >= data.amount, "cannot reduce amount");
+
+        data.asset = asset;
+        data.amount = normalizedAmount;
+        data.joinTimestamp = _blockTimestamp();
+
+        emit KeeperAssetSwapped(msg.sender, asset, amount);
+    }
+
+    function addKeeper(address asset, uint256 amount) external {
+        require(assetSet.contains(asset), "assets not accepted");
+        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
+
+        address origAsset = keeperData[msg.sender].asset;
+        require((origAsset == address(0)) || (origAsset == asset), "asset not allowed");
+
+        _addKeeper(msg.sender, asset, btcRater.calcAmountInWei(asset, amount));
+    }
+
+    function deleteKeeper() external {
+        KeeperData storage data = keeperData[msg.sender];
+        require(data.refCount == 0, "ref count > 0");
+
+        uint256 refundAmount = _refundKeeper(data);
+
+        emit KeeperDeleted(msg.sender, data.asset, refundAmount);
+
+        delete keeperData[msg.sender];
     }
 
     function importKeepers(
-        address[] calldata assets,
-        address[] calldata keepers,
-        uint256[][] calldata keeperAmounts
+        uint256 amount,
+        address asset,
+        address[] calldata keepers
     ) external override {
-        require(keeperAmounts.length == keepers.length, "amounts length does not match");
-        require(keeperAmounts[0].length == assets.length, "amounts length does not match");
+        require(assetSet.contains(asset), "unknown asset");
+        require(amount > 0, "amount != 0");
 
-        // transfer
-        for (uint256 i = 0; i < assets.length; i++) {
-            require(assetSet.contains(assets[i]), "assets not accepted");
-            uint256 sumAmounts = 0;
-            for (uint256 j = 0; j < keepers.length; j++) {
-                sumAmounts = sumAmounts.add(keeperAmounts[i][j]);
-            }
-            require(
-                ERC20(assets[i]).transferFrom(msg.sender, address(this), sumAmounts),
-                "transfer failed"
-            );
-        }
-
-        // add keeper
+        uint256 totalAmount;
+        uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
         for (uint256 i = 0; i < keepers.length; i++) {
-            _addKeeper(keepers[i], assets, keeperAmounts[i]);
+            address keeper = keepers[i];
+            if (keeper != address(0)) {
+                _addKeeper(keeper, asset, normalizedAmount);
+                totalAmount = totalAmount.add(amount);
+            }
         }
 
-        emit KeeperImported(msg.sender, assets, keepers, keeperAmounts);
+        require(IERC20(asset).transferFrom(msg.sender, address(this), totalAmount));
+
+        emit KeeperImported(msg.sender, asset, keepers, normalizedAmount);
     }
 
-    function _addAsset(address asset, uint256 decimal) private {
-        assetSet.add(asset);
-        uint256 divisor = BtcUtility.getSatoshiDivisor(decimal);
-        metadata[asset].divisor = divisor;
+    function punishKeeper(address[] calldata keepers) external onlyOwner {
+        for (uint256 i = 0; i < keepers.length; i++) {
+            address keeper = keepers[i];
+            KeeperData storage data = keeperData[keeper];
 
-        emit AssetAdded(asset, divisor);
+            address asset = data.asset;
+            uint256 amount = data.amount;
+            confiscations[asset] = confiscations[asset].add(amount);
+            data.amount = 0;
+            emit KeeperPunished(keeper, asset, amount);
+        }
+    }
+
+    function updateTreasury(address newTreasury) external onlyOwner {
+        emit TreasuryTransferred(treasury, newTreasury);
+        treasury = newTreasury;
+    }
+
+    function confiscate(address[] calldata assets) external {
+        require(treasury != address(0), "treasury not up yet");
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            uint256 confiscation = confiscations[assets[i]];
+            require(IERC20(assets[i]).transfer(treasury, confiscation), "transfer failed");
+            emit Confiscated(treasury, assets[i], confiscation);
+            delete confiscations[assets[i]];
+        }
+    }
+
+    function addOverissue(uint256 overissuedAmount) external onlyOwner {
+        require(overissuedAmount > 0, "zero overissued amount");
+        uint256 satsConfiscation = confiscations[address(sats)];
+        uint256 deduction = 0;
+        if (satsConfiscation > 0) {
+            deduction = overissuedAmount.min(satsConfiscation);
+            sats.burn(deduction);
+            overissuedAmount = overissuedAmount.sub(deduction);
+            confiscations[address(sats)] = satsConfiscation.sub(deduction);
+        }
+        overissuedTotal = overissuedTotal.add(overissuedAmount);
+        emit OverissueAdded(overissuedTotal, overissuedAmount, deduction);
+    }
+
+    function offsetOverissue(uint256 satsAmount) external {
+        sats.burnFrom(msg.sender, satsAmount);
+        overissuedTotal = overissuedTotal.sub(satsAmount);
+
+        emit OffsetOverissued(msg.sender, satsAmount, overissuedTotal);
+    }
+
+    function incrementRefCount(address keeper) external override onlySystem {
+        KeeperData storage data = keeperData[keeper];
+        require(data.refCount + 1 > data.refCount); // safe math
+        data.refCount = data.refCount + 1;
+        emit KeeperRefCount(keeper, data.refCount);
+    }
+
+    function decrementRefCount(address keeper) external override onlySystem {
+        KeeperData storage data = keeperData[keeper];
+        require(data.refCount > 0); // safe math
+        data.refCount = data.refCount - 1;
+        emit KeeperRefCount(keeper, data.refCount);
+    }
+
+    function _addAsset(address asset) private {
+        assetSet.add(asset);
+        emit AssetAdded(asset);
+    }
+
+    function _blockTimestamp() internal view virtual returns (uint32) {
+        return uint32(block.timestamp);
     }
 
     function _addKeeper(
         address keeper,
-        address[] calldata assets,
-        uint256[] calldata amounts
+        address asset,
+        uint256 amount
     ) private {
-        uint256 totalCollateral = totalCollaterals[keeper];
-        require(totalCollateral == 0, "keeper existed");
+        KeeperData storage data = keeperData[keeper];
+        data.asset = asset;
+        data.amount = data.amount.add(amount);
+        data.joinTimestamp = _blockTimestamp();
 
-        for (uint256 i = 0; i < assets.length; i++) {
-            uint256 divisor = metadata[assets[i]].divisor;
-            uint256 amount = amounts[i].mul(divisor);
-            totalCollateral = totalCollateral.add(amount);
-            collaterals[keeper][assets[i]] = collaterals[keeper][assets[i]].add(amount);
+        emit KeeperAdded(keeper, asset, amount);
+    }
+
+    function _refundKeeper(KeeperData storage data) private returns (uint256) {
+        uint256 amount = data.amount;
+        if (_blockTimestamp() < data.joinTimestamp.add(MIN_KEEPER_PERIOD)) {
+            amount = amount.mul(10000 - earlyExitFeeBps).div(10000);
         }
-        totalCollaterals[keeper] = totalCollateral;
-
-        emit KeeperAdded(keeper, assets, amounts);
+        address asset = data.asset;
+        require(
+            IERC20(asset).transfer(msg.sender, btcRater.calcOrigAmount(data.asset, amount)),
+            "transfer failed"
+        );
+        return amount;
     }
 }

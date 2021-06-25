@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
+
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
 interface IDeCusSystem {
     struct Group {
-        uint256 required;
         uint256 maxSatoshi;
         uint256 currSatoshi;
+        uint128 nonce;
+        uint32 required;
         EnumerableSet.AddressSet keeperSet;
     }
 
@@ -15,31 +17,73 @@ interface IDeCusSystem {
         Available,
         DepositRequested,
         DepositReceived,
-        WithdrawRequested,
-        WithdrawDone // should equal to Available
+        WithdrawRequested
     }
 
     struct Receipt {
-        address recipient;
         uint256 amountInSatoshi;
-        uint256 createTimestamp;
         bytes32 txId;
-        uint256 height;
+        string groupBtcAddress;
+        string withdrawBtcAddress;
+        uint32 updateTimestamp;
+        uint32 height;
+        address recipient;
         Status status;
-        string btcAddress; // for withdraw
+    }
+
+    struct BtcRefundData {
+        bytes32 txId;
+        string groupBtcAddress;
+        uint32 expiryTimestamp;
+    }
+
+    struct MintRequest {
+        bytes32 receiptId;
+        bytes32 txId;
+        uint32 height;
     }
 
     // events
     event GroupAdded(string btcAddress, uint256 required, uint256 maxSatoshi, address[] keepers);
     event GroupDeleted(string btcAddress);
 
+    event MinKeeperWeiUpdated(uint256 amount);
+
     event MintRequested(
-        string btcAddress,
-        bytes32 receiptId,
-        address sender,
-        uint256 amountInSatoshi
+        bytes32 indexed receiptId,
+        address indexed recipient,
+        uint256 amountInSatoshi,
+        string groupBtcAddress
     );
-    event MintVerified(bytes32 indexed receiptId);
+    event MintRevoked(bytes32 indexed receiptId, string groupBtcAddress, address operator);
+    event MintVerified(
+        bytes32 indexed receiptId,
+        string groupBtcAddress,
+        address[] keepers,
+        bytes32 btcTxId,
+        uint32 btcTxHeight
+    );
+    event BurnRequested(
+        bytes32 indexed receiptId,
+        string groupBtcAddress,
+        string withdrawBtcAddress,
+        address operator
+    );
+    event BurnRevoked(
+        bytes32 indexed receiptId,
+        string groupBtcAddress,
+        address recipient,
+        address operator
+    );
+    event BurnVerified(bytes32 indexed receiptId, string groupBtcAddress, address operator);
 
     event Cooldown(address indexed keeper, uint256 endTime);
+
+    event BtcRefunded(string groupBtcAddress, bytes32 txId, uint256 expiryTimestamp);
+
+    event FeeCollected(address indexed owner, uint256 amount);
+
+    event MintFeeBpsUpdate(uint8 bps);
+
+    event BurnFeeBpsUpdate(uint8 bps);
 }
