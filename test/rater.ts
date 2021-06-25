@@ -1,9 +1,13 @@
 import { expect } from "chai";
-import { ethers } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { deployments, waffle } from "hardhat";
+import { parse } from "path";
 import { BtcRater, ERC20 } from "../build/typechain";
 
 const { parseUnits } = ethers.utils;
+const wbtcAmt = (value: string) => parseUnits(value, 8);
+const hbtcAmt = (value: string) => parseUnits(value, 18);
+const congAmt = (value: string) => parseUnits(value, 18);
 const num_1e8 = parseUnits("1.0", 8);
 const num_1e18 = parseUnits("1.0", 18);
 
@@ -54,17 +58,41 @@ describe("BtcRater", function () {
 
     describe("calcAmountInWei()", function () {
         it("should equal", async function () {
-            expect(await rater.calcAmountInWei(wbtc.address, num_1e8)).equal(num_1e18);
-            expect(await rater.calcAmountInWei(hbtc.address, num_1e18)).equal(num_1e18);
-            expect(await rater.calcAmountInWei(cong.address, num_1e18)).equal(num_1e18);
+            expect(await rater.calcAmountInWei(wbtc.address, wbtcAmt("1"))).equal(
+                parseUnits("1", 18)
+            );
+            expect(await rater.calcAmountInWei(wbtc.address, wbtcAmt("0.00000001"))).equal(
+                parseUnits("0.00000001", 18)
+            );
+            expect(await rater.calcAmountInWei(wbtc.address, wbtcAmt("500"))).equal(
+                parseUnits("500", 18)
+            );
+            expect(await rater.calcAmountInWei(hbtc.address, hbtcAmt("1"))).equal(
+                parseUnits("1", 18)
+            );
+            expect(await rater.calcAmountInWei(cong.address, congAmt("1"))).equal(
+                parseUnits("1", 18)
+            );
         });
     });
 
     describe("calcOrigAmount()", function () {
         it("should equal", async function () {
-            expect(await rater.calcOrigAmount(wbtc.address, num_1e18)).equal(num_1e8);
-            expect(await rater.calcOrigAmount(hbtc.address, num_1e18)).equal(num_1e18);
-            expect(await rater.calcOrigAmount(cong.address, num_1e18)).equal(num_1e18);
+            expect(await rater.calcOrigAmount(wbtc.address, parseUnits("1", 18))).equal(
+                wbtcAmt("1")
+            );
+            expect(await rater.calcOrigAmount(wbtc.address, parseUnits("0.00000001", 18))).equal(
+                wbtcAmt("0.00000001")
+            );
+            expect(await rater.calcOrigAmount(wbtc.address, parseUnits("500", 18))).equal(
+                wbtcAmt("500")
+            );
+            expect(await rater.calcOrigAmount(hbtc.address, parseUnits("1", 18))).equal(
+                hbtcAmt("1")
+            );
+            expect(await rater.calcOrigAmount(cong.address, parseUnits("1", 18))).equal(
+                congAmt("1")
+            );
         });
     });
 });
