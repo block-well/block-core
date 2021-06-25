@@ -303,6 +303,60 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         emit BurnRevoked(receiptId, receipt.groupBtcAddress, receipt.recipient, msg.sender);
     }
 
+    // -------------------------------- BTC refund -----------------------------------
+    function getRefundData() external view returns (BtcRefundData memory) {
+        return btcRefundData;
+    }
+
+    function refundBtc(string calldata groupBtcAddress, bytes32 txId)
+        public
+        onlyAdmin
+        whenNotPaused
+    {
+        bytes32 receiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
+        Receipt storage receipt = receipts[receiptId];
+
+        _clearReceipt(receipt, receiptId);
+
+        require(receipt.status == Status.Available, "receipt not in available state");
+        require(btcRefundData.expiryTimestamp < _blockTimestamp(), "refund cool down");
+
+        uint32 expiryTimestamp = _blockTimestamp() + REFUND_GAP;
+        btcRefundData.expiryTimestamp = expiryTimestamp;
+        btcRefundData.txId = txId;
+        btcRefundData.groupBtcAddress = groupBtcAddress;
+
+        emit BtcRefunded(groupBtcAddress, txId, expiryTimestamp);
+    }
+
+    // -------------------------------- Collect Fee -----------------------------------
+    function updateMintFeeBps(uint8 bps) external onlyAdmin {
+        mintFeeBps = bps;
+
+        emit MintFeeBpsUpdate(bps);
+    }
+
+    function updateBurnFeeBps(uint8 bps) external onlyAdmin {
+        burnFeeBps = bps;
+
+        emit MintFeeBpsUpdate(bps);
+    }
+
+    function collectFee(uint256 amount) public onlyAdmin whenNotPaused {
+        // be careful not to transfer unburned Sats
+        sats.transfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, amount);
+    }
+
+    // -------------------------------- Pausable -----------------------------------
+    function pause() public onlyAdmin {
+        _pause();
+    }
+
+    function unpause() public onlyAdmin {
+        _unpause();
+    }
+
     //=============================== Private ==================================
     // ------------------------------ keeper -----------------------------------
     function _cooldown(address keeper, uint32 cooldownEnd) private {
@@ -497,59 +551,5 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         } else {
             sats.transferFrom(from, to, amount);
         }
-    }
-
-    // -------------------------------- BTC refund -----------------------------------
-    function getRefundData() external view returns (BtcRefundData memory) {
-        return btcRefundData;
-    }
-
-    function refundBtc(string calldata groupBtcAddress, bytes32 txId)
-        public
-        onlyAdmin
-        whenNotPaused
-    {
-        bytes32 receiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
-        Receipt storage receipt = receipts[receiptId];
-
-        _clearReceipt(receipt, receiptId);
-
-        require(receipt.status == Status.Available, "receipt not in available state");
-        require(btcRefundData.expiryTimestamp < _blockTimestamp(), "refund cool down");
-
-        uint32 expiryTimestamp = _blockTimestamp() + REFUND_GAP;
-        btcRefundData.expiryTimestamp = expiryTimestamp;
-        btcRefundData.txId = txId;
-        btcRefundData.groupBtcAddress = groupBtcAddress;
-
-        emit BtcRefunded(groupBtcAddress, txId, expiryTimestamp);
-    }
-
-    // -------------------------------- Collect Fee -----------------------------------
-    function updateMintFeeBps(uint8 bps) external onlyAdmin {
-        mintFeeBps = bps;
-
-        emit MintFeeBpsUpdate(bps);
-    }
-
-    function updateBurnFeeBps(uint8 bps) external onlyAdmin {
-        burnFeeBps = bps;
-
-        emit MintFeeBpsUpdate(bps);
-    }
-
-    function collectFee(uint256 amount) public onlyAdmin whenNotPaused {
-        // be careful not to transfer unburned Sats
-        sats.transfer(msg.sender, amount);
-        emit FeeCollected(msg.sender, amount);
-    }
-
-    // -------------------------------- Pausable -----------------------------------
-    function pause() public onlyAdmin {
-        _pause();
-    }
-
-    function unpause() public onlyAdmin {
-        _unpause();
     }
 }
