@@ -6,10 +6,10 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
 interface IDeCusSystem {
     struct Group {
-        uint256 required;
         uint256 maxSatoshi;
         uint256 currSatoshi;
-        uint256 nonce;
+        uint128 nonce;
+        uint32 required;
         EnumerableSet.AddressSet keeperSet;
     }
 
@@ -22,25 +22,25 @@ interface IDeCusSystem {
 
     struct Receipt {
         uint256 amountInSatoshi;
-        uint256 updateTimestamp;
         bytes32 txId;
-        uint256 height;
-        Status status;
-        address recipient;
         string groupBtcAddress;
         string withdrawBtcAddress;
+        uint32 updateTimestamp;
+        uint32 height;
+        address recipient;
+        Status status;
     }
 
     struct BtcRefundData {
-        uint256 expiryTimestamp;
         bytes32 txId;
         string groupBtcAddress;
+        uint32 expiryTimestamp;
     }
 
     struct MintRequest {
         bytes32 receiptId;
         bytes32 txId;
-        uint256 height;
+        uint32 height;
     }
 
     // events
@@ -61,7 +61,7 @@ interface IDeCusSystem {
         string groupBtcAddress,
         address[] keepers,
         bytes32 btcTxId,
-        uint256 btcTxHeight
+        uint32 btcTxHeight
     );
     event BurnRequested(
         bytes32 indexed receiptId,

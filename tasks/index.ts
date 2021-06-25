@@ -43,9 +43,9 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         });
     const now = (await decusSystem.provider.getBlock("latest")).timestamp;
 
-    const groupReusingGap = (await decusSystem.GROUP_REUSING_GAP()).toNumber();
-    const mintRequestGracePeriod = (await decusSystem.MINT_REQUEST_GRACE_PERIOD()).toNumber();
-    const withdrawVerificationEnd = (await decusSystem.WITHDRAW_VERIFICATION_END()).toNumber();
+    const groupReusingGap = await decusSystem.GROUP_REUSING_GAP();
+    const mintRequestGracePeriod = await decusSystem.MINT_REQUEST_GRACE_PERIOD();
+    const withdrawVerificationEnd = await decusSystem.WITHDRAW_VERIFICATION_END();
 
     for (const groupId of groupIds) {
         const group = await decusSystem.getGroup(groupId);
@@ -54,7 +54,7 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         }
 
         const receipt = await decusSystem.getReceipt(group.workingReceiptId);
-        const updateTime = receipt.updateTimestamp.toNumber();
+        const updateTime = receipt.updateTimestamp;
         let minable = "false";
 
         if (receipt.status == 0) {
