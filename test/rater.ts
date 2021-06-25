@@ -1,15 +1,12 @@
 import { expect } from "chai";
-import { BigNumber, ethers } from "ethers";
+import { ethers } from "ethers";
 import { deployments, waffle } from "hardhat";
-import { parse } from "path";
 import { BtcRater, ERC20 } from "../build/typechain";
 
 const { parseUnits } = ethers.utils;
 const wbtcAmt = (value: string) => parseUnits(value, 8);
 const hbtcAmt = (value: string) => parseUnits(value, 18);
 const congAmt = (value: string) => parseUnits(value, 18);
-const num_1e8 = parseUnits("1.0", 8);
-const num_1e18 = parseUnits("1.0", 18);
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const [deployer] = waffle.provider.getWallets();
