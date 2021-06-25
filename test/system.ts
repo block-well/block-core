@@ -4,9 +4,9 @@ import { deployments, ethers, waffle } from "hardhat";
 const { parseUnits, parseEther } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature, advanceTimeAndBlock, currentTime, getReceiptId, Status } from "./helper";
-import { DeCusSystem, CONG, ERC20, KeeperRegistry } from "../build/typechain";
+import { DeCusSystem, SATS, ERC20, KeeperRegistry } from "../build/typechain";
 
-const SATOSHI_CONG_MULTIPLIER = BigNumber.from(10).pow(10);
+const SATOSHI_SATS_MULTIPLIER = BigNumber.from(10).pow(10);
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
 const GROUP_SATOSHI = parseBtc("0.6");
 const BTC_ADDRESS = [
@@ -22,7 +22,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const wbtc = (await ethers.getContract("WBTC")) as ERC20;
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
-    const cong = (await ethers.getContract("CONG")) as CONG;
+    const sats = (await ethers.getContract("SATS")) as SATS;
 
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
@@ -30,21 +30,21 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return { deployer, users, system, cong };
+    return { deployer, users, system, sats };
 });
 
 describe("DeCusSystem", function () {
     let deployer: Wallet;
     let users: Wallet[];
     let system: DeCusSystem;
-    let cong: CONG;
+    let sats: SATS;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
     let group1Verifiers: Wallet[];
     let group2Verifiers: Wallet[];
 
     beforeEach(async function () {
-        ({ deployer, users, system, cong } = await setupFixture());
+        ({ deployer, users, system, sats } = await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
@@ -54,7 +54,7 @@ describe("DeCusSystem", function () {
 
     describe("constant", function () {
         it("constant", async function () {
-            expect(await cong.BTC_MULTIPLIER()).to.be.equal(1e8);
+            expect(await sats.BTC_MULTIPLIER()).to.be.equal(1e8);
         });
     });
 
@@ -117,7 +117,7 @@ describe("DeCusSystem", function () {
         const btcAddress = BTC_ADDRESS[0];
         const withdrawBtcAddress = BTC_ADDRESS[1];
         const amountInSatoshi = GROUP_SATOSHI;
-        const userCongAmount = amountInSatoshi.mul(10 ** 10);
+        const userSatsAmount = amountInSatoshi.mul(10 ** 10);
         const nonce = 1;
         const receiptId = getReceiptId(btcAddress, nonce);
         let keepers: string[];
@@ -251,7 +251,7 @@ describe("DeCusSystem", function () {
             await system
                 .connect(users[0])
                 .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
-            await cong.connect(users[0]).approve(system.address, userCongAmount);
+            await sats.connect(users[0]).approve(system.address, userSatsAmount);
             await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
 
             await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
@@ -279,7 +279,7 @@ describe("DeCusSystem", function () {
             await system
                 .connect(users[0])
                 .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
-            await cong.connect(users[0]).approve(system.address, userCongAmount);
+            await sats.connect(users[0]).approve(system.address, userSatsAmount);
             await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
             await system.connect(users[0]).verifyBurn(receiptId);
 
@@ -431,7 +431,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
-        const groupCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
+        const groupSatsAmount = GROUP_SATOSHI.mul(SATOSHI_SATS_MULTIPLIER);
 
         beforeEach(async function () {
             await addMockGroup();
@@ -478,7 +478,7 @@ describe("DeCusSystem", function () {
                 BigNumber.from(group.keepers.length - keeperAddresses.length)
             );
 
-            expect(await cong.balanceOf(users[0].address)).to.be.equal(groupCongAmount);
+            expect(await sats.balanceOf(users[0].address)).to.be.equal(groupSatsAmount);
         });
 
         it("verify mint repeated keeper", async function () {
@@ -589,7 +589,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
-        const userCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
+        const userSatsAmount = GROUP_SATOSHI.mul(SATOSHI_SATS_MULTIPLIER);
 
         beforeEach(async function () {
             await addMockGroup();
@@ -601,9 +601,9 @@ describe("DeCusSystem", function () {
 
         it("request burn", async function () {
             const redeemer = users[1];
-            await cong.connect(users[0]).transfer(redeemer.address, userCongAmount);
+            await sats.connect(users[0]).transfer(redeemer.address, userSatsAmount);
 
-            await cong.connect(redeemer).approve(system.address, userCongAmount);
+            await sats.connect(redeemer).approve(system.address, userSatsAmount);
             let receipt = await system.getReceipt(receiptId);
             expect(receipt.recipient).to.equal(users[0].address);
 
@@ -615,20 +615,20 @@ describe("DeCusSystem", function () {
             expect(receipt.recipient).to.equal(redeemer.address);
             expect(receipt.status).to.be.equal(3);
             expect(receipt.withdrawBtcAddress).to.be.equal(withdrawBtcAddress);
-            expect(await cong.balanceOf(redeemer.address)).to.be.equal(0);
-            expect(await cong.balanceOf(system.address)).to.be.equal(userCongAmount);
+            expect(await sats.balanceOf(redeemer.address)).to.be.equal(0);
+            expect(await sats.balanceOf(system.address)).to.be.equal(userSatsAmount);
         });
 
         it("recover burn", async function () {
             const redeemer = users[0];
-            expect(await cong.balanceOf(redeemer.address)).to.be.equal(userCongAmount);
-            await cong.connect(redeemer).approve(system.address, userCongAmount);
+            expect(await sats.balanceOf(redeemer.address)).to.be.equal(userSatsAmount);
+            await sats.connect(redeemer).approve(system.address, userSatsAmount);
 
             await expect(system.connect(redeemer).requestBurn(receiptId, withdrawBtcAddress))
                 .to.emit(system, "BurnRequested")
                 .withArgs(receiptId, btcAddress, withdrawBtcAddress, redeemer.address);
 
-            expect(await cong.balanceOf(redeemer.address)).to.be.equal(0);
+            expect(await sats.balanceOf(redeemer.address)).to.be.equal(0);
             let receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.equal(Status.WithdrawRequested);
 
@@ -642,7 +642,7 @@ describe("DeCusSystem", function () {
 
             receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.equal(Status.DepositReceived);
-            expect(await cong.balanceOf(redeemer.address)).to.be.equal(userCongAmount);
+            expect(await sats.balanceOf(redeemer.address)).to.be.equal(userSatsAmount);
         });
     });
 
@@ -653,7 +653,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
-        const userCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
+        const userSatsAmount = GROUP_SATOSHI.mul(SATOSHI_SATS_MULTIPLIER);
 
         beforeEach(async function () {
             await addMockGroup();
@@ -662,7 +662,7 @@ describe("DeCusSystem", function () {
 
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
 
-            await cong.connect(users[0]).approve(system.address, userCongAmount);
+            await sats.connect(users[0]).approve(system.address, userSatsAmount);
             await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
         });
 
@@ -673,8 +673,8 @@ describe("DeCusSystem", function () {
 
             const receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.be.equal(0);
-            expect(await cong.balanceOf(users[0].address)).to.be.equal(0);
-            expect(await cong.balanceOf(system.address)).to.be.equal(0);
+            expect(await sats.balanceOf(users[0].address)).to.be.equal(0);
+            expect(await sats.balanceOf(system.address)).to.be.equal(0);
 
             const nonce2 = nonce + 1;
             const receiptId2 = getReceiptId(btcAddress, nonce2);
@@ -797,7 +797,7 @@ describe("DeCusSystem", function () {
         let receiptId: string;
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
-        const groupCongAmount = GROUP_SATOSHI.mul(SATOSHI_CONG_MULTIPLIER);
+        const groupSatsAmount = GROUP_SATOSHI.mul(SATOSHI_SATS_MULTIPLIER);
         const mintFeeBps = 1;
         const burnFeeBps = 5;
 
@@ -812,10 +812,10 @@ describe("DeCusSystem", function () {
             receiptId = await requestMint(users[0], btcAddress, nonce);
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
 
-            let userAmount = groupCongAmount.mul(10000 - mintFeeBps).div(10000);
-            let systemAmount = groupCongAmount.mul(mintFeeBps).div(10000);
-            expect(await cong.balanceOf(users[0].address)).to.equal(userAmount);
-            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+            let userAmount = groupSatsAmount.mul(10000 - mintFeeBps).div(10000);
+            let systemAmount = groupSatsAmount.mul(mintFeeBps).div(10000);
+            expect(await sats.balanceOf(users[0].address)).to.equal(userAmount);
+            expect(await sats.balanceOf(system.address)).to.equal(systemAmount);
 
             await advanceTimeAndBlock(24 * 3600);
 
@@ -825,33 +825,33 @@ describe("DeCusSystem", function () {
 
             systemAmount = systemAmount.mul(2);
             userAmount = userAmount.mul(2);
-            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
-            expect(await cong.balanceOf(users[0].address)).to.equal(userAmount);
+            expect(await sats.balanceOf(system.address)).to.equal(systemAmount);
+            expect(await sats.balanceOf(users[0].address)).to.equal(userAmount);
 
             // burn
-            const payAmount = groupCongAmount.mul(10000 + burnFeeBps).div(10000);
-            systemAmount = systemAmount.add(groupCongAmount.mul(burnFeeBps).div(10000));
-            await cong.connect(users[0]).approve(system.address, payAmount);
+            const payAmount = groupSatsAmount.mul(10000 + burnFeeBps).div(10000);
+            systemAmount = systemAmount.add(groupSatsAmount.mul(burnFeeBps).div(10000));
+            await sats.connect(users[0]).approve(system.address, payAmount);
             await system.connect(users[0]).requestBurn(receiptId, withdrawBtcAddress);
 
-            expect(await cong.balanceOf(system.address)).to.equal(
-                systemAmount.add(groupCongAmount)
+            expect(await sats.balanceOf(system.address)).to.equal(
+                systemAmount.add(groupSatsAmount)
             );
 
             // verify burn
             await system.connect(users[0]).verifyBurn(receiptId);
 
-            expect(await cong.balanceOf(system.address)).to.equal(systemAmount);
+            expect(await sats.balanceOf(system.address)).to.equal(systemAmount);
 
             // admin collect fee
-            expect(await cong.balanceOf(deployer.address)).to.equal(0);
+            expect(await sats.balanceOf(deployer.address)).to.equal(0);
 
             await expect(system.connect(deployer).collectFee(systemAmount))
                 .to.emit(system, "FeeCollected")
                 .withArgs(deployer.address, systemAmount);
 
-            expect(await cong.balanceOf(system.address)).to.equal(0);
-            expect(await cong.balanceOf(deployer.address)).to.equal(systemAmount);
+            expect(await sats.balanceOf(system.address)).to.equal(0);
+            expect(await sats.balanceOf(deployer.address)).to.equal(systemAmount);
         });
     });
 

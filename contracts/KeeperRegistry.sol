@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-import {CONG} from "./CONG.sol";
+import {SATS} from "./SATS.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IBtcRater} from "./interfaces/IBtcRater.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
@@ -19,7 +19,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     using SafeMath for uint32;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    CONG public cong;
+    SATS public sats;
     address public treasury;
     address public system;
 
@@ -39,14 +39,14 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     constructor(
         address[] memory _assets,
-        address _cong,
+        address _sats,
         address _btcRater
     ) public {
         btcRater = IBtcRater(_btcRater);
         for (uint256 i = 0; i < _assets.length; i++) {
             _addAsset(_assets[i]);
         }
-        cong = CONG(_cong);
+        sats = SATS(_sats);
     }
 
     function setSystem(address _system) external onlyOwner {
@@ -166,23 +166,23 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     function addOverissue(uint256 overissuedAmount) external onlyOwner {
         require(overissuedAmount > 0, "zero overissued amount");
-        uint256 congConfiscation = confiscations[address(cong)];
+        uint256 satsConfiscation = confiscations[address(sats)];
         uint256 deduction = 0;
-        if (congConfiscation > 0) {
-            deduction = overissuedAmount.min(congConfiscation);
-            cong.burn(deduction);
+        if (satsConfiscation > 0) {
+            deduction = overissuedAmount.min(satsConfiscation);
+            sats.burn(deduction);
             overissuedAmount = overissuedAmount.sub(deduction);
-            confiscations[address(cong)] = congConfiscation.sub(deduction);
+            confiscations[address(sats)] = satsConfiscation.sub(deduction);
         }
         overissuedTotal = overissuedTotal.add(overissuedAmount);
         emit OverissueAdded(overissuedTotal, overissuedAmount, deduction);
     }
 
-    function offsetOverissue(uint256 congAmount) external {
-        cong.burnFrom(msg.sender, congAmount);
-        overissuedTotal = overissuedTotal.sub(congAmount);
+    function offsetOverissue(uint256 satsAmount) external {
+        sats.burnFrom(msg.sender, satsAmount);
+        overissuedTotal = overissuedTotal.sub(satsAmount);
 
-        emit OffsetOverissued(msg.sender, congAmount, overissuedTotal);
+        emit OffsetOverissued(msg.sender, satsAmount, overissuedTotal);
     }
 
     function incrementRefCount(address keeper) external override onlySystem {
