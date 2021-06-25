@@ -14,7 +14,7 @@ interface IERC20Extension {
 contract BtcRater is Ownable, IBtcRater {
     using SafeMath for uint256;
 
-    mapping(address => uint256) public btcConversionRates; // For homogeneous BTC asset, the rate is 1. For Cong, the rate is 1e8
+    mapping(address => uint256) public btcConversionRates; // For homogeneous BTC asset, the rate is 1. For Sats, the rate is 1e8
 
     constructor(address[] memory assets, uint256[] memory rates) public {
         for (uint256 i = 0; i < assets.length; i++) {
@@ -34,7 +34,7 @@ contract BtcRater is Ownable, IBtcRater {
     {
         // e.g. wbtc&1e8, returns 1e18
         // e.g. hbtc&1e18, returns 1e18
-        // e.g. cong&1e18, returns 1e18
+        // e.g. sats&1e18, returns 1e18
         uint256 valueInWeiDecimal = amount.mul(
             BtcUtility.getWeiMultiplier(IERC20Extension(asset).decimals())
         );
@@ -49,7 +49,7 @@ contract BtcRater is Ownable, IBtcRater {
     {
         // e.g. 1e18 => wbtc&1e8
         // e.g. 1e18 => hbtc&1e18
-        // e.g. 1e18 => cong&1e18
+        // e.g. 1e18 => sats&1e18
         return
             (weiAmount.mul(btcConversionRates[asset])).div(
                 BtcUtility.getWeiMultiplier(IERC20Extension(asset).decimals())

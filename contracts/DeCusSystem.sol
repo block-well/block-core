@@ -30,7 +30,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     uint32 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
     uint256 public minKeeperWei = 1e13;
 
-    IToken public cong;
+    IToken public sats;
     IKeeperRegistry public keeperRegistry;
 
     uint8 public mintFeeBps;
@@ -61,12 +61,12 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     }
 
     function initialize(
-        address _cong,
+        address _sats,
         address _registry,
         uint8 _mintFeeBps,
         uint8 _burnFeeBps
     ) external onlyAdmin {
-        cong = IToken(_cong);
+        sats = IToken(_sats);
         keeperRegistry = IKeeperRegistry(_registry);
         mintFeeBps = _mintFeeBps;
         burnFeeBps = _burnFeeBps;
@@ -255,7 +255,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         _verifyMintRequest(group, request, keepers, r, s, packedV);
         _approveDeposit(receipt, request.txId, request.height);
 
-        _mintCONG(receipt.recipient, receipt.amountInSatoshi);
+        _mintSATS(receipt.recipient, receipt.amountInSatoshi);
 
         emit MintVerified(
             request.receiptId,
@@ -274,7 +274,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
         _requestWithdraw(receipt, withdrawBtcAddress);
 
-        _transferFromCONG(msg.sender, address(this), receipt.amountInSatoshi);
+        _transferFromSATS(msg.sender, address(this), receipt.amountInSatoshi);
 
         emit BurnRequested(receiptId, receipt.groupBtcAddress, withdrawBtcAddress, msg.sender);
     }
@@ -285,7 +285,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
         _approveWithdraw(receipt);
 
-        _burnCONG(receipt.amountInSatoshi);
+        _burnSATS(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
@@ -298,7 +298,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
         _revokeWithdraw(receipt);
 
-        _transferCONG(receipt.recipient, receipt.amountInSatoshi);
+        _transferSATS(receipt.recipient, receipt.amountInSatoshi);
 
         emit BurnRevoked(receiptId, receipt.groupBtcAddress, receipt.recipient, msg.sender);
     }
@@ -370,7 +370,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     function _forceVerifyBurn(bytes32 receiptId, Receipt storage receipt) private {
         receipt.status = Status.Available;
 
-        _burnCONG(receipt.amountInSatoshi);
+        _burnSATS(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
@@ -457,45 +457,45 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
         require((z = x + y) >= x);
     }
 
-    // -------------------------------- CONG -----------------------------------
-    function _mintCONG(address to, uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
+    // -------------------------------- SATS -----------------------------------
+    function _mintSATS(address to, uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
         uint8 fee = mintFeeBps;
         if (fee > 0) {
             uint256 reserveAmount = amount.mul(fee).div(10000);
-            cong.mint(address(this), reserveAmount);
-            cong.mint(to, amount.sub(reserveAmount));
+            sats.mint(address(this), reserveAmount);
+            sats.mint(to, amount.sub(reserveAmount));
         } else {
-            cong.mint(to, amount);
+            sats.mint(to, amount);
         }
     }
 
-    function _burnCONG(uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
+    function _burnSATS(uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
-        cong.burn(amount);
+        sats.burn(amount);
     }
 
-    function _transferCONG(address to, uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
+    function _transferSATS(address to, uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
-        cong.transfer(to, amount);
+        sats.transfer(to, amount);
     }
 
-    function _transferFromCONG(
+    function _transferFromSATS(
         address from,
         address to,
         uint256 amountInSatoshi
     ) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getCongAmountMultiplier());
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
         uint8 fee = burnFeeBps;
         if (fee > 0) {
             uint256 reserveAmount = amount.mul(fee).div(10000);
-            cong.transferFrom(from, to, amount.add(reserveAmount));
+            sats.transferFrom(from, to, amount.add(reserveAmount));
         } else {
-            cong.transferFrom(from, to, amount);
+            sats.transferFrom(from, to, amount);
         }
     }
 
@@ -539,8 +539,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     }
 
     function collectFee(uint256 amount) public onlyAdmin whenNotPaused {
-        // be careful not to transfer unburned Cong
-        cong.transfer(msg.sender, amount);
+        // be careful not to transfer unburned Sats
+        sats.transfer(msg.sender, amount);
         emit FeeCollected(msg.sender, amount);
     }
 

@@ -6,11 +6,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    const cong = await deployments.get("CONG");
+    const sats = await deployments.get("SATS");
     const decusSystem = await deployments.get("DeCusSystem");
 
     await deployments.execute(
-        "CONG",
+        "SATS",
         { from: deployer, log: true },
         "grantRole",
         ethers.utils.id("MINTER_ROLE"),
@@ -29,7 +29,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         "DeCusSystem",
         { from: deployer, log: true },
         "initialize",
-        cong.address,
+        sats.address,
         registry.address,
         0,
         0
