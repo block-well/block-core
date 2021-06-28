@@ -178,22 +178,26 @@ task("traceMREvents", "get all MintRequested events").setAction(async (args, { e
     }
 });
 
-// task("traceMVEvents", "get all MintVerified events").setAction(async (args, { ethers }) => {
-//     const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
-//     const events = await decusSystem.queryFilter(
-//         decusSystem.filters.MintVerified(null, null, null, null, null)
-//     );
-//     console.log(`blocknumber,timestamp,receiptId,recipient,group,btcTxId,btcSender`);
-//     for (const event of events) {
-//         const blockNumber = event["blockNumber"];
-//         const timestamp = (await decusSystem.provider.getBlock(blockNumber)).timestamp;
-//         const receiptId = event["args"]["receiptId"];
-//         const receipt = await decusSystem.getReceipt(receiptId);
-//         console.log(receiptId);
-//         console.log(receipt);
-//         const recipient = receipt["recipient"];
-//         const group = receipt["groupBtcAddress"];
-//         const btcTxId = receipt["txId"];
-//         // console.log(`${blockNumber},${timestamp},${receiptId},${recipient},${group},${btcTxId}`);
-//     }
-// });
+task("traceMVEvents", "get all MintVerified events").setAction(async (args, { ethers }) => {
+    const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+    const events = await decusSystem.queryFilter(
+        decusSystem.filters.MintVerified(null, null, null, null, null)
+    );
+    console.log(`blocknumber,timestamp,receiptId,group,btcTxId,btcSender`);
+    for (const event of events) {
+        const blockNumber = event["blockNumber"];
+        const timestamp = (await decusSystem.provider.getBlock(blockNumber)).timestamp;
+        const receiptId = event["args"]["receiptId"];
+        const group = event["args"]["groupBtcAddress"];
+        const btcTxId = event["args"]["btcTxId"];
+        const tx = await axios.get(`https://blockstream.info/testnet/api/tx/${btcTxId.slice(2)}`);
+        const txVin = tx["data"]["vin"];
+        let btcSender = txVin[0]["prevout"]["scriptpubkey_address"];
+        if (txVin.length != 1) {
+            for (let j = 1; j < txVin.length; j++) {
+                btcSender += ` & ${txVin[j]["prevout"]["scriptpubkey_address"]}`;
+            }
+        }
+        console.log(`${blockNumber},${timestamp},${receiptId},${group},${btcTxId},${btcSender}`);
+    }
+});
