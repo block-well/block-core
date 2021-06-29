@@ -5,6 +5,7 @@
 /coverage.json
 /build
 /deployments
-/scripts
+/tasks
+!/tasks/index.ts
 
 .env
