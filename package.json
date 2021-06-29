@@ -27,6 +27,7 @@
         "@typescript-eslint/eslint-plugin": "^4.28.0",
         "@typescript-eslint/parser": "^4.28.0",
         "axios": "^0.21.1",
+        "bitcoinjs-lib": "^5.2.0",
         "chai": "^4.3.0",
         "dayjs": "^1.10.5",
         "dotenv": "^8.6.0",

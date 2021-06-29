@@ -18,13 +18,13 @@ task("addKeeper", "add keeper")
             nonceManager
         )) as KeeperRegistry;
 
-        if ((await registry.getCollateralValue(keeper)).gt(0)) {
+        if ((await registry.getCollateralWei(keeper)).gt(0)) {
             console.log(`keeper exist: ${keeper}`);
             return;
         }
 
         const num = ethers.utils.parseUnits(amount, await btc.decimals());
-        let tx = await btc.approve(registry.address, num);
+        let tx = await btc.approve(registry.address, num, { gasPrice: 1e9, gasLimit: 1e6 });
         console.log(`${keeper} approve at ${tx.hash}`);
 
         tx = await registry.addKeeper(btc.address, num, { gasPrice: 1e9, gasLimit: 1e6 });
@@ -43,6 +43,8 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         .filter((elem, index, self) => {
             return index === self.indexOf(elem);
         });
+    console.log(`total groups: ${groupIds.length}`);
+
     const now = (await decusSystem.provider.getBlock("latest")).timestamp;
 
     const groupReusingGap = await decusSystem.GROUP_REUSING_GAP();
