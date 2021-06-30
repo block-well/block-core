@@ -10,6 +10,18 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [],
         log: true,
     });
+
+    const dcs = await deployments.deploy("DeCus", {
+        from: deployer,
+        args: [],
+        log: true,
+    });
+
+    await deployments.deploy("SwapRewarder", {
+        from: deployer,
+        args: [dcs.address],
+        log: true,
+    });
 };
 
 export default func;

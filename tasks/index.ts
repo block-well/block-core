@@ -102,17 +102,37 @@ const getDepositSignUrl = (network: string, receiptId: string) => {
     return `http://coordinator.decus.${domain}/deposit/status/${receiptId}`;
 };
 
+const findWorkingReceiptId = async (btcAddress: string, system: DeCusSystem): Promise<string> => {
+    const group = await system.getGroup(btcAddress);
+    return group.workingReceiptId;
+};
+
 task("traceMint", "get receipt history")
-    .addParam("id", "receiptId")
-    .setAction(async ({ id }, { ethers, network }) => {
+    .addOptionalParam("id", "receiptId")
+    .addOptionalParam("btcAddress", "btc group address")
+    .setAction(async ({ id, btcAddress }, { ethers, network }) => {
         const btcNetwork = network.name == "mainnet" ? "mainnet" : "testnet";
-        console.log("network:", network.name, "receiptId:", id, "btc:", btcNetwork);
         const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+
+        if (!id && !btcAddress) {
+            throw new Error("Please specify either id or btcAddress");
+        }
+
+        if (!id) {
+            id = await findWorkingReceiptId(btcAddress, decusSystem);
+            if (!id) {
+                throw new Error(`Unable to find working receipt id related to ${btcAddress}`);
+            }
+        }
+
+        console.log("network:", network.name, "receiptId:", id, "btc:", btcNetwork);
 
         // 1. request mint
         const mintEvents = await decusSystem.queryFilter(
             decusSystem.filters.MintRequested(id, null, null, null)
         );
+        if (mintEvents.length == 0) throw new Error(`receipt not found ${id}`);
+
         const recipient = mintEvents[0].args.recipient;
         const groupBtcAddress = mintEvents[0].args.groupBtcAddress;
         const mintBlock = mintEvents[0].blockNumber;

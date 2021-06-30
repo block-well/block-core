@@ -11,13 +11,13 @@ import "@openzeppelin/contracts/drafts/EIP712.sol";
 import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IToken} from "./interfaces/IToken.sol";
+import {ISwapRewarder} from "./interfaces/ISwapRewarder.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
-contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
+contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "1.0") {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
 
     bytes32 private constant REQUEST_TYPEHASH =
@@ -32,6 +32,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
     IToken public sats;
     IKeeperRegistry public keeperRegistry;
+    ISwapRewarder public rewarder;
 
     uint8 public mintFeeBps;
     uint8 public burnFeeBps;
@@ -43,15 +44,14 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     BtcRefundData private btcRefundData;
 
     //================================= Public =================================
-    constructor() public EIP712("DeCus", "1.0") {
+    constructor() public {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
-        _setupRole(ADMIN_ROLE, msg.sender);
         _setupRole(GROUP_ROLE, msg.sender);
     }
 
     modifier onlyAdmin() {
-        require(hasRole(ADMIN_ROLE, msg.sender), "require admin role");
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "require admin role");
         _;
     }
 
@@ -61,13 +61,15 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
     }
 
     function initialize(
-        address _sats,
-        address _registry,
+        IToken _sats,
+        IKeeperRegistry _registry,
+        ISwapRewarder _rewarder,
         uint8 _mintFeeBps,
         uint8 _burnFeeBps
     ) external onlyAdmin {
-        sats = IToken(_sats);
-        keeperRegistry = IKeeperRegistry(_registry);
+        sats = _sats;
+        keeperRegistry = _registry;
+        rewarder = _rewarder;
         mintFeeBps = _mintFeeBps;
         burnFeeBps = _burnFeeBps;
     }
@@ -96,20 +98,14 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
             uint256 currSatoshi,
             uint256 nonce,
             address[] memory keepers,
-            uint256 cooldown,
             bytes32 workingReceiptId
         )
     {
         Group storage group = groups[btcAddress];
 
         keepers = new address[](group.keeperSet.length());
-        cooldown = 0;
         for (uint256 i = 0; i < group.keeperSet.length(); i++) {
-            address keeper = group.keeperSet.at(i);
-            if (cooldownUntil[keeper] <= _blockTimestamp()) {
-                cooldown += 1;
-            }
-            keepers[i] = keeper;
+            keepers[i] = group.keeperSet.at(i);
         }
 
         workingReceiptId = getReceiptId(btcAddress, group.nonce);
@@ -120,7 +116,6 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
             group.currSatoshi,
             group.nonce,
             keepers,
-            cooldown,
             workingReceiptId
         );
     }
@@ -257,6 +252,9 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
         _mintSATS(receipt.recipient, receipt.amountInSatoshi);
 
+        if (rewarder != ISwapRewarder(0))
+            rewarder.mintReward(receipt.recipient, receipt.amountInSatoshi);
+
         emit MintVerified(
             request.receiptId,
             receipt.groupBtcAddress,
@@ -289,6 +287,9 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712 {
 
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
+
+        if (rewarder != ISwapRewarder(0))
+            rewarder.burnReward(receipt.recipient, receipt.amountInSatoshi);
 
         emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
     }
