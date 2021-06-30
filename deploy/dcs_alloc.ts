@@ -9,7 +9,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const rewarder = await deployments.get("SwapRewarder");
 
     await deployments.execute(
-        "DeCus",
+        "DCS",
         { from: deployer, log: true },
         "mint",
         rewarder.address,
