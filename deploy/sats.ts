@@ -11,7 +11,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         log: true,
     });
 
-    const dcs = await deployments.deploy("DeCus", {
+    const dcs = await deployments.deploy("DCS", {
         from: deployer,
         args: [],
         log: true,
