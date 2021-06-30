@@ -25,12 +25,15 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     );
     const registry = await deployments.get("KeeperRegistry");
 
+    const rewarder = await deployments.get("SwapRewarder");
+
     await deployments.execute(
         "DeCusSystem",
         { from: deployer, log: true },
         "initialize",
         sats.address,
         registry.address,
+        rewarder.address,
         0,
         0
     );

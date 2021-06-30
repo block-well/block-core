@@ -19,12 +19,12 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
     using SafeMath for uint32;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    SATS public sats;
     address public treasury;
     address public system;
+    SATS public immutable sats;
+    IBtcRater public immutable btcRater;
 
     EnumerableSet.AddressSet assetSet;
-    IBtcRater public btcRater;
     uint32 public MIN_KEEPER_PERIOD = 15552000; // 6 month
     uint8 public earlyExitFeeBps = 100;
 
