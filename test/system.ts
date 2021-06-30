@@ -4,7 +4,7 @@ import { deployments, ethers, waffle } from "hardhat";
 const { parseUnits, parseEther } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature, advanceTimeAndBlock, currentTime, getReceiptId, Status } from "./helper";
-import { DeCusSystem, SATS, ERC20, KeeperRegistry, DeCus, SwapRewarder } from "../build/typechain";
+import { DeCusSystem, SATS, ERC20, KeeperRegistry, DCS, SwapRewarder } from "../build/typechain";
 
 const SATOSHI_SATS_MULTIPLIER = BigNumber.from(10).pow(10);
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
@@ -24,7 +24,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
     const sats = (await ethers.getContract("SATS")) as SATS;
-    const dcs = (await ethers.getContract("DeCus")) as DeCus;
+    const dcs = (await ethers.getContract("DCS")) as DCS;
     const rewarder = (await ethers.getContract("SwapRewarder")) as SwapRewarder;
 
     for (const user of users) {
@@ -41,7 +41,7 @@ describe("DeCusSystem", function () {
     let users: Wallet[];
     let system: DeCusSystem;
     let sats: SATS;
-    let dcs: DeCus;
+    let dcs: DCS;
     let rewarder: SwapRewarder;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
