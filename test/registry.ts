@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { Wallet, constants } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
-import { KeeperRegistry, ERC20, BtcRater, DeCusSystem } from "../build/typechain";
+import { KeeperRegistry, ERC20, BtcRater, DeCusSystem, SwapRewarder } from "../build/typechain";
 import { advanceTimeAndBlock, currentTime } from "./helper";
 
 const { parseEther, parseUnits } = ethers.utils;
@@ -30,6 +30,17 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         deployer.address
     );
     const sats = (await ethers.getContract("SATS")) as ERC20;
+
+    const dcs = await deployments.deploy("DeCus", {
+        from: deployer.address,
+        log: true,
+    });
+
+    const rewarder = await deployments.deploy("SwapRewarder", {
+        from: deployer.address,
+        args: [dcs.address],
+        log: true,
+    });
 
     await deployments.deploy("MockHBTC", {
         contract: "MockERC20",
@@ -68,6 +79,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         "initialize",
         sats.address,
         registry.address,
+        rewarder.address,
         0,
         0
     );
