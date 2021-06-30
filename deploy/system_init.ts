@@ -35,7 +35,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         registry.address,
         rewarder.address,
         0,
-        0
+        50
     );
 };
 

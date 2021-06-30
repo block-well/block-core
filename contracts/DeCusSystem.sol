@@ -272,7 +272,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _requestWithdraw(receipt, withdrawBtcAddress);
 
-        _transferFromSATS(msg.sender, address(this), receipt.amountInSatoshi);
+        _paySATSForBurn(msg.sender, address(this), receipt.amountInSatoshi);
 
         emit BurnRequested(receiptId, receipt.groupBtcAddress, withdrawBtcAddress, msg.sender);
     }
@@ -299,7 +299,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _revokeWithdraw(receipt);
 
-        _transferSATS(receipt.recipient, receipt.amountInSatoshi);
+        _refundSATSForBurn(receipt.recipient, receipt.amountInSatoshi);
 
         emit BurnRevoked(receiptId, receipt.groupBtcAddress, receipt.recipient, msg.sender);
     }
@@ -532,13 +532,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         sats.burn(amount);
     }
 
-    function _transferSATS(address to, uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
-
-        sats.transfer(to, amount);
-    }
-
-    function _transferFromSATS(
+    // user transfer SATS when requestBurn
+    function _paySATSForBurn(
         address from,
         address to,
         uint256 amountInSatoshi
@@ -546,11 +541,18 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
         uint8 fee = burnFeeBps;
-        if (fee > 0) {
-            uint256 reserveAmount = amount.mul(fee).div(10000);
-            sats.transferFrom(from, to, amount.add(reserveAmount));
-        } else {
-            sats.transferFrom(from, to, amount);
-        }
+        if (fee > 0) amount += amount.mul(fee).div(10000);
+
+        sats.transferFrom(from, to, amount);
+    }
+
+    // refund user when recoverBurn
+    function _refundSATSForBurn(address to, uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
+
+        uint8 fee = burnFeeBps;
+        if (fee > 0) amount += amount.mul(fee).div(10000);
+
+        sats.transfer(to, amount);
     }
 }
