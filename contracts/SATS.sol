@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 contract SATS is AccessControl, ERC20Burnable, ERC20Pausable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    uint256 public constant BTC_MULTIPLIER = 1e8;
 
     constructor() public ERC20("DeCus Satoshi", "SATS") {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
