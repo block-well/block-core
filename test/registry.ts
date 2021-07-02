@@ -73,6 +73,12 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
 
+    const fee = await deployments.deploy("SwapFee", {
+        from: deployer.address,
+        args: [0, 50, sats.address],
+        log: true,
+    });
+
     await deployments.execute(
         "DeCusSystem",
         { from: deployer.address, log: true },
@@ -80,8 +86,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         sats.address,
         registry.address,
         rewarder.address,
-        0,
-        0
+        fee.address
     );
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
 
