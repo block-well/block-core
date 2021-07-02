@@ -27,6 +27,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     const rewarder = await deployments.get("SwapRewarder");
 
+    const fee = await deployments.get("SwapFee");
+
     await deployments.execute(
         "DeCusSystem",
         { from: deployer, log: true },
@@ -34,8 +36,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         sats.address,
         registry.address,
         rewarder.address,
-        0,
-        50
+        fee.address
     );
 };
 
