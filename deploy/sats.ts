@@ -5,7 +5,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    await deployments.deploy("SATS", {
+    const sats = await deployments.deploy("SATS", {
         from: deployer,
         args: [],
         log: true,
@@ -20,6 +20,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await deployments.deploy("SwapRewarder", {
         from: deployer,
         args: [dcs.address],
+        log: true,
+    });
+
+    await deployments.deploy("SwapFee", {
+        from: deployer,
+        args: [0, 50, sats.address],
         log: true,
     });
 };

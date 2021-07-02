@@ -12,6 +12,7 @@ import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IToken} from "./interfaces/IToken.sol";
 import {ISwapRewarder} from "./interfaces/ISwapRewarder.sol";
+import {ISwapFee} from "./interfaces/ISwapFee.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
 contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "1.0") {
@@ -33,9 +34,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     IToken public sats;
     IKeeperRegistry public keeperRegistry;
     ISwapRewarder public rewarder;
-
-    uint8 public mintFeeBps;
-    uint8 public burnFeeBps;
+    ISwapFee public fee;
 
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
@@ -64,14 +63,12 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         IToken _sats,
         IKeeperRegistry _registry,
         ISwapRewarder _rewarder,
-        uint8 _mintFeeBps,
-        uint8 _burnFeeBps
+        ISwapFee _fee
     ) external onlyAdmin {
         sats = _sats;
         keeperRegistry = _registry;
         rewarder = _rewarder;
-        mintFeeBps = _mintFeeBps;
-        burnFeeBps = _burnFeeBps;
+        fee = _fee;
     }
 
     // ------------------------------ keeper -----------------------------------
@@ -330,25 +327,6 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         emit BtcRefunded(groupBtcAddress, txId, expiryTimestamp);
     }
 
-    // -------------------------------- Collect Fee -----------------------------------
-    function updateMintFeeBps(uint8 bps) external onlyAdmin {
-        mintFeeBps = bps;
-
-        emit MintFeeBpsUpdate(bps);
-    }
-
-    function updateBurnFeeBps(uint8 bps) external onlyAdmin {
-        burnFeeBps = bps;
-
-        emit MintFeeBpsUpdate(bps);
-    }
-
-    function collectFee(uint256 amount) public onlyAdmin whenNotPaused {
-        // be careful not to transfer unburned Sats
-        sats.transfer(msg.sender, amount);
-        emit FeeCollected(msg.sender, amount);
-    }
-
     // -------------------------------- Pausable -----------------------------------
     function pause() public onlyAdmin {
         _pause();
@@ -516,11 +494,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     function _mintSATS(address to, uint256 amountInSatoshi) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
-        uint8 fee = mintFeeBps;
-        if (fee > 0) {
-            uint256 reserveAmount = amount.mul(fee).div(10000);
-            sats.mint(address(this), reserveAmount);
-            sats.mint(to, amount.sub(reserveAmount));
+        uint256 feeAmount = fee.payExtraMintFee(to, amount);
+        if (feeAmount > 0) {
+            sats.mint(address(fee), feeAmount);
+            sats.mint(to, amount.sub(feeAmount));
         } else {
             sats.mint(to, amount);
         }
@@ -540,18 +517,19 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     ) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
-        uint8 fee = burnFeeBps;
-        if (fee > 0) amount += amount.mul(fee).div(10000);
+        uint256 feeAmount = fee.payExtraBurnFee(from, amount);
 
-        sats.transferFrom(from, to, amount);
+        sats.transferFrom(from, to, amount.add(feeAmount));
+
+        if (feeAmount > 0) {
+            sats.transfer(address(fee), feeAmount);
+        }
     }
 
     // refund user when recoverBurn
     function _refundSATSForBurn(address to, uint256 amountInSatoshi) private {
+        // fee is not refunded
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
-
-        uint8 fee = burnFeeBps;
-        if (fee > 0) amount += amount.mul(fee).div(10000);
 
         sats.transfer(to, amount);
     }

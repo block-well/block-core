@@ -4,7 +4,15 @@ import { deployments, ethers, waffle } from "hardhat";
 const { parseUnits, parseEther } = ethers.utils;
 const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature, advanceTimeAndBlock, currentTime, getReceiptId, Status } from "./helper";
-import { DeCusSystem, SATS, ERC20, KeeperRegistry, DCS, SwapRewarder } from "../build/typechain";
+import {
+    DeCusSystem,
+    SATS,
+    ERC20,
+    KeeperRegistry,
+    DCS,
+    SwapRewarder,
+    SwapFee,
+} from "../build/typechain";
 
 const SATOSHI_SATS_MULTIPLIER = BigNumber.from(10).pow(10);
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
@@ -26,6 +34,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const sats = (await ethers.getContract("SATS")) as SATS;
     const dcs = (await ethers.getContract("DCS")) as DCS;
     const rewarder = (await ethers.getContract("SwapRewarder")) as SwapRewarder;
+    const fee = (await ethers.getContract("SwapFee")) as SwapFee;
 
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
@@ -33,7 +42,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return { deployer, users, system, sats, dcs, rewarder };
+    return { deployer, users, system, sats, dcs, rewarder, fee };
 });
 
 describe("DeCusSystem", function () {
@@ -43,13 +52,14 @@ describe("DeCusSystem", function () {
     let sats: SATS;
     let dcs: DCS;
     let rewarder: SwapRewarder;
+    let fee: SwapFee;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
     let group1Verifiers: Wallet[];
     let group2Verifiers: Wallet[];
 
     beforeEach(async function () {
-        ({ deployer, users, system, sats, dcs, rewarder } = await setupFixture());
+        ({ deployer, users, system, sats, dcs, rewarder, fee } = await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
@@ -128,7 +138,7 @@ describe("DeCusSystem", function () {
 
             await system.addGroup(btcAddress, 3, amountInSatoshi, keepers);
 
-            await system.updateBurnFeeBps(0); // skip burn fee
+            await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
         });
 
         it("delete not exist", async function () {
@@ -596,11 +606,10 @@ describe("DeCusSystem", function () {
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
         });
 
-        const getSatsForBurn = async (user: Wallet, feeBps: number, amount: BigNumber) => {
+        const getSatsForBurn = async (user: Wallet, amount: BigNumber) => {
             await sats.connect(deployer).grantRole(MINTER_ROLE, deployer.address);
 
-            const feeSats = amount.mul(feeBps).div(10000);
-            await sats.connect(deployer).mint(user.address, feeSats);
+            await sats.connect(deployer).mint(user.address, amount);
         };
 
         it("request burn", async function () {
@@ -613,10 +622,10 @@ describe("DeCusSystem", function () {
             let burnAmount = userSatsAmount;
 
             // require extra burn fee to burn
-            const burnFeeBps = await system.burnFeeBps();
-            if (burnFeeBps > 0) {
-                await getSatsForBurn(redeemer, burnFeeBps, userSatsAmount);
-                burnAmount = burnAmount.mul(10000 + burnFeeBps).div(10000);
+            const burnFeeAmount = await fee.getBurnFeeAmount(burnAmount);
+            if (burnFeeAmount.gt(0)) {
+                await getSatsForBurn(redeemer, burnFeeAmount);
+                burnAmount = burnAmount.add(burnFeeAmount);
             }
 
             expect(await sats.balanceOf(redeemer.address)).to.equal(burnAmount);
@@ -630,7 +639,8 @@ describe("DeCusSystem", function () {
             expect(receipt.status).to.be.equal(3);
             expect(receipt.withdrawBtcAddress).to.be.equal(withdrawBtcAddress);
             expect(await sats.balanceOf(redeemer.address)).to.be.equal(0);
-            expect(await sats.balanceOf(system.address)).to.be.equal(burnAmount);
+            expect(await sats.balanceOf(system.address)).to.be.equal(userSatsAmount);
+            expect(await sats.balanceOf(fee.address)).to.be.equal(burnFeeAmount);
         });
 
         it("recover burn", async function () {
@@ -640,14 +650,14 @@ describe("DeCusSystem", function () {
             let burnAmount = userSatsAmount;
 
             // require extra burn fee to burn
-            const burnFeeBps = await system.burnFeeBps();
-            if (burnFeeBps > 0) {
-                await getSatsForBurn(redeemer, burnFeeBps, userSatsAmount);
-                burnAmount = burnAmount.mul(10000 + burnFeeBps).div(10000);
+            const burnFeeAmount = await fee.getBurnFeeAmount(burnAmount);
+            if (burnFeeAmount.gt(0)) {
+                await getSatsForBurn(redeemer, burnFeeAmount);
+                burnAmount = burnAmount.add(burnFeeAmount);
             }
+
             expect(await sats.balanceOf(redeemer.address)).to.equal(burnAmount);
             await sats.connect(redeemer).approve(system.address, burnAmount);
-
             await expect(system.connect(redeemer).requestBurn(receiptId, withdrawBtcAddress))
                 .to.emit(system, "BurnRequested")
                 .withArgs(receiptId, btcAddress, withdrawBtcAddress, redeemer.address);
@@ -666,7 +676,8 @@ describe("DeCusSystem", function () {
 
             receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.equal(Status.DepositReceived);
-            expect(await sats.balanceOf(redeemer.address)).to.be.equal(burnAmount);
+            expect(await sats.balanceOf(redeemer.address)).to.be.equal(userSatsAmount);
+            expect(await sats.balanceOf(fee.address)).to.be.equal(burnFeeAmount);
         });
     });
 
@@ -682,7 +693,7 @@ describe("DeCusSystem", function () {
         beforeEach(async function () {
             await addMockGroup();
 
-            await system.updateBurnFeeBps(0); // skip burn fee
+            await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
 
             receiptId = await requestMint(users[0], btcAddress, nonce);
 
@@ -830,8 +841,8 @@ describe("DeCusSystem", function () {
 
         beforeEach(async function () {
             await addMockGroup();
-            await system.updateMintFeeBps(mintFeeBps);
-            await system.updateBurnFeeBps(burnFeeBps);
+            await fee.connect(deployer).updateMintFeeBps(mintFeeBps);
+            await fee.connect(deployer).updateBurnFeeBps(burnFeeBps);
 
             dcsMintReward = await rewarder.mintRewardAmount();
             dcsBurnReward = await rewarder.burnRewardAmount();
@@ -853,10 +864,11 @@ describe("DeCusSystem", function () {
             let tx = await verifyMint(user, group1Verifiers, receiptId, txId, height);
             expect(tx).emit(rewarder, "SwapRewarded").withArgs(user.address, dcsMintReward, true);
 
-            let userAmount = groupSatsAmount.mul(10000 - mintFeeBps).div(10000);
-            let systemAmount = groupSatsAmount.mul(mintFeeBps).div(10000);
+            const mintFeeAmount = groupSatsAmount.mul(mintFeeBps).div(10000);
+            let userAmount = groupSatsAmount.sub(mintFeeAmount);
+            let totalFeeAmount = mintFeeAmount;
             expect(await sats.balanceOf(user.address)).to.equal(userAmount);
-            expect(await sats.balanceOf(system.address)).to.equal(systemAmount);
+            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
 
             dcsReward = dcsReward.add(dcsMintReward);
             expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
@@ -868,23 +880,22 @@ describe("DeCusSystem", function () {
             tx = await verifyMint(user, group2Verifiers, receiptId2, txId, height);
             expect(tx).emit(rewarder, "SwapRewarded").withArgs(user.address, dcsMintReward, true);
 
-            systemAmount = systemAmount.mul(2);
+            totalFeeAmount = totalFeeAmount.mul(2);
             userAmount = userAmount.mul(2);
-            expect(await sats.balanceOf(system.address)).to.equal(systemAmount);
+            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
             expect(await sats.balanceOf(user.address)).to.equal(userAmount);
 
             dcsReward = dcsReward.add(dcsMintReward);
             expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
 
             // burn
-            const payAmount = groupSatsAmount.mul(10000 + burnFeeBps).div(10000);
-            systemAmount = systemAmount.add(groupSatsAmount.mul(burnFeeBps).div(10000));
+            const burnFeeAmount = groupSatsAmount.mul(burnFeeBps).div(10000);
+            const payAmount = groupSatsAmount.add(burnFeeAmount);
+            totalFeeAmount = totalFeeAmount.add(burnFeeAmount);
             await sats.connect(user).approve(system.address, payAmount);
             await system.connect(user).requestBurn(receiptId, withdrawBtcAddress);
 
-            expect(await sats.balanceOf(system.address)).to.equal(
-                systemAmount.add(groupSatsAmount)
-            );
+            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
 
             expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
 
@@ -893,7 +904,7 @@ describe("DeCusSystem", function () {
                 .to.emit(rewarder, "SwapRewarded")
                 .withArgs(user.address, dcsBurnReward, false);
 
-            expect(await sats.balanceOf(system.address)).to.equal(systemAmount);
+            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
 
             dcsReward = dcsReward.add(dcsBurnReward);
             expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
@@ -901,12 +912,12 @@ describe("DeCusSystem", function () {
             // admin collect fee
             expect(await sats.balanceOf(deployer.address)).to.equal(0);
 
-            await expect(system.connect(deployer).collectFee(systemAmount))
-                .to.emit(system, "FeeCollected")
-                .withArgs(deployer.address, systemAmount);
+            await expect(fee.connect(deployer).collectFee(totalFeeAmount))
+                .to.emit(fee, "FeeCollected")
+                .withArgs(deployer.address, sats.address, totalFeeAmount);
 
-            expect(await sats.balanceOf(system.address)).to.equal(0);
-            expect(await sats.balanceOf(deployer.address)).to.equal(systemAmount);
+            expect(await sats.balanceOf(fee.address)).to.equal(0);
+            expect(await sats.balanceOf(deployer.address)).to.equal(totalFeeAmount);
         });
     });
 
