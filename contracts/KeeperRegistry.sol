@@ -16,7 +16,6 @@ import {BtcUtility} from "./utils/BtcUtility.sol";
 contract KeeperRegistry is Ownable, IKeeperRegistry {
     using Math for uint256;
     using SafeMath for uint256;
-    using SafeMath for uint32;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     address public treasury;
@@ -223,7 +222,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry {
 
     function _refundKeeper(KeeperData storage data) private returns (uint256) {
         uint256 amount = data.amount;
-        if (_blockTimestamp() < data.joinTimestamp.add(MIN_KEEPER_PERIOD)) {
+        if (_blockTimestamp() < data.joinTimestamp + MIN_KEEPER_PERIOD) {
             amount = amount.mul(10000 - earlyExitFeeBps).div(10000);
         }
         address asset = data.asset;
