@@ -183,8 +183,9 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
         uint128 nonce
-    ) public whenNotPaused {
+    ) public payable whenNotPaused {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
+        fee.payMintEthFee{value: msg.value}();
 
         Group storage group = groups[groupBtcAddress];
         require(nonce == (group.nonce + 1), "invalid nonce");
@@ -223,7 +224,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         string calldata groupBtcAddress,
         uint256 amountInSatoshi,
         uint128 nonce
-    ) public {
+    ) public payable {
         bytes32 prevReceiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
         Receipt storage prevReceipt = receipts[prevReceiptId];
 
