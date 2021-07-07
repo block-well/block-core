@@ -7,12 +7,9 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract SATS is AccessControl, ERC20Burnable, ERC20Pausable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     constructor() public ERC20("DeCus Satoshi", "SATS") {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-
-        _setupRole(PAUSER_ROLE, msg.sender);
 
         _setupDecimals(10);
     }
@@ -23,12 +20,12 @@ contract SATS is AccessControl, ERC20Burnable, ERC20Pausable {
     }
 
     function pause() public {
-        require(hasRole(PAUSER_ROLE, msg.sender), "require pauser role");
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "require admin role");
         _pause();
     }
 
     function unpause() public {
-        require(hasRole(PAUSER_ROLE, msg.sender), "require pauser role");
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "require admin role");
         _unpause();
     }
 
