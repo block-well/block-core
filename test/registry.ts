@@ -36,12 +36,6 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         log: true,
     });
 
-    const rewarder = await deployments.deploy("SwapRewarder", {
-        from: deployer.address,
-        args: [dcs.address],
-        log: true,
-    });
-
     await deployments.deploy("MockHBTC", {
         contract: "MockERC20",
         from: deployer.address,
@@ -79,6 +73,14 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         log: true,
     });
 
+    const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+
+    const rewarder = await deployments.deploy("SwapRewarder", {
+        from: deployer.address,
+        args: [dcs.address, system.address],
+        log: true,
+    });
+
     await deployments.execute(
         "DeCusSystem",
         { from: deployer.address, log: true },
@@ -88,7 +90,6 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         rewarder.address,
         fee.address
     );
-    const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
 
     await deployments.execute(
         "KeeperRegistry",

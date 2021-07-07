@@ -250,8 +250,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _mintSATS(receipt.recipient, receipt.amountInSatoshi);
 
-        if (rewarder != ISwapRewarder(0))
-            rewarder.mintReward(receipt.recipient, receipt.amountInSatoshi);
+        rewarder.mintReward(receipt.recipient, receipt.amountInSatoshi);
 
         emit MintVerified(
             request.receiptId,
