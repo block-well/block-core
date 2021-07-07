@@ -7,8 +7,8 @@ import {ISwapRewarder} from "./interfaces/ISwapRewarder.sol";
 
 contract SwapRewarder is ISwapRewarder {
     IERC20 public immutable dcs;
-    uint256 public mintRewardAmount = 2000 * (10**18);
-    uint256 public burnRewardAmount = 100 * (10**18);
+    uint256 public mintRewardAmount = 2000 ether;
+    uint256 public burnRewardAmount = 100 ether;
 
     constructor(IERC20 _dcs) public {
         dcs = _dcs;

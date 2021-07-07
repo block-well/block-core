@@ -25,7 +25,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     await deployments.deploy("SwapFee", {
         from: deployer,
-        args: [0, 50, sats.address],
+        args: [0, 20, 50, 321784, sats.address],
         log: true,
     });
 };
