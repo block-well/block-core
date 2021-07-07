@@ -90,10 +90,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         external
         view
         returns (
-            uint256 required,
-            uint256 maxSatoshi,
-            uint256 currSatoshi,
-            uint256 nonce,
+            uint32 required,
+            uint32 maxSatoshi,
+            uint32 currSatoshi,
+            uint32 nonce,
             address[] memory keepers,
             bytes32 workingReceiptId
         )
@@ -101,7 +101,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         Group storage group = groups[btcAddress];
 
         keepers = new address[](group.keeperSet.length());
-        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
+        for (uint8 i = 0; i < group.keeperSet.length(); i++) {
             keepers[i] = group.keeperSet.at(i);
         }
 
@@ -120,7 +120,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     function addGroup(
         string calldata btcAddress,
         uint32 required,
-        uint256 maxSatoshi,
+        uint32 maxSatoshi,
         address[] calldata keepers
     ) external onlyGroupAdmin whenNotPaused {
         Group storage group = groups[btcAddress];
@@ -128,7 +128,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         group.required = required;
         group.maxSatoshi = maxSatoshi;
-        for (uint256 i = 0; i < keepers.length; i++) {
+        for (uint8 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             require(
                 keeperRegistry.getCollateralWei(keeper) >= minKeeperWei,
@@ -154,7 +154,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _clearReceipt(receipt, receiptId);
 
-        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
+        for (uint8 i = 0; i < group.keeperSet.length(); i++) {
             address keeper = group.keeperSet.at(i);
             keeperRegistry.decrementRefCount(keeper);
         }
@@ -181,8 +181,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
     function requestMint(
         string calldata groupBtcAddress,
-        uint256 amountInSatoshi,
-        uint128 nonce
+        uint32 amountInSatoshi,
+        uint32 nonce
     ) public payable whenNotPaused {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
         fee.payMintEthFee{value: msg.value}();
@@ -202,7 +202,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         group.nonce = nonce;
 
         require(
-            (group.maxSatoshi).sub(group.currSatoshi) == amountInSatoshi,
+            (group.maxSatoshi - group.currSatoshi) == amountInSatoshi,
             "should fill all group allowance"
         );
 
@@ -222,8 +222,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
     function forceRequestMint(
         string calldata groupBtcAddress,
-        uint256 amountInSatoshi,
-        uint128 nonce
+        uint32 amountInSatoshi,
+        uint32 nonce
     ) public payable {
         bytes32 prevReceiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
         Receipt storage prevReceipt = receipts[prevReceiptId];
@@ -242,7 +242,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     ) public whenNotPaused {
         Receipt storage receipt = receipts[request.receiptId];
         Group storage group = groups[receipt.groupBtcAddress];
-        group.currSatoshi = (group.currSatoshi).add(receipt.amountInSatoshi);
+        group.currSatoshi += receipt.amountInSatoshi;
         require(group.currSatoshi <= group.maxSatoshi, "amount exceed max allowance");
 
         _verifyMintRequest(group, request, keepers, r, s, packedV);
@@ -256,8 +256,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
             request.receiptId,
             receipt.groupBtcAddress,
             keepers,
-            receipt.txId,
-            receipt.height
+            request.txId,
+            request.height
         );
     }
 
@@ -283,7 +283,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         _burnSATS(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
-        group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
+        group.currSatoshi -= receipt.amountInSatoshi;
 
         if (rewarder != ISwapRewarder(0))
             rewarder.burnReward(receipt.recipient, receipt.amountInSatoshi);
@@ -406,7 +406,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         _burnSATS(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
-        group.currSatoshi = (group.currSatoshi).sub(receipt.amountInSatoshi);
+        group.currSatoshi -= receipt.amountInSatoshi;
 
         emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
     }
@@ -415,7 +415,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     function _requestDeposit(
         Receipt storage receipt,
         string calldata groupBtcAddress,
-        uint256 amountInSatoshi
+        uint32 amountInSatoshi
     ) private {
         require(receipt.status == Status.Available, "receipt is not in Available state");
 
