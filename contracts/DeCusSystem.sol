@@ -108,10 +108,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         workingReceiptId = getReceiptId(btcAddress, group.nonce);
 
         return (
-            group.required,
-            group.maxSatoshi,
-            group.currSatoshi,
-            group.nonce,
+            uint32(group.required),
+            uint32(group.maxSatoshi),
+            uint32(group.currSatoshi),
+            uint32(group.nonce),
             keepers,
             workingReceiptId
         );
