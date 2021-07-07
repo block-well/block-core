@@ -28,7 +28,6 @@ contract SwapRewarder is ISwapRewarder {
     function mintReward(address to, uint256) external override onlyMinter {
         if (mintRewardAmount == 0) return;
 
-        // amount not used right now
         dcs.transfer(to, mintRewardAmount);
 
         emit SwapRewarded(to, mintRewardAmount, true);
@@ -37,7 +36,6 @@ contract SwapRewarder is ISwapRewarder {
     function burnReward(address to, uint256) external override onlyMinter {
         if (burnRewardAmount == 0) return;
 
-        // amount not used right now
         dcs.transfer(to, burnRewardAmount);
 
         emit SwapRewarded(to, burnRewardAmount, false);

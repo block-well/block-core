@@ -53,7 +53,7 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
 
     for (const groupId of groupIds) {
         const group = await decusSystem.getGroup(groupId);
-        if (group.required.eq(0)) {
+        if (group.required === 0) {
             continue;
         }
 
