@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
+pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -28,7 +28,7 @@ contract SwapFee is ISwapFee, Ownable {
         uint16 mintFeeGasPrice,
         uint32 mintFeeGasUsed,
         IToken _sats
-    ) public {
+    ) {
         _mintFeeBps = mintFeeBps;
         _burnFeeBps = burnFeeBps;
         _mintFeeGasUsed = mintFeeGasUsed;
@@ -84,12 +84,12 @@ contract SwapFee is ISwapFee, Ownable {
         require(msg.value >= getMintEthFee(), "not enough eth");
     }
 
-    function payExtraMintFee(address, uint256 amount) external override returns (uint256) {
+    function payExtraMintFee(address, uint256 amount) external view override returns (uint256) {
         // potentially to receive dcs
         return amount.mul(_mintFeeBps).div(10000);
     }
 
-    function payExtraBurnFee(address, uint256 amount) external override returns (uint256) {
+    function payExtraBurnFee(address, uint256 amount) external view override returns (uint256) {
         // potentially to receive dcs
         return amount.mul(_burnFeeBps).div(10000);
     }
