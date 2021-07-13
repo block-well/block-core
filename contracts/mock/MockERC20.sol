@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
+pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 
@@ -8,7 +8,7 @@ contract MockBTC is ERC20Burnable {
         string memory name,
         string memory symbol,
         uint8 decimals
-    ) public ERC20(name, symbol) {
+    ) ERC20(name, symbol) {
         _setupDecimals(decimals);
     }
 
@@ -18,9 +18,9 @@ contract MockBTC is ERC20Burnable {
 }
 
 contract MockWBTC is MockBTC {
-    constructor() public MockBTC("Wrapped Bitcoin", "WBTC", 8) {}
+    constructor() MockBTC("Wrapped Bitcoin", "WBTC", 8) {}
 }
 
 contract MockERC20 is MockBTC {
-    constructor() public MockBTC("Other ERC20", "OTHER", 18) {}
+    constructor() MockBTC("Other ERC20", "OTHER", 18) {}
 }
