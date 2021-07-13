@@ -124,10 +124,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         group.maxSatoshi = maxSatoshi;
         for (uint8 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
-            require(
-                keeperRegistry.isKeeperQualified(keeper),
-                "keeper has insufficient collateral"
-            );
+            require(keeperRegistry.isKeeperQualified(keeper), "keeper has insufficient collateral");
             group.keeperSet.add(keeper);
             keeperRegistry.incrementRefCount(keeper);
         }
