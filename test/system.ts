@@ -42,13 +42,14 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return { deployer, users, system, sats, dcs, rewarder, fee };
+    return { deployer, users, system, registry, sats, dcs, rewarder, fee };
 });
 
 describe("DeCusSystem", function () {
     let deployer: Wallet;
     let users: Wallet[];
     let system: DeCusSystem;
+    let registry: KeeperRegistry;
     let sats: SATS;
     let dcs: DCS;
     let rewarder: SwapRewarder;
@@ -59,7 +60,7 @@ describe("DeCusSystem", function () {
     let group2Verifiers: Wallet[];
 
     beforeEach(async function () {
-        ({ deployer, users, system, sats, dcs, rewarder, fee } = await setupFixture());
+        ({ deployer, users, system, registry, sats, dcs, rewarder, fee } = await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
@@ -87,19 +88,19 @@ describe("DeCusSystem", function () {
             await system.connect(deployer).revokeRole(GROUP_ROLE, deployer.address);
         });
 
-        it("update minKeeperWei", async function () {
-            expect(await system.minKeeperWei()).to.be.gt(parseEther("0.000001"));
+        it("update minKeeperCollaternal", async function () {
+            expect(await registry.minKeeperCollateral()).to.be.gt(parseEther("0.000001"));
             const minKeeperWei = parseEther("1");
-            expect(await system.minKeeperWei()).to.be.lt(minKeeperWei);
+            expect(await registry.minKeeperCollateral()).to.be.lt(minKeeperWei);
 
-            await expect(system.connect(deployer).updateMinKeeperWei(minKeeperWei))
-                .to.emit(system, "MinKeeperWeiUpdated")
+            await expect(registry.connect(deployer).updateMinKeeperCollateral(minKeeperWei))
+                .to.emit(registry, "MinCollateralUpdated")
                 .withArgs(minKeeperWei);
 
             const keepers = group1Keepers.map((x) => x.address);
             await expect(
                 system.connect(groupAdmin).addGroup(BTC_ADDRESS[0], 3, GROUP_SATOSHI, keepers)
-            ).to.revertedWith("keeper has not enough collateral");
+            ).to.revertedWith("keeper has insufficient collateral");
         });
 
         it("should add group", async function () {
