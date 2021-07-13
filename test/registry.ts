@@ -271,7 +271,9 @@ describe("KeeperRegistry", function () {
 
         it("check CToken amount", async function () {
             for (let i = 0; i < KEEPER_NUMBER; i++) {
-                expect(await registry.balanceOf(users[i].address)).to.equal(keeperAmountIn18Decimal);
+                expect(await registry.balanceOf(users[i].address)).to.equal(
+                    keeperAmountIn18Decimal
+                );
             }
         });
 
