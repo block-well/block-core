@@ -45,6 +45,8 @@ contract KeeperRewarder is ReentrancyGuard {
         require(msg.sender == owner, "require owner");
         require(_rate != rate, "same rate");
 
+        _checkpoint();
+
         uint256 remainingTime = endTimestamp.sub(startTimestamp.max(block.timestamp));
         if (_rate > rate) {
             uint256 rewardDifference = (_rate - rate).mul(remainingTime);
@@ -64,18 +66,23 @@ contract KeeperRewarder is ReentrancyGuard {
         _rewardCheckpoint(account);
     }
 
-    function deposit(uint256 amount, string memory proof) external nonReentrant {
+    function deposit(uint256 amount) external nonReentrant {
         userCheckpoint(msg.sender);
 
         stakeToken.transferFrom(msg.sender, address(this), amount);
-        totalStakes.add(amount);
+        totalStakes = totalStakes.add(amount);
         stakes[msg.sender] = stakes[msg.sender].add(amount);
     }
 
     function withdraw(uint256 amount) external nonReentrant {
         userCheckpoint(msg.sender);
-
         _withdraw(msg.sender, amount);
+    }
+
+    function exit() external nonReentrant returns (uint256 rewards) {
+        userCheckpoint(msg.sender);
+        _withdraw(msg.sender, stakes[msg.sender]);
+        rewards = _claimRewards(msg.sender);
     }
 
     function claimRewards() external nonReentrant returns (uint256 rewards) {
@@ -97,9 +104,7 @@ contract KeeperRewarder is ReentrancyGuard {
 
     function _checkpoint() private {
         // Skip if before start timestamp
-        if (block.timestamp < startTimestamp) {
-            return;
-        }
+        if (block.timestamp < startTimestamp) return;
 
         uint256 nextTimestamp = endTimestamp.min(block.timestamp);
         uint256 timeLapse = nextTimestamp.sub(lastTimestamp);
@@ -120,7 +125,9 @@ contract KeeperRewarder is ReentrancyGuard {
             stakes[account],
             eps.sub(userEps[account])
         );
-        claimableRewards[account] = claimableRewards[account].add(claimableReward);
+        if (claimableReward > 0) {
+            claimableRewards[account] = claimableRewards[account].add(claimableReward);
+        }
 
         // update per-user state
         userEps[account] = eps;
