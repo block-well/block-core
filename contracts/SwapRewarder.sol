@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
+pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -19,7 +19,7 @@ contract SwapRewarder is ISwapRewarder {
         _;
     }
 
-    constructor(IERC20 _dcs, address _minter) public {
+    constructor(IERC20 _dcs, address _minter) {
         dcs = _dcs;
         minter = _minter;
         owner = msg.sender;
