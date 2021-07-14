@@ -5,6 +5,7 @@ import "solidity-coverage";
 import "hardhat-gas-reporter";
 import "hardhat-typechain";
 import "hardhat-deploy";
+import "hardhat-abi-exporter";
 import { HardhatUserConfig, NetworksUserConfig } from "hardhat/types";
 
 // Prevent to load scripts before compilation and typechain
@@ -49,6 +50,13 @@ const config: HardhatUserConfig = {
     typechain: {
         outDir: "./build/typechain/",
         target: "ethers-v5",
+    },
+    abiExporter: {
+        path: "./build/abi",
+        clear: true,
+        flat: true,
+        only: [":DeCusSystem$", ":KeeperRegistry$"],
+        spacing: 2,
     },
     namedAccounts: {
         deployer: 0,
