@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
+pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -20,7 +20,6 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     using EnumerableSet for EnumerableSet.AddressSet;
 
     bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
-
     bytes32 private constant REQUEST_TYPEHASH =
         keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
 
@@ -29,7 +28,6 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     uint32 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
     uint32 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint32 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
-    uint256 public minKeeperWei = 1e13;
 
     IToken public sats;
     IKeeperRegistry public keeperRegistry;
@@ -43,7 +41,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     BtcRefundData private btcRefundData;
 
     //================================= Public =================================
-    constructor() public {
+    constructor() {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         _setupRole(GROUP_ROLE, msg.sender);
@@ -80,11 +78,6 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         return cooldownUntil[keeper];
     }
 
-    function updateMinKeeperWei(uint256 amount) external onlyAdmin {
-        minKeeperWei = amount;
-        emit MinKeeperWeiUpdated(amount);
-    }
-
     // -------------------------------- group ----------------------------------
     function getGroup(string calldata btcAddress)
         external
@@ -106,15 +99,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         }
 
         workingReceiptId = getReceiptId(btcAddress, group.nonce);
-
-        return (
-            uint32(group.required),
-            uint32(group.maxSatoshi),
-            uint32(group.currSatoshi),
-            uint32(group.nonce),
-            keepers,
-            workingReceiptId
-        );
+        required = group.required;
+        maxSatoshi = group.maxSatoshi;
+        currSatoshi = group.currSatoshi;
+        nonce = group.nonce;
     }
 
     function addGroup(
@@ -130,10 +118,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         group.maxSatoshi = maxSatoshi;
         for (uint8 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
-            require(
-                keeperRegistry.getCollateralWei(keeper) >= minKeeperWei,
-                "keeper has not enough collateral"
-            );
+            require(keeperRegistry.isKeeperQualified(keeper), "keeper has insufficient collateral");
             group.keeperSet.add(keeper);
             keeperRegistry.incrementRefCount(keeper);
         }

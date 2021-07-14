@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
+pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -16,7 +16,7 @@ contract BtcRater is Ownable, IBtcRater {
 
     mapping(address => uint256) public btcConversionRates; // For homogeneous BTC asset, the rate is 1. For Sats, the rate is 1e8
 
-    constructor(address[] memory assets, uint256[] memory rates) public {
+    constructor(address[] memory assets, uint256[] memory rates) {
         for (uint256 i = 0; i < assets.length; i++) {
             btcConversionRates[assets[i]] = rates[i];
         }

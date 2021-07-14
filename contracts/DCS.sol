@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
-import "@openzeppelin/contracts/token/ERC20/ERC20Pausable.sol";
+pragma solidity ^0.7.6;
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract DCS is Context, AccessControl, ERC20Pausable {
+contract DCS is AccessControl, ERC20("DeCus", "DCS") {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     modifier onlyAdmin() {
@@ -11,18 +11,10 @@ contract DCS is Context, AccessControl, ERC20Pausable {
         _;
     }
 
-    constructor() public ERC20("DeCus", "DCS") {
+    constructor() {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         _setupRole(MINTER_ROLE, msg.sender);
-    }
-
-    function pause() public onlyAdmin {
-        _pause();
-    }
-
-    function unpause() public onlyAdmin {
-        _unpause();
     }
 
     function mint(address to, uint256 amount) public {

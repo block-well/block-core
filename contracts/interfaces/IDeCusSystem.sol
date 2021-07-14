@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
+pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
@@ -46,8 +46,6 @@ interface IDeCusSystem {
     // events
     event GroupAdded(string btcAddress, uint32 required, uint32 maxSatoshi, address[] keepers);
     event GroupDeleted(string btcAddress);
-
-    event MinKeeperWeiUpdated(uint256 amount);
 
     event MintRequested(
         bytes32 indexed receiptId,
