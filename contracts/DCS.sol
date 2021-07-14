@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.6.12;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
@@ -11,7 +11,7 @@ contract DCS is AccessControl, ERC20("DeCus", "DCS") {
         _;
     }
 
-    constructor() {
+    constructor() public {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         _setupRole(MINTER_ROLE, msg.sender);

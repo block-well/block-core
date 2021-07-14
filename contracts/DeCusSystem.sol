@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -20,6 +20,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     using EnumerableSet for EnumerableSet.AddressSet;
 
     bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
+
     bytes32 private constant REQUEST_TYPEHASH =
         keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
 
@@ -41,7 +42,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     BtcRefundData private btcRefundData;
 
     //================================= Public =================================
-    constructor() {
+    constructor() public {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         _setupRole(GROUP_ROLE, msg.sender);
@@ -99,10 +100,15 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         }
 
         workingReceiptId = getReceiptId(btcAddress, group.nonce);
-        required = group.required;
-        maxSatoshi = group.maxSatoshi;
-        currSatoshi = group.currSatoshi;
-        nonce = group.nonce;
+
+        return (
+            uint32(group.required),
+            uint32(group.maxSatoshi),
+            uint32(group.currSatoshi),
+            uint32(group.nonce),
+            keepers,
+            workingReceiptId
+        );
     }
 
     function addGroup(

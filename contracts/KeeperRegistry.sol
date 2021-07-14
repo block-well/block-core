@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -42,7 +42,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         address[] memory _assets,
         address _sats,
         address _btcRater
-    ) {
+    ) public {
         btcRater = IBtcRater(_btcRater);
         for (uint256 i = 0; i < _assets.length; i++) {
             _addAsset(_assets[i]);
