@@ -109,19 +109,19 @@ const findWorkingReceiptId = async (btcAddress: string, system: DeCusSystem): Pr
 
 task("traceMint", "get receipt history")
     .addOptionalParam("id", "receiptId")
-    .addOptionalParam("group", "btc group address")
-    .setAction(async ({ id, group }, { ethers, network }) => {
+    .addOptionalParam("btcAddress", "btc group address")
+    .setAction(async ({ id, btcAddress }, { ethers, network }) => {
         const btcNetwork = network.name == "mainnet" ? "mainnet" : "testnet";
         const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
 
-        if (!id && !group) {
+        if (!id && !btcAddress) {
             throw new Error("Please specify either id or btcAddress");
         }
 
         if (!id) {
-            id = await findWorkingReceiptId(group, decusSystem);
+            id = await findWorkingReceiptId(btcAddress, decusSystem);
             if (!id) {
-                throw new Error(`Unable to find working receipt id related to ${group}`);
+                throw new Error(`Unable to find working receipt id related to ${btcAddress}`);
             }
         }
 
