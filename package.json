@@ -11,7 +11,8 @@
         "deploy:kovan": "hardhat deploy --network kovan",
         "verify:kovan": "npx hardhat etherscan-verify --network kovan",
         "deploy:ropsten": "hardhat deploy --network ropsten",
-        "verify:ropsten": "npx hardhat etherscan-verify --network ropsten"
+        "verify:ropsten": "npx hardhat etherscan-verify --network ropsten",
+        "abi:go": "abigen --abi=./build/abi/DeCusSystem.json --pkg=abi --type=DeCusSystem --out=../decus-keeper-client/eth/abi/decus_system.go && abigen --abi=./build/abi/KeeperRegistry.json --pkg=abi --type=KeeperRegistry --out=../decus-keeper-client/eth/abi/keeper_registry.go"
     },
     "devDependencies": {
         "@ethersproject/experimental": "^5.4.0",
@@ -41,6 +42,7 @@
         "ethereum-waffle": "^3.4.0",
         "ethers": "^5.4.1",
         "hardhat": "^2.4.3",
+        "hardhat-abi-exporter": "^2.2.1",
         "hardhat-deploy": "^0.7.11",
         "hardhat-gas-reporter": "^1.0.4",
         "hardhat-typechain": "^0.3.5",
