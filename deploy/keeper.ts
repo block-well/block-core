@@ -14,20 +14,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     const sats = await deployments.get("SATS");
     const rater = await deployments.get("BtcRater");
-    const registry = await deployments.deploy("KeeperRegistry", {
+    await deployments.deploy("KeeperRegistry", {
         from: deployer,
         args: [[wbtc.address], sats.address, rater.address],
-        log: true,
-    });
-
-    const dcs = await deployments.get("DCS");
-    const now = Math.round(new Date().getTime() / 1000);
-    const rewardStart = now + 5 * 60;
-    const rewardEnd = rewardStart + 2 * 365 * 60 * 60 * 24;
-    console.log("Keeper reward start", rewardStart, "end", rewardEnd);
-    await deployments.deploy("KeeperRewarder", {
-        from: deployer,
-        args: [dcs.address, registry.address, rewardStart, rewardEnd],
         log: true,
     });
 };
