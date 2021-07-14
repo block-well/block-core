@@ -12,8 +12,6 @@ interface IKeeperRegistry {
 
     function getCollateralWei(address keeper) external view returns (uint256);
 
-    function isKeeperQualified(address keeper) external view returns (bool);
-
     function importKeepers(
         uint256 amount,
         address asset,
@@ -23,8 +21,6 @@ interface IKeeperRegistry {
     function incrementRefCount(address keeper) external;
 
     function decrementRefCount(address keeper) external;
-
-    event MinCollateralUpdated(uint256 amount);
 
     event SystemUpdated(address oldSystem, address newSystem);
     event AssetAdded(address indexed asset);

@@ -47,6 +47,8 @@ interface IDeCusSystem {
     event GroupAdded(string btcAddress, uint32 required, uint32 maxSatoshi, address[] keepers);
     event GroupDeleted(string btcAddress);
 
+    event MinKeeperWeiUpdated(uint256 amount);
+
     event MintRequested(
         bytes32 indexed receiptId,
         address indexed recipient,

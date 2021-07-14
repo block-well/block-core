@@ -144,6 +144,28 @@ describe("KeeperRegistry", function () {
     });
 
     describe("addKeeper()", function () {
+        // it("not enough collateral", async function () {
+        //     const btcAmount = "0.00001";
+        //     const wbtcAmount = parseBtc(btcAmount);
+        //     const asset = wbtc.address;
+        //     let keeperData = await registry.getKeeper(users[0].address);
+        //     expect(keeperData.asset).to.equal(constants.AddressZero);
+        //     expect(keeperData.amount).to.equal(0);
+        //     expect(keeperData.refCount).to.equal(0);
+        //     expect(keeperData.joinTimestamp).to.equal(0);
+
+        //     const amountIn18Decimal = parseEther(btcAmount);
+        //     await expect(registry.connect(users[0]).addKeeper(asset, wbtcAmount))
+        //         .to.emit(registry, "KeeperAdded")
+        //         .withArgs(users[0].address, asset, wbtcAmount);
+
+        //     keeperData = await registry.getKeeper(users[0].address);
+        //     expect(keeperData.asset).to.equal(asset);
+        //     expect(keeperData.amount).to.equal(amountIn18Decimal);
+        //     expect(keeperData.refCount).to.equal(0);
+        //     expect(keeperData.joinTimestamp).to.equal(0);
+        // });
+
         it("should add keeper", async function () {
             const btcAmount = "10";
             const wbtcAmount = parseBtc(btcAmount);
@@ -175,9 +197,6 @@ describe("KeeperRegistry", function () {
             expect(await wbtc.balanceOf(registry.address)).to.be.equal(parseBtc("10"));
             expect(await hbtc.balanceOf(users[0].address)).to.be.equal(parseEther("100"));
             expect(await hbtc.balanceOf(registry.address)).to.be.equal(0);
-
-            // Check CToken amount
-            expect(await registry.balanceOf(users[0].address)).to.be.equal(amountIn18Decimal);
         });
 
         it("import keepers", async function () {
@@ -207,7 +226,6 @@ describe("KeeperRegistry", function () {
             for (const keeper of keepers) {
                 const keeperData = await registry.getKeeper(keeper.address);
                 expect(keeperData.amount).to.be.equal(amountIn18Decimal);
-                expect(await registry.balanceOf(keeper.address)).to.equal(amountIn18Decimal);
             }
         });
 
@@ -245,7 +263,6 @@ describe("KeeperRegistry", function () {
         const wbtcAmount = parseBtc(keeperBtcAmount);
         const keeperAmountIn18Decimal = parseEther(keeperBtcAmount);
         const GROUP_SATOSHI = parseBtc("0.6");
-        const KEEPER_NUMBER = 6;
         const BTC_ADDRESS = [
             "38aNsdfsdfsdfsdfsdfdsfsdf0",
             "38aNsdfsdfsdfsdfsdfdsfsdf1",
@@ -262,20 +279,14 @@ describe("KeeperRegistry", function () {
             group2Keepers = [users[0], users[1], users[4], users[5]];
 
             const asset = wbtc.address;
-            for (let i = 0; i < KEEPER_NUMBER; i++) {
+            for (let i = 0; i < 6; i++) {
                 await expect(registry.connect(users[i]).addKeeper(asset, wbtcAmount))
                     .to.emit(registry, "KeeperAdded")
                     .withArgs(users[i].address, asset, keeperAmountIn18Decimal);
             }
         });
 
-        it("check CToken amount", async function () {
-            for (let i = 0; i < KEEPER_NUMBER; i++) {
-                expect(await registry.balanceOf(users[i].address)).to.equal(keeperAmountIn18Decimal);
-            }
-        });
-
-        it("delete keeper with fee", async function () {
+        it("delete keeper when no ref with fee", async function () {
             const keeper = group1Keepers[0];
             const keeperData = await registry.getKeeper(keeper.address);
             expect(keeperData.refCount).to.equal(0);
@@ -288,9 +299,6 @@ describe("KeeperRegistry", function () {
                 .withArgs(keeper.address, wbtc.address, amount)
                 .to.emit(wbtc, "Transfer")
                 .withArgs(registry.address, keeper.address, refundAmount);
-
-            // CToken
-            expect(await registry.balanceOf(keeper.address)).to.equal(0);
         });
 
         it("delete keeper with updated fee", async function () {
@@ -311,7 +319,7 @@ describe("KeeperRegistry", function () {
                 .withArgs(registry.address, keeper.address, refundAmount);
         });
 
-        it("delete keeper without fee", async function () {
+        it("delete keeper when no ref without fee", async function () {
             const keeper = group1Keepers[0];
             const keeperData = await registry.getKeeper(keeper.address);
             expect(keeperData.refCount).to.equal(0);

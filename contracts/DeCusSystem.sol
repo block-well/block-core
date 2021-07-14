@@ -29,6 +29,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     uint32 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
     uint32 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint32 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
+    uint256 public minKeeperWei = 1e13;
 
     IToken public sats;
     IKeeperRegistry public keeperRegistry;
@@ -79,6 +80,11 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         return cooldownUntil[keeper];
     }
 
+    function updateMinKeeperWei(uint256 amount) external onlyAdmin {
+        minKeeperWei = amount;
+        emit MinKeeperWeiUpdated(amount);
+    }
+
     // -------------------------------- group ----------------------------------
     function getGroup(string calldata btcAddress)
         external
@@ -125,8 +131,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         for (uint8 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             require(
-                keeperRegistry.isKeeperQualified(keeper),
-                "keeper has insufficient collateral"
+                keeperRegistry.getCollateralWei(keeper) >= minKeeperWei,
+                "keeper has not enough collateral"
             );
             group.keeperSet.add(keeper);
             keeperRegistry.incrementRefCount(keeper);

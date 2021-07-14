@@ -3,7 +3,6 @@ pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
@@ -14,7 +13,7 @@ import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
 import {IBtcRater} from "./interfaces/IBtcRater.sol";
 import {BtcUtility} from "./utils/BtcUtility.sol";
 
-contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-CT") {
+contract KeeperRegistry is Ownable, IKeeperRegistry {
     using Math for uint256;
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -27,7 +26,6 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
     EnumerableSet.AddressSet assetSet;
     uint32 public MIN_KEEPER_PERIOD = 15552000; // 6 month
     uint8 public earlyExitFeeBps = 100;
-    uint256 public minKeeperCollateral = 1e13;
 
     mapping(address => KeeperData) public keeperData;
     uint256 public overissuedTotal;
@@ -50,11 +48,6 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         sats = SATS(_sats);
     }
 
-    function updateMinKeeperCollateral(uint256 amount) external onlyOwner {
-        minKeeperCollateral = amount;
-        emit MinCollateralUpdated(amount);
-    }
-
     function setSystem(address _system) external onlyOwner {
         emit SystemUpdated(system, _system);
         system = _system;
@@ -62,10 +55,6 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
 
     function getCollateralWei(address keeper) external view override returns (uint256) {
         return keeperData[keeper].amount;
-    }
-
-    function isKeeperQualified(address keeper) external view override returns (bool) {
-        return keeperData[keeper].amount > minKeeperCollateral;
     }
 
     function getKeeper(address keeper) external view returns (KeeperData memory) {
@@ -114,8 +103,6 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
     function deleteKeeper() external {
         KeeperData storage data = keeperData[msg.sender];
         require(data.refCount == 0, "ref count > 0");
-
-        _burn(msg.sender, data.amount);
 
         uint256 refundAmount = _refundKeeper(data);
 
@@ -199,10 +186,9 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
 
     function incrementRefCount(address keeper) external override onlySystem {
         KeeperData storage data = keeperData[keeper];
-        uint32 refCount = data.refCount + 1;
-        require(refCount > data.refCount, "overflow"); // safe math
-        data.refCount = refCount;
-        emit KeeperRefCount(keeper, refCount);
+        require(data.refCount + 1 > data.refCount); // safe math
+        data.refCount = data.refCount + 1;
+        emit KeeperRefCount(keeper, data.refCount);
     }
 
     function decrementRefCount(address keeper) external override onlySystem {
@@ -230,8 +216,6 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         data.asset = asset;
         data.amount = data.amount.add(amount);
         data.joinTimestamp = _blockTimestamp();
-
-        _mint(keeper, amount);
 
         emit KeeperAdded(keeper, asset, amount);
     }
