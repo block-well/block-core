@@ -4,6 +4,8 @@ import { NonceManager } from "@ethersproject/experimental";
 import dayjs from "dayjs";
 import axios from "axios";
 
+const overrides = {gasPrice: 5e9, gasLimit: 1e6};
+
 task("addKeeper", "add keeper")
     .addParam("privKey", "Keeper private key")
     .addParam("amount", "Keeper collateral amount in BTC", "0.01", types.string)
@@ -24,11 +26,17 @@ task("addKeeper", "add keeper")
         }
 
         const num = ethers.utils.parseUnits(amount, await btc.decimals());
-        let tx = await btc.approve(registry.address, num, { gasPrice: 1e9, gasLimit: 1e6 });
-        console.log(`${keeper} approve at ${tx.hash}`);
+        const allowance = await btc.allowance(keeper, registry.address);
+        if (allowance.lt(num)) {
+            const tx = await btc.approve(registry.address, num, overrides);
+            console.log(`${keeper} approve at ${tx.hash}`);
+        }
 
-        tx = await registry.addKeeper(btc.address, num, { gasPrice: 1e9, gasLimit: 1e6 });
-        console.log(`${keeper} added at ${tx.hash}`);
+        const keeperData = await registry.getKeeper(keeper);
+        if (keeperData.amount < amount) {
+            const tx = await registry.addKeeper(btc.address, num, overrides);
+            console.log(`${keeper} added at ${tx.hash}`);
+        }
     });
 
 task("groupStatus", "print status of all groups").setAction(async (args, { ethers }) => {
