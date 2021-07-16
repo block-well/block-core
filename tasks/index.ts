@@ -3,41 +3,64 @@ import { KeeperRegistry, DeCusSystem, ERC20 } from "../build/typechain";
 import { NonceManager } from "@ethersproject/experimental";
 import dayjs from "dayjs";
 import axios from "axios";
+import { ContractTransaction } from "ethers";
 
-const overrides = {gasPrice: 5e9, gasLimit: 1e6};
+const overrides = { gasPrice: 5e9, gasLimit: 1e6 };
+const nConfirmations = 12;
+
+export const waitForConfirmations = async (
+    transactions: ContractTransaction[],
+    confirmations: number
+): Promise<void> => {
+    console.log(`==>\nWaiting for ${confirmations} confirmations`);
+    const startTime = new Date().getTime();
+    const receipts = await Promise.all(transactions.map(async (x) => x.wait(confirmations)));
+    const elapseTime = Math.round((new Date().getTime() - startTime) / 1000);
+    console.log(`${nConfirmations} confirmations finished in ${elapseTime} seconds`);
+    for (const r of receipts) {
+        console.log(`\t${r.transactionHash} confirmed @${r.blockNumber} gasUsed ${r.gasUsed}`);
+    }
+    console.log(`<==`);
+};
 
 task("addKeeper", "add keeper")
     .addParam("privKey", "Keeper private key")
     .addParam("amount", "Keeper collateral amount in BTC", "0.01", types.string)
     .addOptionalParam("asset", "WBTC or other BTC", "WBTC")
-    .setAction(async ({ privKey, amount, asset }, { ethers }) => {
-        const nonceManager = new NonceManager(new ethers.Wallet(privKey, ethers.provider));
-        const keeper = await nonceManager.getAddress();
+    .setAction(
+        async ({ privKey, amount, asset }, { ethers }): Promise<ContractTransaction | null> => {
+            const nonceManager = new NonceManager(new ethers.Wallet(privKey, ethers.provider));
+            const keeper = await nonceManager.getAddress();
 
-        const btc = (await ethers.getContract(asset, nonceManager)) as ERC20;
-        const registry = (await ethers.getContract(
-            "KeeperRegistry",
-            nonceManager
-        )) as KeeperRegistry;
+            const btc = (await ethers.getContract(asset, nonceManager)) as ERC20;
+            const registry = (await ethers.getContract(
+                "KeeperRegistry",
+                nonceManager
+            )) as KeeperRegistry;
 
-        if ((await registry.getCollateralWei(keeper)).gt(0)) {
-            console.log(`keeper exist: ${keeper}`);
-            return;
+            if ((await registry.getCollateralWei(keeper)).gt(0)) {
+                console.log(`keeper exist: ${keeper}`);
+                return null;
+            }
+
+            const num = ethers.utils.parseUnits(amount, await btc.decimals());
+            const allowance = await btc.allowance(keeper, registry.address);
+            if (allowance.lt(num)) {
+                const tx = await btc.approve(registry.address, num, overrides);
+                console.log(`${keeper} approve at ${tx.hash}`);
+                await tx.wait(nConfirmations);
+                console.log(`Waited for ${nConfirmations} confirmations`);
+            }
+
+            const keeperData = await registry.getKeeper(keeper);
+            if (keeperData.amount < amount) {
+                const tx = await registry.addKeeper(btc.address, num, overrides);
+                console.log(`keeper added: ${keeper} tx ${tx.hash}`);
+                return tx;
+            }
+            return null;
         }
-
-        const num = ethers.utils.parseUnits(amount, await btc.decimals());
-        const allowance = await btc.allowance(keeper, registry.address);
-        if (allowance.lt(num)) {
-            const tx = await btc.approve(registry.address, num, overrides);
-            console.log(`${keeper} approve at ${tx.hash}`);
-        }
-
-        const keeperData = await registry.getKeeper(keeper);
-        if (keeperData.amount < amount) {
-            const tx = await registry.addKeeper(btc.address, num, overrides);
-            console.log(`${keeper} added at ${tx.hash}`);
-        }
-    });
+    );
 
 task("groupStatus", "print status of all groups").setAction(async (args, { ethers }) => {
     const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
