@@ -12,6 +12,8 @@
         "verify:kovan": "npx hardhat etherscan-verify --network kovan",
         "deploy:ropsten": "hardhat deploy --network ropsten",
         "verify:ropsten": "npx hardhat etherscan-verify --network ropsten",
+        "deploy:bsct": "hardhat deploy --network bsct",
+        "verify:bsct": "hardhat etherscan-verify --network bsct",
         "abi:go": "abigen --abi=./build/abi/DeCusSystem.json --pkg=abi --type=DeCusSystem --out=../decus-keeper-client/eth/abi/decus_system.go && abigen --abi=./build/abi/KeeperRegistry.json --pkg=abi --type=KeeperRegistry --out=../decus-keeper-client/eth/abi/keeper_registry.go"
     },
     "devDependencies": {
