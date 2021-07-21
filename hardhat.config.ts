@@ -76,19 +76,16 @@ if (infuraId) {
         kovan: {
             url: `https://kovan.infura.io/v3/${infuraId}`,
             accounts: [privateKey],
-            throwOnTransactionFailures: true,
-            throwOnCallFailures: true,
         },
         ropsten: {
             url: `https://ropsten.infura.io/v3/${infuraId}`,
             accounts: [privateKey],
-            throwOnTransactionFailures: true,
-            throwOnCallFailures: true,
         },
         bsct: {
             url: "https://data-seed-prebsc-1-s1.binance.org:8545",
             accounts: [privateKey],
             chainId: 97,
+            gasMultiplier: 2,
             // gasPrice: 20e9,
         },
     };
