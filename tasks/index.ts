@@ -1,7 +1,10 @@
+import { HardhatRuntimeEnvironment } from "hardhat/types";
+import { LedgerSigner } from "@ethersproject/hardware-wallets";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 import { task, types } from "hardhat/config";
 import { KeeperRegistry, DeCusSystem, ERC20 } from "../build/typechain";
 import { NonceManager } from "@ethersproject/experimental";
-import { ContractTransaction } from "ethers";
+import { ethers, ContractTransaction } from "ethers";
 
 const nConfirmations = 6;
 
@@ -108,3 +111,37 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
     }
 });
 
+async function getLedgerSigner(hre: HardhatRuntimeEnvironment) {
+    const deployerPath = process.env.HD_WALLET_PATH;
+    console.log("deployer", deployerPath);
+
+    const ledger = new LedgerSigner(hre.ethers.provider, "hid", deployerPath);
+
+    const oldSignMessage = ledger.signMessage;
+    ledger.signMessage = async function (message: ethers.utils.Bytes | string): Promise<string> {
+        console.log("Please sign the following message on Ledger:", message);
+        return await oldSignMessage.apply(this, [message]);
+    };
+
+    const oldSignTransaction = ledger.signTransaction;
+    ledger.signTransaction = async function (
+        transaction: ethers.providers.TransactionRequest
+    ): Promise<string> {
+        console.log("Please sign the following transaction on Ledger:", transaction);
+        return await oldSignTransaction.apply(this, [transaction]);
+    };
+
+    const ledgerWithAddress = await SignerWithAddress.create(ledger);
+    return [ledgerWithAddress];
+}
+
+task("accounts", "Prints the list of accounts", async (_args, hre) => {
+    console.log('network', hre.network.name);
+    const accounts =
+        process.env.HD_WALLET_PATH && hre.network.name !== "hardhat"
+            ? await getLedgerSigner(hre)
+            : await hre.ethers.getSigners();
+    for (const account of accounts) {
+        console.log(account.address);
+    }
+});

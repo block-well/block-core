@@ -73,6 +73,10 @@ if (infuraId) {
     const privateKey = `0x${process.env.PRIVATE_KEY}`;
     config.networks = {
         ...config.networks,
+        main: {
+            url: `https://mainnet.infura.io/v3/${infuraId}`,
+            accounts: [privateKey],
+        },
         kovan: {
             url: `https://kovan.infura.io/v3/${infuraId}`,
             accounts: [privateKey],
