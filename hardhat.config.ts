@@ -59,7 +59,10 @@ const config: HardhatUserConfig = {
         spacing: 2,
     },
     namedAccounts: {
-        deployer: 0,
+        deployer: {
+            default: process.env.DEPLOYER ?? 0,
+            hardhat: 0,
+        },
     },
 };
 

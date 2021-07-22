@@ -24,7 +24,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const now = Math.round(new Date().getTime() / 1000);
     const rewardStart = now + 30 * 60;
     const rewardEnd = rewardStart + 2 * 365 * 60 * 60 * 24;
-    console.log("Keeper reward start", rewardStart, "end", rewardEnd);
+    // console.log("Keeper reward start", rewardStart, "end", rewardEnd);
     await deployments.deploy("KeeperRewarder", {
         from: deployer,
         args: [dcs.address, registry.address, rewardStart, rewardEnd],

@@ -102,6 +102,19 @@ contract KeeperRewarder is ReentrancyGuard {
         stakes[account] = stakes[account].sub(amount, "Exceed staked balances");
     }
 
+    function getCurrentEps() public view returns (uint256) {
+        uint256 nextTimestamp = endTimestamp.min(block.timestamp);
+        uint256 timeLapse = nextTimestamp.sub(lastTimestamp);
+        if (timeLapse == 0) return eps;
+        return eps.add(_divideDecimalPrecise(rate.mul(timeLapse), totalStakes));
+    }
+
+    function getCurrentRewards(address account) public view returns (uint256) {
+        uint256 currentEps = getCurrentEps();
+        uint256 newRewards = _multiplyDecimalPrecise(stakes[account], currentEps.sub(userEps[account]));
+        return claimableRewards[account].add(newRewards);
+    }
+
     function _checkpoint() private {
         // Skip if before start timestamp
         if (block.timestamp < startTimestamp) return;
