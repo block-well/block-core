@@ -6,7 +6,10 @@ import "hardhat-gas-reporter";
 import "hardhat-typechain";
 import "hardhat-deploy";
 import "hardhat-abi-exporter";
-import { HardhatUserConfig, NetworksUserConfig } from "hardhat/types";
+import {
+    HardhatUserConfig,
+    NetworksUserConfig,
+} from "hardhat/types";
 
 // Prevent to load scripts before compilation and typechain
 if (!process.env.SKIP_LOAD) {
@@ -60,7 +63,7 @@ const config: HardhatUserConfig = {
     },
     namedAccounts: {
         deployer: {
-            default: process.env.DEPLOYER ?? 0,
+            default: process.env.DEPLOYER || 0,
             hardhat: 0,
         },
     },

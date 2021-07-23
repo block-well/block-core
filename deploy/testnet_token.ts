@@ -1,11 +1,12 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
+import { deploy } from "../tasks";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
-    const { deployments, getNamedAccounts } = hre;
+    const { getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    await deployments.deploy("WBTC", {
+    await deploy(hre, "WBTC", {
         contract: "MockWBTC",
         from: deployer,
         args: [],

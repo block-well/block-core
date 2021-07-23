@@ -1,10 +1,10 @@
-import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { LedgerSigner } from "@ethersproject/hardware-wallets";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 import { task, types } from "hardhat/config";
+import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { KeeperRegistry, DeCusSystem, ERC20 } from "../build/typechain";
 import { NonceManager } from "@ethersproject/experimental";
-import { ethers, ContractTransaction } from "ethers";
+import { ContractTransaction } from "ethers";
+import { DeployOptions, DeployResult } from "hardhat-deploy/types";
 
 const nConfirmations = 6;
 
@@ -23,39 +23,56 @@ export const waitForConfirmations = async (
     console.log(`<==`);
 };
 
+interface Override {
+    gasPrice: number;
+    gasLimit: number;
+}
+
+export function getOverrides(network: string): Override {
+    const overrides = { gasPrice: 5e9, gasLimit: 1e6 };
+    if (network === "bsct") {
+        overrides.gasPrice = 10e9;
+    }
+    return overrides;
+}
+
 task("addKeeper", "add keeper")
     .addParam("privKey", "Keeper private key")
     .addParam("amount", "Keeper collateral amount in BTC", "0.01", types.string)
     .addOptionalParam("asset", "WBTC or other BTC", "WBTC")
     .setAction(
-        async ({ privKey, amount, asset }, { ethers }): Promise<ContractTransaction | null> => {
-            const nonceManager = new NonceManager(new ethers.Wallet(privKey, ethers.provider));
-            const keeper = await nonceManager.getAddress();
-
+        async (
+            { privKey, amount, asset },
+            { ethers }
+        ): Promise<ContractTransaction | null> => {
+            const keeper = new ethers.Wallet(privKey, ethers.provider);
+            const nonceManager = new NonceManager(keeper);
             const btc = (await ethers.getContract(asset, nonceManager)) as ERC20;
             const registry = (await ethers.getContract(
                 "KeeperRegistry",
                 nonceManager
             )) as KeeperRegistry;
 
-            if ((await registry.getCollateralWei(keeper)).gt(0)) {
+            console.log(`keeper ${keeper.address} btc ${btc.address} registry ${registry.address}`)
+
+            if ((await registry.getCollateralWei(keeper.address)).gt(0)) {
                 console.log(`keeper exist: ${keeper}`);
                 return null;
             }
 
             const num = ethers.utils.parseUnits(amount, await btc.decimals());
-            const allowance = await btc.allowance(keeper, registry.address);
+            const allowance = await btc.allowance(keeper.address, registry.address);
             if (allowance.lt(num)) {
-                const tx = await btc.approve(registry.address, num);
-                console.log(`${keeper} approve at ${tx.hash}`);
+                const tx = await btc.connect(keeper).approve(registry.address, num);
+                console.log(`${keeper.address} approve at ${tx.hash}`);
                 // await tx.wait(nConfirmations);
                 // console.log(`Waited for ${nConfirmations} confirmations`);
             }
 
-            const keeperData = await registry.getKeeper(keeper);
+            const keeperData = await registry.getKeeper(keeper.address);
             if (keeperData.amount < amount) {
-                const tx = await registry.addKeeper(btc.address, num);
-                console.log(`keeper added: ${keeper} tx ${tx.hash}`);
+                const tx = await registry.connect(keeper).addKeeper(btc.address, num);
+                console.log(`keeper added: ${keeper.address} tx ${tx.hash}`);
                 return tx;
             }
             return null;
@@ -111,37 +128,57 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
     }
 });
 
-async function getLedgerSigner(hre: HardhatRuntimeEnvironment) {
-    const deployerPath = process.env.HD_WALLET_PATH;
-    console.log("deployer", deployerPath);
+async function deployHardwareWallet(
+    hre: HardhatRuntimeEnvironment,
+    name: string,
+    options: DeployOptions
+): Promise<DeployResult> {
+    const signer = new LedgerSigner(hre.ethers.provider, "hid", process.env.HD_WALLET_PATH);
 
-    const ledger = new LedgerSigner(hre.ethers.provider, "hid", deployerPath);
+    const override = { gasPrice: 10e9, gasLimit: 1e6 };
+    const contractName = (options.contract as string) || name;
+    const Factory = await hre.ethers.getContractFactory(contractName, signer);
+    const contract = await Factory.deploy(...(options.args ?? []), override);
 
-    const oldSignMessage = ledger.signMessage;
-    ledger.signMessage = async function (message: ethers.utils.Bytes | string): Promise<string> {
-        console.log("Please sign the following message on Ledger:", message);
-        return await oldSignMessage.apply(this, [message]);
-    };
+    console.log(
+        `deploy ${contractName} to ${contract.address} tx ${contract.deployTransaction.hash}`
+    );
 
-    const oldSignTransaction = ledger.signTransaction;
-    ledger.signTransaction = async function (
-        transaction: ethers.providers.TransactionRequest
-    ): Promise<string> {
-        console.log("Please sign the following transaction on Ledger:", transaction);
-        return await oldSignTransaction.apply(this, [transaction]);
-    };
-
-    const ledgerWithAddress = await SignerWithAddress.create(ledger);
-    return [ledgerWithAddress];
+    const { abi } = await hre.artifacts.readArtifact(contractName);
+    hre.deployments.save(name, { abi: abi, address: contract.address });
+    return { abi: abi, address: contract.address, newlyDeployed: true };
 }
 
-task("accounts", "Prints the list of accounts", async (_args, hre) => {
-    console.log('network', hre.network.name);
-    const accounts =
-        process.env.HD_WALLET_PATH && hre.network.name !== "hardhat"
-            ? await getLedgerSigner(hre)
-            : await hre.ethers.getSigners();
-    for (const account of accounts) {
-        console.log(account.address);
+export async function deploy(
+    hre: HardhatRuntimeEnvironment,
+    name: string,
+    options: DeployOptions
+): Promise<DeployResult> {
+    if (process.env.HD_WALLET_PATH && hre.network.name != "hardhat") {
+        return deployHardwareWallet(hre, name, options);
+    } else {
+        return hre.deployments.deploy(name, options);
     }
+}
+
+task("testLedger", "test ledger", async (_args, hre) => {
+    console.log("network", hre.network.name);
+    const { deployer } = await hre.getNamedAccounts();
+    console.log("deployer", deployer);
+    const balance = await hre.ethers.provider.getBalance(deployer);
+
+    console.log("network", hre.network.name, "deployer", deployer, "balance", balance.toString());
+
+    const dcs = await hre.deployments.get("DCS");
+    const registry = await hre.deployments.get("KeeperRegistry");
+    const now = Math.round(new Date().getTime() / 1000);
+    const rewardStart = now + 30 * 60;
+    const rewardEnd = rewardStart + 2 * 365 * 60 * 60 * 24;
+
+    const rewarder = await deploy(hre, "KeeperRewarder", {
+        from: deployer,
+        args: [dcs.address, registry.address, rewardStart, rewardEnd],
+        log: true,
+    });
+    console.log(rewarder.address);
 });

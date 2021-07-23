@@ -10,6 +10,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     const swapRewarder = await deployments.get("SwapRewarder");
 
+    // const dcs = await deployments.get("DCS");
     await deployments.execute(
         "DCS",
         { from: deployer, log: true },
