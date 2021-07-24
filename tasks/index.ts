@@ -38,7 +38,7 @@ task("addKeeper", "add keeper")
             console.log(`keeper ${keeper.address} btc ${btc.address} registry ${registry.address}`);
 
             if ((await registry.getCollateralWei(keeper.address)).gt(0)) {
-                console.log(`keeper exist: ${keeper}`);
+                console.log(`keeper exist: ${keeper.address}`);
                 return null;
             }
 
