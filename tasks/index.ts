@@ -5,6 +5,7 @@ import { KeeperRegistry, DeCusSystem, ERC20 } from "../build/typechain";
 import { NonceManager } from "@ethersproject/experimental";
 import { ContractTransaction } from "ethers";
 import { DeployOptions, DeployResult } from "hardhat-deploy/types";
+import { DeploymentSubmission } from "hardhat-deploy/dist/types";
 
 const nConfirmations = 6;
 
@@ -41,10 +42,7 @@ task("addKeeper", "add keeper")
     .addParam("amount", "Keeper collateral amount in BTC", "0.01", types.string)
     .addOptionalParam("asset", "WBTC or other BTC", "WBTC")
     .setAction(
-        async (
-            { privKey, amount, asset },
-            { ethers }
-        ): Promise<ContractTransaction | null> => {
+        async ({ privKey, amount, asset }, { ethers }): Promise<ContractTransaction | null> => {
             const keeper = new ethers.Wallet(privKey, ethers.provider);
             const nonceManager = new NonceManager(keeper);
             const btc = (await ethers.getContract(asset, nonceManager)) as ERC20;
@@ -53,7 +51,7 @@ task("addKeeper", "add keeper")
                 nonceManager
             )) as KeeperRegistry;
 
-            console.log(`keeper ${keeper.address} btc ${btc.address} registry ${registry.address}`)
+            console.log(`keeper ${keeper.address} btc ${btc.address} registry ${registry.address}`);
 
             if ((await registry.getCollateralWei(keeper.address)).gt(0)) {
                 console.log(`keeper exist: ${keeper}`);
@@ -128,25 +126,34 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
     }
 });
 
+let ledgerSigner: LedgerSigner;
+
 async function deployHardwareWallet(
     hre: HardhatRuntimeEnvironment,
     name: string,
     options: DeployOptions
 ): Promise<DeployResult> {
-    const signer = new LedgerSigner(hre.ethers.provider, "hid", process.env.DEPLOYER_HW_PATH);
+    if (!ledgerSigner)
+        ledgerSigner = new LedgerSigner(hre.ethers.provider, "hid", process.env.DEPLOYER_HW_PATH);
 
     const override = { gasPrice: 10e9, gasLimit: 1e6 };
     const contractName = (options.contract as string) || name;
-    const Factory = await hre.ethers.getContractFactory(contractName, signer);
+    const Factory = await hre.ethers.getContractFactory(contractName, ledgerSigner);
+
+    // const contract = await hre.deployments.get(name);
     const contract = await Factory.deploy(...(options.args ?? []), override);
+    console.log(`deploy ${name} to ${contract.address} tx ${contract.deployTransaction.hash}`);
 
-    console.log(
-        `deploy ${contractName} to ${contract.address} tx ${contract.deployTransaction.hash}`
-    );
-
-    const { abi } = await hre.artifacts.readArtifact(contractName);
-    hre.deployments.save(name, { abi: abi, address: contract.address });
-    return { abi: abi, address: contract.address, newlyDeployed: true };
+    const artifact = await hre.artifacts.readArtifact(contractName);
+    const extendedArtifact = await hre.deployments.getExtendedArtifact(contractName);
+    const submission: DeploymentSubmission = {
+        ...artifact,
+        address: contract.address,
+        transactionHash: contract.deployTransaction.hash,
+        ...extendedArtifact,
+    };
+    hre.deployments.save(name, submission);
+    return { abi: artifact.abi, address: contract.address, newlyDeployed: true };
 }
 
 export async function deploy(
