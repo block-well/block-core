@@ -26,8 +26,8 @@ task("addKeeper", "add keeper")
     .addOptionalParam("asset", "WBTC or other BTC", "WBTC")
     .setAction(
         async ({ privKey, amount, asset }, { ethers }): Promise<ContractTransaction | null> => {
-            const nonceManager = new NonceManager(new ethers.Wallet(privKey, ethers.provider));
-            const keeper = await nonceManager.getAddress();
+            const keeper = new ethers.Wallet(privKey, ethers.provider);
+            const nonceManager = new NonceManager(keeper);
 
             const btc = (await ethers.getContract(asset, nonceManager)) as ERC20;
             const registry = (await ethers.getContract(
@@ -35,24 +35,26 @@ task("addKeeper", "add keeper")
                 nonceManager
             )) as KeeperRegistry;
 
-            if ((await registry.getCollateralWei(keeper)).gt(0)) {
+            console.log(`keeper ${keeper.address} btc ${btc.address} registry ${registry.address}`);
+
+            if ((await registry.getCollateralWei(keeper.address)).gt(0)) {
                 console.log(`keeper exist: ${keeper}`);
                 return null;
             }
 
             const num = ethers.utils.parseUnits(amount, await btc.decimals());
-            const allowance = await btc.allowance(keeper, registry.address);
+            const allowance = await btc.allowance(keeper.address, registry.address);
             if (allowance.lt(num)) {
-                const tx = await btc.approve(registry.address, num);
-                console.log(`${keeper} approve at ${tx.hash}`);
+                const tx = await btc.connect(keeper).approve(registry.address, num);
+                console.log(`${keeper.address} approve at ${tx.hash}`);
                 // await tx.wait(nConfirmations);
                 // console.log(`Waited for ${nConfirmations} confirmations`);
             }
 
-            const keeperData = await registry.getKeeper(keeper);
+            const keeperData = await registry.getKeeper(keeper.address);
             if (keeperData.amount < amount) {
-                const tx = await registry.addKeeper(btc.address, num);
-                console.log(`keeper added: ${keeper} tx ${tx.hash}`);
+                const tx = await registry.connect(keeper).addKeeper(btc.address, num);
+                console.log(`keeper added: ${keeper.address} tx ${tx.hash}`);
                 return tx;
             }
             return null;
