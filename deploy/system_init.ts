@@ -43,3 +43,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func;
 func.tags = ["All", "Init"];
 func.dependencies = ["System", "Token", "Keeper"];
+func.skip = async (hre) => {
+    return Boolean(process.env.HD_WALLET_PATH) && hre.network.name != "hardhat";
+};
