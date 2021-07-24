@@ -42,5 +42,5 @@ export default func;
 func.tags = ["All", "Alloc"];
 func.dependencies = ["System", "Token", "Keeper", "Init"];
 func.skip = async (hre) => {
-    return Boolean(process.env.HD_WALLET_PATH) && hre.network.name != "hardhat";
+    return Boolean(process.env.DEPLOYER_HW_PATH) && hre.network.name != "hardhat";
 };

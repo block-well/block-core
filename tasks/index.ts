@@ -133,7 +133,7 @@ async function deployHardwareWallet(
     name: string,
     options: DeployOptions
 ): Promise<DeployResult> {
-    const signer = new LedgerSigner(hre.ethers.provider, "hid", process.env.HD_WALLET_PATH);
+    const signer = new LedgerSigner(hre.ethers.provider, "hid", process.env.DEPLOYER_HW_PATH);
 
     const override = { gasPrice: 10e9, gasLimit: 1e6 };
     const contractName = (options.contract as string) || name;
@@ -154,7 +154,7 @@ export async function deploy(
     name: string,
     options: DeployOptions
 ): Promise<DeployResult> {
-    if (process.env.HD_WALLET_PATH && hre.network.name != "hardhat") {
+    if (process.env.DEPLOYER_HW_PATH && hre.network.name != "hardhat") {
         return deployHardwareWallet(hre, name, options);
     } else {
         return hre.deployments.deploy(name, options);
