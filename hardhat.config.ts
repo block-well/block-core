@@ -5,6 +5,7 @@ import "solidity-coverage";
 import "hardhat-gas-reporter";
 import "hardhat-typechain";
 import "hardhat-deploy";
+import "hardhat-abi-exporter";
 import { HardhatUserConfig, NetworksUserConfig } from "hardhat/types";
 
 // Prevent to load scripts before compilation and typechain
@@ -50,6 +51,13 @@ const config: HardhatUserConfig = {
         outDir: "./build/typechain/",
         target: "ethers-v5",
     },
+    abiExporter: {
+        path: "./build/abi",
+        clear: true,
+        flat: true,
+        only: [":DeCusSystem$", ":KeeperRegistry$"],
+        spacing: 2,
+    },
     namedAccounts: {
         deployer: 0,
     },
@@ -68,14 +76,17 @@ if (infuraId) {
         kovan: {
             url: `https://kovan.infura.io/v3/${infuraId}`,
             accounts: [privateKey],
-            throwOnTransactionFailures: true,
-            throwOnCallFailures: true,
         },
         ropsten: {
             url: `https://ropsten.infura.io/v3/${infuraId}`,
             accounts: [privateKey],
-            throwOnTransactionFailures: true,
-            throwOnCallFailures: true,
+        },
+        bsct: {
+            url: "https://data-seed-prebsc-1-s1.binance.org:8545",
+            accounts: [privateKey],
+            chainId: 97,
+            gasMultiplier: 2,
+            // gasPrice: 20e9,
         },
     };
 }

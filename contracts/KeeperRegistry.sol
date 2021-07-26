@@ -27,7 +27,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
     EnumerableSet.AddressSet assetSet;
     uint32 public MIN_KEEPER_PERIOD = 15552000; // 6 month
     uint8 public earlyExitFeeBps = 100;
-    uint256 public minKeeperCollateral = 1e13;
+    uint256 public minKeeperCollateral = 1e14; // TODO: change this in production
 
     mapping(address => KeeperData) public keeperData;
     uint256 public overissuedTotal;
@@ -65,7 +65,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
     }
 
     function isKeeperQualified(address keeper) external view override returns (bool) {
-        return keeperData[keeper].amount > minKeeperCollateral;
+        return keeperData[keeper].amount >= minKeeperCollateral;
     }
 
     function getKeeper(address keeper) external view returns (KeeperData memory) {
@@ -230,6 +230,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         data.asset = asset;
         data.amount = data.amount.add(amount);
         data.joinTimestamp = _blockTimestamp();
+        require(data.amount >= minKeeperCollateral, "not enough collateral");
 
         _mint(keeper, amount);
 

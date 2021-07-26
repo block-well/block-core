@@ -180,6 +180,26 @@ describe("KeeperRegistry", function () {
             expect(await registry.balanceOf(users[0].address)).to.be.equal(amountIn18Decimal);
         });
 
+        it("not enough collateral", async function () {
+            const asset = wbtc.address;
+            const minKeeperCollateral = await registry.minKeeperCollateral();
+            const btcAmount = ethers.utils.formatUnits(minKeeperCollateral, 18);
+            const wbtcAmount = parseBtc(btcAmount);
+            const amountIn18Decimal = parseEther(btcAmount);
+
+            expect(await registry.isKeeperQualified(users[0].address)).to.be.false;
+
+            await expect(
+                registry.connect(users[0]).addKeeper(asset, wbtcAmount.sub(1))
+            ).to.revertedWith("not enough collateral");
+
+            await expect(registry.connect(users[0]).addKeeper(asset, wbtcAmount))
+                .to.emit(registry, "KeeperAdded")
+                .withArgs(users[0].address, asset, amountIn18Decimal);
+
+            expect(await registry.isKeeperQualified(users[0].address)).to.be.true;
+        });
+
         it("import keepers", async function () {
             const btcAmount = "10";
             const wbtcAmount = parseBtc(btcAmount);
