@@ -8,12 +8,12 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/drafts/EIP712.sol";
 
-import {IDeCusSystem} from "./interfaces/IDeCusSystem.sol";
-import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
-import {IToken} from "./interfaces/IToken.sol";
-import {ISwapRewarder} from "./interfaces/ISwapRewarder.sol";
-import {ISwapFee} from "./interfaces/ISwapFee.sol";
-import {BtcUtility} from "./utils/BtcUtility.sol";
+import {IDeCusSystem} from "../interfaces/IDeCusSystem.sol";
+import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
+import {IToken} from "../interfaces/IToken.sol";
+import {ISwapRewarder} from "../interfaces/ISwapRewarder.sol";
+import {ISwapFee} from "../interfaces/ISwapFee.sol";
+import {BtcUtility} from "../utils/BtcUtility.sol";
 
 contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "1.0") {
     using SafeMath for uint256;

@@ -10,9 +10,9 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import {SATS} from "./SATS.sol";
-import {IKeeperRegistry} from "./interfaces/IKeeperRegistry.sol";
-import {IBtcRater} from "./interfaces/IBtcRater.sol";
-import {BtcUtility} from "./utils/BtcUtility.sol";
+import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
+import {IBtcRater} from "../interfaces/IBtcRater.sol";
+import {BtcUtility} from "../utils/BtcUtility.sol";
 
 contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-CT") {
     using Math for uint256;
