@@ -3,7 +3,7 @@ pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {ISwapRewarder} from "./interfaces/ISwapRewarder.sol";
+import {ISwapRewarder} from "../interfaces/ISwapRewarder.sol";
 
 contract SwapRewarder is ISwapRewarder {
     IERC20 public immutable dcs;
