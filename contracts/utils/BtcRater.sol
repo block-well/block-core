@@ -4,8 +4,8 @@ pragma solidity ^0.7.6;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-import {IBtcRater} from "./interfaces/IBtcRater.sol";
-import {BtcUtility} from "./utils/BtcUtility.sol";
+import {IBtcRater} from "../interfaces/IBtcRater.sol";
+import {BtcUtility} from "../utils/BtcUtility.sol";
 
 interface IERC20Extension {
     function decimals() external view returns (uint8);
