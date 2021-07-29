@@ -79,20 +79,18 @@ describe("Treasury", function () {
 
         it("can not auction before start time", async function () {
             await treasury.initLiquidation(9999999999);
-            await expect(treasury.assetAuction(wbtc.address, amount)).to.revertedWith(
-                "auction not start"
-            );
+            await expect(treasury.assetAuction(asset, amount)).to.revertedWith("auction not start");
         });
 
         it("can not auction if contract's asset balance is not enough", async function () {
-            await expect(treasury.assetAuction(wbtc.address, amount)).to.revertedWith(
+            await expect(treasury.assetAuction(asset, amount)).to.revertedWith(
                 "not enough asset balance"
             );
         });
 
         it("can not auction if user's SATS balance is not enough", async function () {
             await wbtc.mint(treasury.address, parseBtc("100"));
-            await expect(treasury.assetAuction(wbtc.address, amount)).to.revertedWith(
+            await expect(treasury.assetAuction(asset, amount)).to.revertedWith(
                 "not enough SATS balance"
             );
         });
@@ -111,9 +109,9 @@ describe("Treasury", function () {
             const origUserWbtc = await wbtc.balanceOf(deployer.address);
             const origUserSats = await sats.balanceOf(deployer.address);
 
-            const price = await treasury.getPriceAfterDiscount(wbtc.address, amount);
+            const price = await treasury.getPriceAfterDiscount(asset, amount);
 
-            await treasury.assetAuction(wbtc.address, amount);
+            await treasury.assetAuction(asset, amount);
 
             expect(await wbtc.balanceOf(treasury.address)).to.equal(origContractWbtc.sub(amount));
             expect(await sats.balanceOf(treasury.address)).to.equal(origContractSats.add(price));

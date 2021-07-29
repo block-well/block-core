@@ -10,18 +10,18 @@ import {IBtcRater} from "../interfaces/IBtcRater.sol";
 
 contract Treasury is Ownable {
     using SafeMath for uint256;
-    
+
     SATS public immutable sats;
     IBtcRater public immutable btcRater;
     uint256 private startTimeStamp;
-    uint32 private INTERVAL;  //hours
-    uint32 private REDUCE;  //千分之
-    
+    uint32 private INTERVAL; //hours
+    uint32 private REDUCE; //千分之
+
     constructor(address _sats, address _btcRater) {
         sats = SATS(_sats);
         btcRater = IBtcRater(_btcRater);
     }
-    
+
     function initLiquidation(uint256 timeStamp) external onlyOwner {
         startTimeStamp = timeStamp;
     }
@@ -29,17 +29,17 @@ contract Treasury is Ownable {
     function getStartTime() public view returns (uint256) {
         return startTimeStamp;
     }
-    
+
     function setRegulation(uint32 interval, uint32 reduce) external onlyOwner {
         //每几(interval)小时减少千分之几(reduce)
         INTERVAL = interval;
         REDUCE = reduce;
     }
-    
+
     function getRegulation() public view returns (uint32, uint32) {
         return (INTERVAL, REDUCE);
     }
-    
+
     function getPriceAfterDiscount(address asset, uint256 amount) public view returns (uint256) {
         require(block.timestamp >= startTimeStamp, "auction not start");
         uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
@@ -47,7 +47,7 @@ contract Treasury is Ownable {
         uint256 reduce = normalizedAmount.mul(duration).div(INTERVAL).mul(REDUCE).div(1000);
         return normalizedAmount.sub(reduce);
     }
-    
+
     function assetAuction(address asset, uint256 amount) public {
         require(block.timestamp >= startTimeStamp, "auction not start");
 
@@ -61,6 +61,6 @@ contract Treasury is Ownable {
 
         emit AssetAuctioned(msg.sender, asset, amount, price);
     }
-    
+
     event AssetAuctioned(address operator, address asset, uint256 amount, uint256 price);
 }
