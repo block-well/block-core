@@ -37,6 +37,7 @@ contract KeeperRewarder is ReentrancyGuard {
         dcs = _dcs;
         stakeToken = _stakeToken;
         startTimestamp = _startTimestamp;
+        lastTimestamp = _startTimestamp;
         endTimestamp = _endTimestamp;
         owner = msg.sender;
     }
