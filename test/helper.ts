@@ -2,6 +2,10 @@ import { ethers } from "hardhat";
 import { BigNumber, BigNumberish, Wallet } from "ethers";
 const { solidityKeccak256 } = ethers.utils;
 
+export const HOUR = 3600;
+export const DAY = HOUR * 24;
+export const WEEK = DAY * 7;
+
 const mintRequestTypes = [
     { name: "receiptId", type: "bytes32" },
     { name: "txId", type: "bytes32" },
@@ -70,8 +74,19 @@ export const advanceBlock = async (): Promise<unknown> => {
     return ethers.provider.send("evm_mine", []);
 };
 
-export const advanceTimeAndBlock = async (time: number): Promise<void> => {
+export const advanceTimeAndBlock = async (time: number): Promise<unknown> => {
     return ethers.provider.send("evm_mine", [(await currentTime()) + time]);
+};
+
+export const advanceBlockAtTime = async (time: number): Promise<unknown> => {
+    return ethers.provider.send("evm_mine", [time]);
+};
+
+/**
+ * Note that failed transactions are silently ignored when automining is disabled.
+ */
+export const setAutomine = async (flag: boolean): Promise<unknown> => {
+    return ethers.provider.send("evm_setAutomine", [flag]);
 };
 
 export const getReceiptId = (btcAddress: string, nonce: number): string => {
