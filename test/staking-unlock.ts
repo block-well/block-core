@@ -4,16 +4,17 @@ import { waffle, ethers, deployments } from "hardhat";
 const { parseEther, parseUnits } = ethers.utils;
 const parsePrecise = (value: string) => parseUnits(value, 18);
 import { advanceBlockAtTime, advanceTimeAndBlock, currentTime, WEEK, DAY, HOUR } from "./helper";
-import { ERC20, DCS, StakingUnlock, MockERC20, Airdrop } from "../build/typechain";
+import { ERC20, StakingUnlock, MockERC20, Airdrop } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const [deployer, ...users] = waffle.provider.getWallets();
 
-    await deployments.deploy("DCS", {
+    await deployments.deploy("RewardToken", {
+        contract: "MockERC20",
         from: deployer.address,
         log: true,
     });
-    const rewardToken = (await ethers.getContract("DCS")) as DCS;
+    const rewardToken = (await ethers.getContract("RewardToken")) as MockERC20;
 
     await deployments.deploy("LpToken", {
         contract: "MockERC20",
@@ -71,7 +72,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     };
 });
 
-describe("Staking", function () {
+describe("StakingUnlock", function () {
     let deployer: Wallet;
     let users: Wallet[];
     let rewardToken: ERC20;
@@ -105,6 +106,8 @@ describe("Staking", function () {
     describe("initialize()", function () {
         it("Should initialize stakingUnlock", async function () {
             expect(await rewardToken.balanceOf(staking.address)).to.equal(0);
+            expect(await rewardToken.balanceOf(users[0].address)).to.equal(0);
+            expect(await rewardToken.balanceOf(deployer.address)).to.equal(0);
 
             await expect(
                 staking.connect(deployer).setLpConfig(stakedToken.address, speed, minTimespan)
@@ -331,6 +334,8 @@ describe("Staking", function () {
             });
 
             it("Should extend finish time if stake", async () => {
+                expect(await rewardToken.balanceOf(users[0].address)).to.equal(0);
+
                 await airdrop.connect(users[0]).claim();
                 expect(await staking.userLocked(users[0].address)).to.equal(claimAmount);
 

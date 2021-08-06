@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract Staking is ReentrancyGuard {
+contract StakingReward is ReentrancyGuard {
     using SafeMath for uint256;
     using Math for uint256;
 
