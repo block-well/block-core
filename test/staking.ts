@@ -28,8 +28,8 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const stakedToken = (await ethers.getContract("MockERC20")) as ERC20;
 
-    const startEpoch = await currentTime();
-    const startTimestamp = startEpoch + WEEK;
+    const currentTimestamp = await currentTime();
+    const startTimestamp = currentTimestamp + WEEK;
     const endTimestamp = startTimestamp + WEEK * 10;
 
     await deployments.deploy("Staking", {
