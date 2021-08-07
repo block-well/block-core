@@ -91,4 +91,6 @@ if (infuraId) {
     };
 }
 
+process.env.HARDHAT_DEPLOY_LOG = "true";
+
 export default config;

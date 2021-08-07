@@ -11,7 +11,7 @@ import {
     setAutomine,
     WEEK,
 } from "./helper";
-import { ERC20, Staking } from "../build/typechain";
+import { ERC20, StakingReward } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
@@ -28,42 +28,49 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const stakedToken = (await ethers.getContract("MockERC20")) as ERC20;
 
-    const startEpoch = await currentTime();
-    const startTimestamp = startEpoch + WEEK;
+    const currentTimestamp = await currentTime();
+    const startTimestamp = currentTimestamp + WEEK;
     const endTimestamp = startTimestamp + WEEK * 10;
 
-    await deployments.deploy("Staking", {
+    await deployments.deploy("StakingReward", {
         from: deployer.address,
         args: [rewardToken.address, stakedToken.address, startTimestamp, endTimestamp],
         log: true,
     });
-    const staking = (await ethers.getContract("Staking")) as Staking;
+    const stakingReward = (await ethers.getContract("StakingReward")) as StakingReward;
 
     const rate = parseEther("2");
     await rewardToken.connect(deployer).mint(deployer.address, rate.mul(10 * WEEK));
-    await rewardToken.connect(deployer).approve(staking.address, rate.mul(10 * WEEK));
+    await rewardToken.connect(deployer).approve(stakingReward.address, rate.mul(10 * WEEK));
 
     const amount = parseEther("100");
     for (const user of users.slice(0, 4)) {
         await stakedToken.connect(deployer).mint(user.address, amount);
-        await stakedToken.connect(user).approve(staking.address, amount);
+        await stakedToken.connect(user).approve(stakingReward.address, amount);
     }
 
-    return { users, deployer, rewardToken, stakedToken, staking, rate };
+    return { users, deployer, rewardToken, stakedToken, stakingReward, rate };
 });
 
-describe("Staking", function () {
+describe("StakingReward", function () {
     let deployer: Wallet;
     let users: Wallet[];
     let rewardToken: ERC20;
     let stakedToken: ERC20;
-    let staking: Staking;
+    let staking: StakingReward;
     let startTimestamp: number;
     let endTimestamp: number;
     let rate: BigNumber;
 
     beforeEach(async function () {
-        ({ deployer, users, rewardToken, stakedToken, staking, rate } = await setupFixture());
+        ({
+            deployer,
+            users,
+            rewardToken,
+            stakedToken,
+            stakingReward: staking,
+            rate,
+        } = await setupFixture());
         startTimestamp = (await staking.startTimestamp()).toNumber();
         endTimestamp = (await staking.endTimestamp()).toNumber();
     });
