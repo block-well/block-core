@@ -260,8 +260,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     function verifyBurn(bytes32 receiptId) public whenNotPaused {
-        // TODO: allow only user or keepers to verify? If someone verified wrongly, we can punish
         Receipt storage receipt = receipts[receiptId];
+        require(msg.sender == receipt.recipient, "only recipient");
 
         _approveWithdraw(receipt);
 
