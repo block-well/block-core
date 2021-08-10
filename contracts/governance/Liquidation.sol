@@ -5,10 +5,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-import {SATS} from "./SATS.sol";
+import {SATS} from "../system/SATS.sol";
 import {IBtcRater} from "../interfaces/IBtcRater.sol";
 
-contract Treasury is Ownable {
+contract Liquidation is Ownable {
     using SafeMath for uint256;
 
     SATS public immutable sats;
@@ -51,10 +51,10 @@ contract Treasury is Ownable {
     function assetAuction(address asset, uint256 amount) public {
         require(block.timestamp >= startTimeStamp, "auction not start");
 
-        require(IERC20(asset).balanceOf(address(this)) >= amount, "not enough asset balance");
+        // require(IERC20(asset).balanceOf(address(this)) >= amount, "not enough asset balance");
 
         uint256 price = getPriceAfterDiscount(asset, amount);
-        require(sats.balanceOf(msg.sender) >= price, "not enough SATS balance");
+        // require(sats.balanceOf(msg.sender) >= price, "not enough SATS balance");
 
         require(sats.transferFrom(msg.sender, address(this), price), "transfer SATS failed");
         require(IERC20(asset).transfer(msg.sender, amount), "transfer asset failed");
