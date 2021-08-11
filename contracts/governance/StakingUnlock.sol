@@ -2,6 +2,7 @@
 pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -11,6 +12,7 @@ import "../interfaces/IStakingUnlock.sol";
 
 contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
     using Math for uint256;
 
     uint256 private constant PRECISE_UNIT = 1e18;
@@ -48,7 +50,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         unlockAmount = _settleUserUnlock(user, rec);
 
         userLocked[user] = userLocked[user].add(amount);
-        rewardToken.transferFrom(msg.sender, address(this), amount);
+        rewardToken.safeTransferFrom(msg.sender, address(this), amount);
 
         if (rec.lp != IERC20(0)) _updateMaxSpeed(user, rec);
 
@@ -73,7 +75,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
 
         unlockAmount = _settleUserUnlock(msg.sender, rec);
 
-        lp.transferFrom(msg.sender, address(this), amount);
+        lp.safeTransferFrom(msg.sender, address(this), amount);
         rec.amount = rec.amount.add(amount);
 
         _updateMaxSpeed(msg.sender, rec);
@@ -101,7 +103,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         } else {
             _updateMaxSpeed(msg.sender, rec);
         }
-        lp.transfer(msg.sender, amount);
+        lp.safeTransfer(msg.sender, amount);
 
         emit UnStake(msg.sender, address(lp), amount, unlockAmount);
     }
@@ -123,7 +125,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
 
         rec.lastTimestamp = block.timestamp;
         userLocked[user] = userLocked[user].sub(unlockAmount);
-        rewardToken.transfer(user, unlockAmount);
+        rewardToken.safeTransfer(user, unlockAmount);
     }
 
     function _calUnlockAmount(address user, UserStakeRecord storage rec)

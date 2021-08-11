@@ -2,21 +2,23 @@
 pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {IToken} from "../interfaces/IToken.sol";
+// import {IToken} from "../interfaces/IToken.sol";
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
 contract SwapFee is ISwapFee, Ownable {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
 
     uint8 private _mintFeeBps;
     uint8 private _burnFeeBps;
     uint16 private _mintFeeGasPrice; // in gwei
     uint32 private _mintFeeGasUsed;
-    IToken public immutable sats;
+    IERC20 public immutable sats;
 
     event SatsCollected(address indexed to, address indexed asset, uint256 amount);
     event EtherCollected(address indexed to, uint256 amount);
@@ -27,7 +29,7 @@ contract SwapFee is ISwapFee, Ownable {
         uint8 burnFeeBps,
         uint16 mintFeeGasPrice,
         uint32 mintFeeGasUsed,
-        IToken _sats
+        IERC20 _sats
     ) {
         _mintFeeBps = mintFeeBps;
         _burnFeeBps = burnFeeBps;
@@ -95,7 +97,7 @@ contract SwapFee is ISwapFee, Ownable {
     }
 
     function collectSats(uint256 amount) public onlyOwner {
-        sats.transfer(msg.sender, amount);
+        sats.safeTransfer(msg.sender, amount);
         emit SatsCollected(msg.sender, address(sats), amount);
     }
 

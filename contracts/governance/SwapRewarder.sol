@@ -2,10 +2,13 @@
 pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import {ISwapRewarder} from "../interfaces/ISwapRewarder.sol";
 
 contract SwapRewarder is ISwapRewarder {
+    using SafeERC20 for IERC20;
+
     IERC20 public immutable dcs;
     address public immutable owner;
     address public immutable minter;
@@ -28,7 +31,7 @@ contract SwapRewarder is ISwapRewarder {
     function mintReward(address to, uint256) external override onlyMinter {
         if (mintRewardAmount == 0) return;
 
-        dcs.transfer(to, mintRewardAmount);
+        dcs.safeTransfer(to, mintRewardAmount);
 
         emit SwapRewarded(to, mintRewardAmount, true);
     }
@@ -36,7 +39,7 @@ contract SwapRewarder is ISwapRewarder {
     function burnReward(address to, uint256) external override onlyMinter {
         if (burnRewardAmount == 0) return;
 
-        dcs.transfer(to, burnRewardAmount);
+        dcs.safeTransfer(to, burnRewardAmount);
 
         emit SwapRewarded(to, burnRewardAmount, false);
     }
@@ -46,7 +49,7 @@ contract SwapRewarder is ISwapRewarder {
 
         uint256 balance = dcs.balanceOf(address(this));
 
-        dcs.transfer(msg.sender, balance);
+        dcs.safeTransfer(msg.sender, balance);
 
         emit RewarderAbort(msg.sender, balance);
     }

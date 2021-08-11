@@ -2,6 +2,7 @@
 pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
@@ -16,6 +17,7 @@ import {BtcUtility} from "../utils/BtcUtility.sol";
 
 contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-CT") {
     using Math for uint256;
+    using SafeERC20 for IERC20;
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -83,7 +85,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
 
     function swapAsset(address asset, uint256 amount) external {
         require(assetSet.contains(asset), "assets not accepted");
-        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
 
         KeeperData storage data = keeperData[msg.sender];
         require(data.asset != address(0), "keeper not exist");
@@ -103,7 +105,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
 
     function addKeeper(address asset, uint256 amount) external {
         require(assetSet.contains(asset), "assets not accepted");
-        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "transfer failed");
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
 
         address origAsset = keeperData[msg.sender].asset;
         require((origAsset == address(0)) || (origAsset == asset), "asset not allowed");
@@ -142,7 +144,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
             }
         }
 
-        require(IERC20(asset).transferFrom(msg.sender, address(this), totalAmount));
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), totalAmount);
 
         emit KeeperImported(msg.sender, asset, keepers, normalizedAmount);
     }
@@ -170,7 +172,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
 
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 confiscation = confiscations[assets[i]];
-            require(IERC20(assets[i]).transfer(treasury, confiscation), "transfer failed");
+            IERC20(assets[i]).safeTransfer(treasury, confiscation);
             emit Confiscated(treasury, assets[i], confiscation);
             delete confiscations[assets[i]];
         }
@@ -243,10 +245,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
             amount = amount.mul(10000 - earlyExitFeeBps).div(10000);
         }
         address asset = data.asset;
-        require(
-            IERC20(asset).transfer(msg.sender, btcRater.calcOrigAmount(data.asset, amount)),
-            "transfer failed"
-        );
+        IERC20(asset).safeTransfer(msg.sender, btcRater.calcOrigAmount(data.asset, amount));
         return amount;
     }
 }

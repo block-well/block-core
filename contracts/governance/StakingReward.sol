@@ -2,12 +2,14 @@
 pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract StakingReward is ReentrancyGuard {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
     using Math for uint256;
 
     IERC20 public immutable rewardToken;
@@ -59,10 +61,10 @@ contract StakingReward is ReentrancyGuard {
         uint256 remainingTime = endTimestamp.sub(startTimestamp.max(block.timestamp));
         if (_rate > rate) {
             uint256 rewardDifference = (_rate - rate).mul(remainingTime);
-            rewardToken.transferFrom(msg.sender, address(this), rewardDifference);
+            rewardToken.safeTransferFrom(msg.sender, address(this), rewardDifference);
         } else {
             uint256 rewardDifference = (rate - _rate).mul(remainingTime);
-            rewardToken.transfer(msg.sender, rewardDifference);
+            rewardToken.safeTransfer(msg.sender, rewardDifference);
         }
 
         emit RateUpdated(rate, _rate);
@@ -105,18 +107,18 @@ contract StakingReward is ReentrancyGuard {
         userDivident[account] = _globalDivident;
 
         if (rewards > 0) {
-            rewardToken.transfer(account, rewards);
+            rewardToken.safeTransfer(account, rewards);
         }
     }
 
     function _deposit(address account, uint256 amount) private {
-        stakeToken.transferFrom(account, address(this), amount);
+        stakeToken.safeTransferFrom(account, address(this), amount);
         totalStakes = totalStakes.add(amount);
         stakes[account] = stakes[account].add(amount);
     }
 
     function _withdraw(address account, uint256 amount) private {
-        stakeToken.transfer(account, amount);
+        stakeToken.safeTransfer(account, amount);
         totalStakes = totalStakes.sub(amount, "Exceed staked balances");
         stakes[account] = stakes[account].sub(amount, "Exceed staked balances");
     }
