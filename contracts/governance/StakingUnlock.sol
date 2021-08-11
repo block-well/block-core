@@ -92,7 +92,6 @@ contract StakingUnlock is ReentrancyGuard, AccessControl, IStakingUnlock {
         rec.amount = rec.amount.add(amount);
 
         _updateMaxSpeed(msg.sender, rec);
-        _updateLpSpeed(rec);
 
         emit Stake(msg.sender, address(lp), amount, unlockAmount);
     }
@@ -116,7 +115,6 @@ contract StakingUnlock is ReentrancyGuard, AccessControl, IStakingUnlock {
             delete userStakeRecord[msg.sender];
         } else {
             _updateMaxSpeed(msg.sender, rec);
-            _updateLpSpeed(rec);
         }
         lp.transfer(msg.sender, amount);
 
@@ -149,7 +147,7 @@ contract StakingUnlock is ReentrancyGuard, AccessControl, IStakingUnlock {
         returns (uint256 unlockAmount)
     {
         uint256 elapsedTime = block.timestamp - rec.lastTimestamp;
-        uint256 unlockSpeed = Math.min(rec.lpSpeed, rec.maxSpeed);
+        uint256 unlockSpeed = Math.min(_getLpSpeed(rec), rec.maxSpeed);
         unlockAmount = Math.min(userLocked[user], unlockSpeed.mul(elapsedTime).div(PRECISE_UNIT));
     }
 
@@ -157,7 +155,7 @@ contract StakingUnlock is ReentrancyGuard, AccessControl, IStakingUnlock {
         rec.maxSpeed = userLocked[user].mul(PRECISE_UNIT).div(lpConfig[rec.lp].minTimespan);
     }
 
-    function _updateLpSpeed(UserStakeRecord storage rec) private {
-        rec.lpSpeed = rec.amount.mul(lpConfig[rec.lp].speed);
+    function _getLpSpeed(UserStakeRecord storage rec) private view returns (uint256) {
+        return rec.amount.mul(lpConfig[rec.lp].speed);
     }
 }

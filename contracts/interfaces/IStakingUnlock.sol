@@ -11,7 +11,6 @@ interface IStakingUnlock {
 
     struct UserStakeRecord {
         uint256 amount;
-        uint256 lpSpeed;
         uint256 maxSpeed;
         uint256 lastTimestamp;
         IERC20 lp;
