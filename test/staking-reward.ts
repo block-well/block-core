@@ -16,16 +16,10 @@ import { ERC20, StakingReward } from "../build/typechain";
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
 
-    await deployments.deploy("DCS", {
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("DCS", { from: deployer.address });
     const rewardToken = (await ethers.getContract("DCS")) as ERC20;
 
-    await deployments.deploy("MockERC20", {
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("MockERC20", { from: deployer.address });
     const stakedToken = (await ethers.getContract("MockERC20")) as ERC20;
 
     const currentTimestamp = await currentTime();
@@ -35,7 +29,6 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     await deployments.deploy("StakingReward", {
         from: deployer.address,
         args: [rewardToken.address, stakedToken.address, startTimestamp, endTimestamp],
-        log: true,
     });
     const stakingReward = (await ethers.getContract("StakingReward")) as StakingReward;
 

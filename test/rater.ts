@@ -11,23 +11,13 @@ const satsAmt = (value: string) => parseUnits(value, 18);
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const [deployer] = waffle.provider.getWallets();
 
-    await deployments.deploy("MockWBTC", {
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("MockWBTC", { from: deployer.address });
     const wbtc = (await ethers.getContract("MockWBTC")) as ERC20;
 
-    await deployments.deploy("MockHBTC", {
-        contract: "MockERC20",
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("MockHBTC", { contract: "MockERC20", from: deployer.address });
     const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
 
-    await deployments.deploy("SATS", {
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("SATS", { from: deployer.address });
     const sats = (await ethers.getContract("SATS")) as ERC20;
 
     await deployments.deploy("BtcRater", {
@@ -36,7 +26,6 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
             [wbtc.address, hbtc.address, sats.address],
             [1, 1, 1e8],
         ],
-        log: true,
     });
     const rater = (await ethers.getContract("BtcRater")) as BtcRater;
 

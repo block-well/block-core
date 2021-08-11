@@ -12,28 +12,24 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     await deployments.deploy("RewardToken", {
         contract: "MockERC20",
         from: deployer.address,
-        log: true,
     });
     const rewardToken = (await ethers.getContract("RewardToken")) as MockERC20;
 
     await deployments.deploy("LpToken", {
         contract: "MockERC20",
         from: deployer.address,
-        log: true,
     });
     const stakedToken = (await ethers.getContract("LpToken")) as MockERC20;
 
     await deployments.deploy("LpToken2", {
         contract: "MockERC20",
         from: deployer.address,
-        log: true,
     });
     const stakedToken2 = (await ethers.getContract("LpToken2")) as MockERC20;
 
     await deployments.deploy("UnknownERC20", {
         contract: "MockERC20",
         from: deployer.address,
-        log: true,
     });
     const unknownToken = (await ethers.getContract("UnknownERC20")) as MockERC20;
 
@@ -127,18 +123,11 @@ describe("StakingUnlock", function () {
         const claimAmount = parseEther("1600");
 
         beforeEach(async function () {
-            const ISSUER_ROLE = await staking.ISSUER_ROLE();
-            await staking.connect(deployer).grantRole(ISSUER_ROLE, airdrop.address);
-
             await staking.connect(deployer).setLpConfig(stakedToken.address, speed, minTimespan);
         });
 
-        it("Should add locked via issuer", async () => {
+        it("Should add locked via airdrop", async () => {
             expect(await airdrop.claimed(users[0].address)).to.be.false;
-
-            await expect(
-                staking.connect(deployer).depositLocked(users[0].address, parseEther("1"))
-            ).to.revertedWith("only issuer");
 
             await expect(airdrop.connect(users[0]).claim())
                 .to.emit(airdrop, "Claim")
@@ -178,9 +167,6 @@ describe("StakingUnlock", function () {
         const claimAmount = parseEther("1600");
 
         beforeEach(async function () {
-            const ISSUER_ROLE = await staking.ISSUER_ROLE();
-
-            await staking.connect(deployer).grantRole(ISSUER_ROLE, airdrop.address);
             await staking.connect(deployer).setLpConfig(stakedToken.address, speed, minTimespan);
         });
 
@@ -236,7 +222,6 @@ describe("StakingUnlock", function () {
                 expect(await staking.userStakeRecord(users[0].address)).to.deep.equal([
                     BigNumber.from(0),
                     BigNumber.from(0),
-                    BigNumber.from(0),
                     BigNumber.from(await currentTime()),
                     ethers.constants.AddressZero,
                 ]);
@@ -266,19 +251,18 @@ describe("StakingUnlock", function () {
 
                 expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
                 const maxSpeed = claimAmount.mul(PRECISE_UNIT).div(minTimespan);
-                const lpSpeed = lpAmount.mul(speed);
                 const rec = await staking.userStakeRecord(users[0].address);
                 expect(rec.amount).to.equal(lpAmount);
-                expect(rec.lpSpeed).to.equal(lpSpeed);
                 expect(rec.maxSpeed).to.equal(maxSpeed);
                 expect(rec.lastTimestamp).to.equal(await currentTime());
                 expect(rec.lp).to.equal(stakedToken.address);
 
                 await advanceTimeAndBlock(HOUR);
 
+                const lpSpeed = lpAmount.mul(speed);
                 const unlockAmount = BigNumber.from(await currentTime())
                     .sub(rec.lastTimestamp)
-                    .mul(rec.lpSpeed)
+                    .mul(lpSpeed)
                     .div(PRECISE_UNIT);
 
                 expect(await staking.connect(users[0]).callStatic.claim()).to.equal(unlockAmount);
@@ -300,19 +284,18 @@ describe("StakingUnlock", function () {
 
                 expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
                 const maxSpeed = claimAmount.mul(PRECISE_UNIT).div(minTimespan);
-                const lpSpeed = lpAmount.mul(speed);
                 const rec = await staking.userStakeRecord(users[0].address);
                 expect(rec.amount).to.equal(lpAmount);
-                expect(rec.lpSpeed).to.equal(lpSpeed);
                 expect(rec.maxSpeed).to.equal(maxSpeed);
                 expect(rec.lastTimestamp).to.equal(await currentTime());
                 expect(rec.lp).to.equal(stakedToken.address);
 
                 await advanceTimeAndBlock(HOUR);
 
+                const lpSpeed = lpAmount.mul(speed);
                 const unlockAmount = BigNumber.from(await currentTime())
                     .sub(rec.lastTimestamp)
-                    .mul(rec.lpSpeed)
+                    .mul(lpSpeed)
                     .div(PRECISE_UNIT);
 
                 expect(await staking.connect(users[0]).callStatic.claim()).to.equal(unlockAmount);
@@ -383,7 +366,7 @@ describe("StakingUnlock", function () {
                     await advanceTimeAndBlock(HOUR);
 
                     const rec = await staking.userStakeRecord(users[0].address);
-                    const cappedSpeed = rec.lpSpeed;
+                    const cappedSpeed = rec.amount.mul(speed);
                     const unlockAmount = BigNumber.from(await currentTime())
                         .sub(rec.lastTimestamp)
                         .mul(cappedSpeed)
@@ -433,7 +416,7 @@ describe("StakingUnlock", function () {
                     const tx = await staking.connect(users[0]).claim();
                     const unlockAmount = BigNumber.from(await currentTime())
                         .sub(rec.lastTimestamp)
-                        .mul(rec.lpSpeed) // maxSpeed has numerical issue
+                        .mul(lpAmount.mul(speed)) // maxSpeed has numerical issue
                         .div(PRECISE_UNIT);
 
                     await expect(tx)
