@@ -5,37 +5,23 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../interfaces/IStakingUnlock.sol";
 
-contract StakingUnlock is ReentrancyGuard, AccessControl, IStakingUnlock {
+contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
     using SafeMath for uint256;
     using Math for uint256;
 
-    bytes32 public constant ISSUER_ROLE = keccak256("ISSUER_ROLE");
     uint256 private constant PRECISE_UNIT = 1e18;
 
     IERC20 public immutable rewardToken;
 
     mapping(IERC20 => LpConfig) public lpConfig;
-
     mapping(address => UserStakeRecord) public userStakeRecord;
     mapping(address => uint256) public userLocked;
 
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "only admin");
-        _;
-    }
-
-    modifier onlyIssuer() {
-        require(hasRole(ISSUER_ROLE, msg.sender), "only issuer");
-        _;
-    }
-
     constructor(IERC20 _rewardToken) {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-
         rewardToken = _rewardToken;
     }
 
@@ -43,7 +29,7 @@ contract StakingUnlock is ReentrancyGuard, AccessControl, IStakingUnlock {
         IERC20 lp,
         uint256 speed,
         uint256 minTimespan
-    ) external onlyAdmin {
+    ) external onlyOwner {
         LpConfig storage config = lpConfig[lp];
         if (speed != config.speed) config.speed = speed;
         if (minTimespan != config.minTimespan) config.minTimespan = minTimespan;
@@ -54,7 +40,6 @@ contract StakingUnlock is ReentrancyGuard, AccessControl, IStakingUnlock {
     function depositLocked(address user, uint256 amount)
         external
         override
-        onlyIssuer
         nonReentrant
         returns (uint256 unlockAmount)
     {

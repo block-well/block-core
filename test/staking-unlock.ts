@@ -123,18 +123,11 @@ describe("StakingUnlock", function () {
         const claimAmount = parseEther("1600");
 
         beforeEach(async function () {
-            const ISSUER_ROLE = await staking.ISSUER_ROLE();
-            await staking.connect(deployer).grantRole(ISSUER_ROLE, airdrop.address);
-
             await staking.connect(deployer).setLpConfig(stakedToken.address, speed, minTimespan);
         });
 
-        it("Should add locked via issuer", async () => {
+        it("Should add locked via airdrop", async () => {
             expect(await airdrop.claimed(users[0].address)).to.be.false;
-
-            await expect(
-                staking.connect(deployer).depositLocked(users[0].address, parseEther("1"))
-            ).to.revertedWith("only issuer");
 
             await expect(airdrop.connect(users[0]).claim())
                 .to.emit(airdrop, "Claim")
@@ -174,9 +167,6 @@ describe("StakingUnlock", function () {
         const claimAmount = parseEther("1600");
 
         beforeEach(async function () {
-            const ISSUER_ROLE = await staking.ISSUER_ROLE();
-
-            await staking.connect(deployer).grantRole(ISSUER_ROLE, airdrop.address);
             await staking.connect(deployer).setLpConfig(stakedToken.address, speed, minTimespan);
         });
 
