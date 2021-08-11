@@ -2,12 +2,14 @@
 pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract KeeperRewarder is ReentrancyGuard {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
     using Math for uint256;
 
     IERC20 public immutable dcs;
@@ -51,10 +53,10 @@ contract KeeperRewarder is ReentrancyGuard {
         uint256 remainingTime = endTimestamp.sub(startTimestamp.max(block.timestamp));
         if (_rate > rate) {
             uint256 rewardDifference = (_rate - rate).mul(remainingTime);
-            dcs.transferFrom(msg.sender, address(this), rewardDifference);
+            dcs.safeTransferFrom(msg.sender, address(this), rewardDifference);
         } else {
             uint256 rewardDifference = (rate - _rate).mul(remainingTime);
-            dcs.transfer(msg.sender, rewardDifference);
+            dcs.safeTransfer(msg.sender, rewardDifference);
         }
 
         emit RateUpdated(rate, _rate);
@@ -70,7 +72,7 @@ contract KeeperRewarder is ReentrancyGuard {
     function deposit(uint256 amount) external nonReentrant {
         userCheckpoint(msg.sender);
 
-        stakeToken.transferFrom(msg.sender, address(this), amount);
+        stakeToken.safeTransferFrom(msg.sender, address(this), amount);
         totalStakes = totalStakes.add(amount);
         stakes[msg.sender] = stakes[msg.sender].add(amount);
     }
@@ -93,12 +95,12 @@ contract KeeperRewarder is ReentrancyGuard {
 
     function _claimRewards(address account) private returns (uint256 rewards) {
         rewards = claimableRewards[account];
-        dcs.transfer(account, rewards);
+        dcs.safeTransfer(account, rewards);
         delete claimableRewards[account];
     }
 
     function _withdraw(address account, uint256 amount) private {
-        stakeToken.transfer(account, amount);
+        stakeToken.safeTransfer(account, amount);
         totalStakes = totalStakes.sub(amount, "Exceed staked balances");
         stakes[account] = stakes[account].sub(amount, "Exceed staked balances");
     }

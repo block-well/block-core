@@ -2,6 +2,7 @@
 pragma solidity ^0.7.6;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
@@ -18,6 +19,7 @@ import {BtcUtility} from "../utils/BtcUtility.sol";
 contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "1.0") {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using SafeERC20 for IToken;
 
     bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
     bytes32 private constant REQUEST_TYPEHASH =
@@ -504,10 +506,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         uint256 feeAmount = fee.payExtraBurnFee(from, amount);
 
-        sats.transferFrom(from, to, amount.add(feeAmount));
+        sats.safeTransferFrom(from, to, amount.add(feeAmount));
 
         if (feeAmount > 0) {
-            sats.transfer(address(fee), feeAmount);
+            sats.safeTransfer(address(fee), feeAmount);
         }
     }
 
@@ -516,6 +518,6 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         // fee is not refunded
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
-        sats.transfer(to, amount);
+        sats.safeTransfer(to, amount);
     }
 }
