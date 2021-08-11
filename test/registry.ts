@@ -12,42 +12,25 @@ const BTC_TO_SATS = 1e8;
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
 
-    await deployments.deploy("MockWBTC", {
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("MockWBTC", { from: deployer.address });
     const wbtc = (await ethers.getContract("MockWBTC")) as ERC20;
 
-    await deployments.deploy("SATS", {
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("SATS", { from: deployer.address });
     await deployments.execute(
         "SATS",
-        { from: deployer.address, log: true },
+        { from: deployer.address },
         "grantRole",
         ethers.utils.id("MINTER_ROLE"),
         deployer.address
     );
     const sats = (await ethers.getContract("SATS")) as ERC20;
 
-    const dcs = await deployments.deploy("DCS", {
-        from: deployer.address,
-        log: true,
-    });
+    const dcs = await deployments.deploy("DCS", { from: deployer.address });
 
-    await deployments.deploy("MockHBTC", {
-        contract: "MockERC20",
-        from: deployer.address,
-        log: true,
-    });
+    await deployments.deploy("MockHBTC", { contract: "MockERC20", from: deployer.address });
     const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
 
-    await deployments.deploy("DeCusSystem", {
-        from: deployer.address,
-        args: [],
-        log: true,
-    });
+    await deployments.deploy("DeCusSystem", { from: deployer.address, args: [] });
 
     await deployments.deploy("BtcRater", {
         from: deployer.address,
@@ -55,7 +38,6 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
             [wbtc.address, hbtc.address],
             [1, 1],
         ],
-        log: true,
     });
 
     const rater = (await ethers.getContract("BtcRater")) as BtcRater;
@@ -63,14 +45,12 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     await deployments.deploy("KeeperRegistry", {
         from: deployer.address,
         args: [[wbtc.address, hbtc.address], sats.address, rater.address],
-        log: true,
     });
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
 
     const fee = await deployments.deploy("SwapFee", {
         from: deployer.address,
         args: [0, 20, 50, 11111, sats.address],
-        log: true,
     });
 
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
@@ -78,12 +58,11 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const rewarder = await deployments.deploy("SwapRewarder", {
         from: deployer.address,
         args: [dcs.address, system.address],
-        log: true,
     });
 
     await deployments.execute(
         "DeCusSystem",
-        { from: deployer.address, log: true },
+        { from: deployer.address },
         "initialize",
         sats.address,
         registry.address,
@@ -93,7 +72,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     await deployments.execute(
         "KeeperRegistry",
-        { from: deployer.address, log: true },
+        { from: deployer.address },
         "setSystem",
         system.address
     );
