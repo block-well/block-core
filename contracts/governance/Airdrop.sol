@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
@@ -9,6 +10,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IStakingUnlock.sol";
 
 contract Airdrop is ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     bytes32 public immutable merkleRoot;
 
     IStakingUnlock public immutable stakingUnlock;
@@ -49,7 +52,7 @@ contract Airdrop is ReentrancyGuard {
         require(block.timestamp > deadline, "only after deadline");
 
         amount = rewardToken.balanceOf(address(this));
-        rewardToken.transfer(owner, amount);
+        rewardToken.safeTransfer(owner, amount);
 
         emit Refund(owner, amount);
     }
