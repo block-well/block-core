@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { BigNumber, BytesLike, Wallet, utils } from "ethers";
+import { BigNumber, Wallet, utils } from "ethers";
 import { waffle, ethers, deployments } from "hardhat";
 import { MerkleTree } from "merkletreejs";
 import keccak256 from "keccak256";
@@ -171,7 +171,7 @@ describe("StakingUnlock", function () {
         });
 
         it("Wrong proof should fail to claim", async () => {
-            let user1Proof = merkleTree.getHexProof(Leaves[1]);
+            const user1Proof = merkleTree.getHexProof(Leaves[1]);
 
             await expect(
                 airdrop.connect(users[0]).claim(user0Index0, claimAmount, user1Proof)
