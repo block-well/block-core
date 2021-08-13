@@ -284,9 +284,9 @@ describe("KeeperRegistry", function () {
             const feeBps = await registry.earlyExitFeeBps();
             const amount = keeperAmountIn18Decimal.mul(10000 - feeBps).div(10000);
             const refundAmount = wbtcAmount.mul(10000 - feeBps).div(10000);
-            await expect(registry.connect(keeper).deleteKeeper())
+            await expect(registry.connect(keeper).deleteKeeper(keeperData.amount))
                 .to.emit(registry, "KeeperDeleted")
-                .withArgs(keeper.address, wbtc.address, amount)
+                .withArgs(keeper.address, wbtc.address, amount, keeperData.amount)
                 .to.emit(wbtc, "Transfer")
                 .withArgs(registry.address, keeper.address, refundAmount);
 
@@ -305,9 +305,9 @@ describe("KeeperRegistry", function () {
 
             const amount = keeperAmountIn18Decimal.mul(10000 - feeBps).div(10000);
             const refundAmount = wbtcAmount.mul(10000 - feeBps).div(10000);
-            await expect(registry.connect(keeper).deleteKeeper())
+            await expect(registry.connect(keeper).deleteKeeper(keeperData.amount))
                 .to.emit(registry, "KeeperDeleted")
-                .withArgs(keeper.address, wbtc.address, amount)
+                .withArgs(keeper.address, wbtc.address, amount, keeperData.amount)
                 .to.emit(wbtc, "Transfer")
                 .withArgs(registry.address, keeper.address, refundAmount);
         });
@@ -322,9 +322,9 @@ describe("KeeperRegistry", function () {
 
             const origAmount = await wbtc.balanceOf(keeper.address);
 
-            await expect(registry.connect(keeper).deleteKeeper())
+            await expect(registry.connect(keeper).deleteKeeper(keeperData.amount))
                 .to.emit(registry, "KeeperDeleted")
-                .withArgs(keeper.address, wbtc.address, keeperAmountIn18Decimal)
+                .withArgs(keeper.address, wbtc.address, keeperAmountIn18Decimal, keeperData.amount)
                 .to.emit(wbtc, "Transfer")
                 .withArgs(registry.address, keeper.address, wbtcAmount);
 
@@ -346,9 +346,9 @@ describe("KeeperRegistry", function () {
                 expect(keeperData.refCount).to.be.equal(1);
             }
 
-            await expect(registry.connect(group1Keepers[0]).deleteKeeper()).to.revertedWith(
-                "ref count > 0"
-            );
+            await expect(
+                registry.connect(group1Keepers[0]).deleteKeeper(keeperAmountIn18Decimal)
+            ).to.revertedWith("ref count > 0");
 
             // add another group
             await system.connect(deployer).addGroup(
