@@ -91,7 +91,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         require(data.asset != address(0), "keeper not exist");
         require(data.asset != asset, "same asset");
 
-        _refundKeeper(data);
+        _refundKeeper(data, data.amount);
 
         uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
         require(normalizedAmount >= data.amount, "cannot reduce amount");
@@ -113,15 +113,15 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         _addKeeper(msg.sender, asset, btcRater.calcAmountInWei(asset, amount));
     }
 
-    function deleteKeeper() external {
+    function deleteKeeper(uint256 cAmount) external {
         KeeperData storage data = keeperData[msg.sender];
         require(data.refCount == 0, "ref count > 0");
 
-        _burn(msg.sender, data.amount);
+        _burn(msg.sender, cAmount);
 
-        uint256 refundAmount = _refundKeeper(data);
+        uint256 refundAmount = _refundKeeper(data, cAmount);
 
-        emit KeeperDeleted(msg.sender, data.asset, refundAmount);
+        emit KeeperDeleted(msg.sender, data.asset, refundAmount, cAmount);
 
         delete keeperData[msg.sender];
     }
@@ -239,13 +239,15 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         emit KeeperAdded(keeper, asset, amount);
     }
 
-    function _refundKeeper(KeeperData storage data) private returns (uint256) {
-        uint256 amount = data.amount;
+    function _refundKeeper(KeeperData storage data, uint256 cAmount)
+        private
+        returns (uint256 amount)
+    {
+        amount = cAmount;
+        address asset = data.asset;
         if (_blockTimestamp() < data.joinTimestamp + MIN_KEEPER_PERIOD) {
             amount = amount.mul(10000 - earlyExitFeeBps).div(10000);
         }
-        address asset = data.asset;
-        IERC20(asset).safeTransfer(msg.sender, btcRater.calcOrigAmount(data.asset, amount));
-        return amount;
+        IERC20(asset).safeTransfer(msg.sender, btcRater.calcOrigAmount(asset, amount));
     }
 }
