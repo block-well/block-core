@@ -10,7 +10,6 @@ import "@openzeppelin/contracts/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../interfaces/IStakingUnlock.sol";
-import "hardhat/console.sol";
 
 contract Airdrop is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
@@ -20,7 +19,6 @@ contract Airdrop is ReentrancyGuard, Ownable {
     IStakingUnlock public immutable stakingUnlock;
     IERC20 public immutable rewardToken;
     uint256 public immutable deadline;
-    // address public immutable owner;
     mapping(uint256 => bool) public claimed;
 
     event Claim(address user, uint256 index, uint256 amount);
@@ -33,7 +31,6 @@ contract Airdrop is ReentrancyGuard, Ownable {
         bytes32 _merkleRoot,
         uint256 _deadline
     ) {
-        // owner = msg.sender;
         stakingUnlock = _stakingUnlock;
         rewardToken = _rewardToken;
         merkleRoot = _merkleRoot;
@@ -45,24 +42,11 @@ contract Airdrop is ReentrancyGuard, Ownable {
         emit UpdateMerkleRoot(newMerkleRoot);
     }
 
-    /*
-    function claim() external nonReentrant returns (uint256 claimable) { // user: from airdrop to stakingUnlock
-        require(block.timestamp <= deadline, "only before deadline");
-        require(!claimed[msg.sender], "already claimed");
-
-        claimable = _claimRewards(msg.sender);
-
-        _stakeUnlock(msg.sender, claimable);
-
-        emit Claim(msg.sender, claimable);
-    }
-    */
     function claim(
         uint256 index,
         uint256 amount,
         bytes32[] calldata merkleProof
     ) external nonReentrant returns (bool flag) {
-        // user: from airdrop to stakingUnlock
         require(block.timestamp <= deadline, "only before deadline");
         require(!claimed[index], "already claimed");
 
@@ -77,8 +61,6 @@ contract Airdrop is ReentrancyGuard, Ownable {
     }
 
     function refund() external nonReentrant onlyOwner returns (uint256 amount) {
-        // owner: refund after deadline
-        // require(msg.sender == owner, "only owner");
         require(block.timestamp > deadline, "only after deadline");
 
         amount = rewardToken.balanceOf(address(this));
@@ -95,15 +77,8 @@ contract Airdrop is ReentrancyGuard, Ownable {
     ) private view returns (bool flag) {
         bytes32 leaf = keccak256(abi.encodePacked(index, user, amount));
         flag = MerkleProof.verify(merkleProof, merkleRoot, leaf);
-        // console.logBytes32(leaf);
     }
 
-    /*
-    function _claimRewards(address user) private returns (uint256 amount) {
-        amount = 1600e18;
-        claimed[user] = true;
-    }
-    */
     function _stakeUnlock(address user, uint256 amount) private {
         rewardToken.approve(address(stakingUnlock), amount);
         stakingUnlock.depositLocked(user, amount);
