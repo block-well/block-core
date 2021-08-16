@@ -39,8 +39,8 @@ interface IKeeperRegistry {
 
     event EarlyExitFeeBpsUpdated(uint8 bps);
 
-    event TreasuryTransferred(address indexed previousTreasury, address indexed newTreasury);
-    event Confiscated(address indexed treasury, address asset, uint256 amount);
+    event LiquidationUpdated(address indexed previousLiquidation, address indexed newLiquidation);
+    event Confiscated(address indexed liquidation, address asset, uint256 amount);
     event OverissueAdded(uint256 total, uint256 added, uint256 deduction);
     event OffsetOverissued(
         address indexed operator,

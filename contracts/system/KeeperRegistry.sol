@@ -21,7 +21,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    address public treasury;
+    address public liquidation;
     address public system;
     SATS public immutable sats;
     IBtcRater public immutable btcRater;
@@ -162,18 +162,18 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         }
     }
 
-    function updateTreasury(address newTreasury) external onlyOwner {
-        emit TreasuryTransferred(treasury, newTreasury);
-        treasury = newTreasury;
+    function updateLiquidation(address newLiquidation) external onlyOwner {
+        emit LiquidationUpdated(liquidation, newLiquidation);
+        liquidation = newLiquidation;
     }
 
     function confiscate(address[] calldata assets) external {
-        require(treasury != address(0), "treasury not up yet");
+        require(liquidation != address(0), "liquidation not up yet");
 
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 confiscation = confiscations[assets[i]];
-            IERC20(assets[i]).safeTransfer(treasury, confiscation);
-            emit Confiscated(treasury, assets[i], confiscation);
+            IERC20(assets[i]).safeTransfer(liquidation, btcRater.calcOrigAmount(assets[i], confiscation));
+            emit Confiscated(liquidation, assets[i], confiscation);
             delete confiscations[assets[i]];
         }
     }

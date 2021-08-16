@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -10,57 +11,59 @@ import {IBtcRater} from "../interfaces/IBtcRater.sol";
 
 contract Liquidation is Ownable {
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
+    using SafeERC20 for SATS;
 
     SATS public immutable sats;
     IBtcRater public immutable btcRater;
-    uint256 private startTimeStamp;
-    uint32 private INTERVAL; //hours
-    uint32 private REDUCE; //千分之
+    address public immutable keeperRegistryAddress;
+    uint256 public immutable startTimestamp;
+    uint256 public immutable duration;
+    uint256 private constant PRECISE_UNIT = 1e18;
 
-    constructor(address _sats, address _btcRater) {
+    event AssetAuctioned(
+        address operator,
+        address asset,
+        uint256 amount,
+        uint256 discountSatsAmount
+    );
+
+    constructor(
+        address _sats,
+        address _btcRater,
+        address _registryAddr,
+        uint256 _startTimestamp,
+        uint256 _duration
+    ) {
         sats = SATS(_sats);
         btcRater = IBtcRater(_btcRater);
+        keeperRegistryAddress = _registryAddr;
+        startTimestamp = _startTimestamp;
+        duration = _duration; //20 days, 20*24*3600=1728000
     }
 
-    function initLiquidation(uint256 timeStamp) external onlyOwner {
-        startTimeStamp = timeStamp;
+    function discountPrice(uint256 timestamp) external view returns (uint256) {
+        return _discountPrice(timestamp);
     }
 
-    function getStartTime() public view returns (uint256) {
-        return startTimeStamp;
+    function _discountPrice(uint256 timestamp) private view returns (uint256) {
+        if (timestamp <= startTimestamp) return PRECISE_UNIT;
+        return PRECISE_UNIT.sub((timestamp.sub(startTimestamp)).mul(PRECISE_UNIT).div(duration));
     }
 
-    function setRegulation(uint32 interval, uint32 reduce) external onlyOwner {
-        //每几(interval)小时减少千分之几(reduce)
-        INTERVAL = interval;
-        REDUCE = reduce;
-    }
-
-    function getRegulation() public view returns (uint32, uint32) {
-        return (INTERVAL, REDUCE);
-    }
-
-    function getPriceAfterDiscount(address asset, uint256 amount) public view returns (uint256) {
-        require(block.timestamp >= startTimeStamp, "auction not start");
+    function calcDiscountSatsAmount(address asset, uint256 amount) public view returns (uint256) {
         uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
-        uint256 duration = block.timestamp.sub(startTimeStamp).div(3600);
-        uint256 reduce = normalizedAmount.mul(duration).div(INTERVAL).mul(REDUCE).div(1000);
-        return normalizedAmount.sub(reduce);
+        uint256 satsAmount = btcRater.calcOrigAmount(address(sats), normalizedAmount);
+        uint256 price = _discountPrice(block.timestamp);
+        uint256 discountSatsAmount = satsAmount.mul(price).div(PRECISE_UNIT);
+        return discountSatsAmount;
     }
 
-    function assetAuction(address asset, uint256 amount) public {
-        require(block.timestamp >= startTimeStamp, "auction not start");
-
-        // require(IERC20(asset).balanceOf(address(this)) >= amount, "not enough asset balance");
-
-        uint256 price = getPriceAfterDiscount(asset, amount);
-        // require(sats.balanceOf(msg.sender) >= price, "not enough SATS balance");
-
-        require(sats.transferFrom(msg.sender, address(this), price), "transfer SATS failed");
-        require(IERC20(asset).transfer(msg.sender, amount), "transfer asset failed");
-
-        emit AssetAuctioned(msg.sender, asset, amount, price);
+    function assetAuction(address asset, uint256 amount) external {
+        require(block.timestamp >= startTimestamp, "auction not start");
+        uint256 discountSatsAmount = calcDiscountSatsAmount(asset, amount);
+        sats.safeTransferFrom(msg.sender, keeperRegistryAddress, discountSatsAmount);
+        IERC20(asset).safeTransfer(msg.sender, amount);
+        emit AssetAuctioned(msg.sender, asset, amount, discountSatsAmount);
     }
-
-    event AssetAuctioned(address operator, address asset, uint256 amount, uint256 price);
 }
