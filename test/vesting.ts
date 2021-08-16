@@ -3,18 +3,15 @@ import { BigNumber, Wallet } from "ethers";
 import { waffle, ethers, deployments } from "hardhat";
 const { parseEther } = ethers.utils;
 import { advanceBlockAtTime, advanceTimeAndBlock, currentTime, WEEK } from "./helper";
-import { ERC20, Vesting, MockERC20 } from "../build/typechain";
+import { ERC20, Vesting } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
-    // await deployments.fixture();
+    await deployments.fixture([]);
 
     const [deployer, ...users] = waffle.provider.getWallets();
 
-    await deployments.deploy("RewardToken", {
-        contract: "MockERC20",
-        from: deployer.address,
-    });
-    const rewardToken = (await ethers.getContract("RewardToken")) as MockERC20;
+    await deployments.deploy("DCS", { from: deployer.address });
+    const rewardToken = (await ethers.getContract("DCS")) as ERC20;
 
     await deployments.deploy("Vesting", {
         from: deployer.address,
