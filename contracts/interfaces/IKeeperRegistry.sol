@@ -30,7 +30,7 @@ interface IKeeperRegistry {
     event AssetAdded(address indexed asset);
 
     event KeeperAdded(address indexed keeper, address asset, uint256 amount);
-    event KeeperDeleted(address indexed keeper, address asset, uint256 amount);
+    event KeeperDeleted(address indexed keeper, address asset, uint256 amount, uint256 cAmount);
     event KeeperImported(address indexed from, address asset, address[] keepers, uint256 amount);
     event KeeperAssetSwapped(address indexed keeper, address asset, uint256 amount);
 

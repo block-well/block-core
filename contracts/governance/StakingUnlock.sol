@@ -122,10 +122,11 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         returns (uint256 unlockAmount)
     {
         unlockAmount = _calUnlockAmount(user, rec);
-
         rec.lastTimestamp = block.timestamp;
-        userLocked[user] = userLocked[user].sub(unlockAmount);
-        rewardToken.safeTransfer(user, unlockAmount);
+        if (unlockAmount > 0) {
+            userLocked[user] = userLocked[user].sub(unlockAmount);
+            rewardToken.safeTransfer(user, unlockAmount);
+        }
     }
 
     function _calUnlockAmount(address user, UserStakeRecord storage rec)
