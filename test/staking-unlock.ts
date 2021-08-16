@@ -10,6 +10,8 @@ import { advanceBlockAtTime, advanceTimeAndBlock, currentTime, WEEK, DAY, HOUR }
 import { ERC20, StakingUnlock, MockERC20, Airdrop } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
+    await deployments.fixture([]);
+
     const user0Index0 = 0;
     const claimAmount = parseEther("1600"); //* 10^18
 
@@ -26,11 +28,8 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const merkleTree = new MerkleTree(Leaves, keccak256, { hashLeaves: false, sortPairs: true });
     const merkleRoot = merkleTree.getHexRoot();
 
-    await deployments.deploy("RewardToken", {
-        contract: "MockERC20",
-        from: deployer.address,
-    });
-    const rewardToken = (await ethers.getContract("RewardToken")) as MockERC20;
+    await deployments.deploy("DCS", { from: deployer.address });
+    const rewardToken = (await ethers.getContract("DCS")) as ERC20;
 
     await deployments.deploy("LpToken", {
         contract: "MockERC20",

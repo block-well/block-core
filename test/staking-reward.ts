@@ -14,6 +14,8 @@ import {
 import { ERC20, StakingReward } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
+    await deployments.fixture([]);
+
     const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
 
     await deployments.deploy("DCS", { from: deployer.address });
@@ -96,8 +98,8 @@ describe("StakingReward", function () {
             expect(await staking.totalStakes()).to.equal(0);
 
             await expect(staking.connect(deployer).updateRate(rate))
-                .to.emit(staking, "RateUpdated")
-                .withArgs(0, rate);
+                .to.emit(staking, "UpdateRate")
+                .withArgs(rate);
 
             expect(await rewardToken.balanceOf(staking.address)).to.equal(rate.mul(10 * WEEK));
             expect(await staking.rate()).to.equal(rate);
@@ -107,71 +109,71 @@ describe("StakingReward", function () {
         });
     });
 
-    describe("deposit()", function () {
+    describe("stake()", function () {
         beforeEach(async function () {
             await staking.connect(deployer).updateRate(rate);
         });
 
-        it("Should deposit before start timestamp", async () => {
+        it("Should stake before start timestamp", async () => {
             expect(await stakedToken.balanceOf(staking.address)).to.equal(0);
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(0);
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
             expect(await staking.lastTimestamp()).to.equal(startTimestamp);
             expect(await staking.globalDivident()).to.equal(0);
             expect(await staking.totalStakes()).to.equal(0);
             expect(await staking.stakes(users[0].address)).to.equal(0);
 
             const amount = parseEther("10");
-            await expect(staking.connect(users[0]).depositAndClaim(amount))
-                .to.emit(staking, "Deposit")
+            await expect(staking.connect(users[0]).stake(amount))
+                .to.emit(staking, "Stake")
                 .withArgs(users[0].address, amount, 0, 0);
 
             expect(await stakedToken.balanceOf(staking.address)).to.equal(amount);
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(0);
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
             expect(await staking.lastTimestamp()).to.equal(startTimestamp);
             expect(await staking.globalDivident()).to.equal(0);
             expect(await staking.totalStakes()).to.equal(amount);
             expect(await staking.stakes(users[0].address)).to.equal(amount);
         });
 
-        it("Should deposit before start timestamp and start accumulating rewards after start timestamp", async () => {
+        it("Should stake before start timestamp and start accumulating rewards after start timestamp", async () => {
             const USER1_AMOUNT = parseEther("30");
             const USER2_AMOUNT = parseEther("10");
             const TOTAL_AMOUNT = USER1_AMOUNT.add(USER2_AMOUNT);
 
-            await staking.connect(users[0]).depositAndClaim(USER1_AMOUNT);
-            await staking.connect(users[1]).depositAndClaim(USER2_AMOUNT);
+            await staking.connect(users[0]).stake(USER1_AMOUNT);
+            await staking.connect(users[1]).stake(USER2_AMOUNT);
 
             await advanceBlockAtTime(startTimestamp + 10);
 
             expect(await staking.lastTimestamp()).to.equal(startTimestamp);
             expect(await staking.globalDivident()).to.equal(0);
 
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(
                 await calUserRewards(USER1_AMOUNT, TOTAL_AMOUNT)
             );
 
-            const tx1 = await staking.connect(users[0]).claimRewards();
+            const tx1 = await staking.connect(users[0]).claim();
             expect(tx1)
-                .to.emit(staking, "ClaimRewards")
+                .to.emit(staking, "Claim")
                 .withArgs(
                     users[0].address,
                     await calUserRewards(USER1_AMOUNT, TOTAL_AMOUNT),
                     await calGlobalDivident(TOTAL_AMOUNT)
                 );
 
-            expect(await staking.connect(users[1]).callStatic.claimRewards()).to.equal(
+            expect(await staking.connect(users[1]).callStatic.claim()).to.equal(
                 await calUserRewards(USER2_AMOUNT, TOTAL_AMOUNT)
             );
 
             expect(await staking.globalDivident()).to.equal(await calGlobalDivident(TOTAL_AMOUNT));
 
-            expect(await staking.connect(users[1]).callStatic.claimRewards()).to.equal(
+            expect(await staking.connect(users[1]).callStatic.claim()).to.equal(
                 await calUserRewards(USER2_AMOUNT, TOTAL_AMOUNT)
             );
 
-            const tx2 = await staking.connect(users[1]).claimRewards();
+            const tx2 = await staking.connect(users[1]).claim();
             expect(tx2)
-                .to.emit(staking, "ClaimRewards")
+                .to.emit(staking, "Claim")
                 .withArgs(
                     users[1].address,
                     await calUserRewards(USER2_AMOUNT, TOTAL_AMOUNT),
@@ -182,26 +184,26 @@ describe("StakingReward", function () {
             expect(await staking.globalDivident()).to.equal(await calGlobalDivident(TOTAL_AMOUNT));
         });
 
-        it("Should deposit and accumulate rewards after start timestamp", async function () {
+        it("Should stake and accumulate rewards after start timestamp", async function () {
             const USER1_AMOUNT = parseEther("30");
             const USER2_AMOUNT = parseEther("10");
             const TOTAL_AMOUNT = USER1_AMOUNT.add(USER2_AMOUNT);
 
             await advanceBlockAtTime(startTimestamp + WEEK);
 
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(0);
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
             expect(await staking.calGlobalDivident()).to.equal(0);
             expect(await staking.totalStakes()).to.equal(0);
 
             await setAutomine(false);
-            await staking.connect(users[0]).depositAndClaim(USER1_AMOUNT);
-            await staking.connect(users[1]).depositAndClaim(USER2_AMOUNT);
+            await staking.connect(users[0]).stake(USER1_AMOUNT);
+            await staking.connect(users[1]).stake(USER2_AMOUNT);
             await advanceBlock();
             await setAutomine(true);
 
             const startTime = await currentTime();
             expect(await staking.calGlobalDivident()).to.equal(0);
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(0);
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
             expect(await staking.lastTimestamp()).to.equal(startTime);
 
             await advanceTimeAndBlock(WEEK);
@@ -210,31 +212,31 @@ describe("StakingReward", function () {
                 await calGlobalDivident(TOTAL_AMOUNT, startTime)
             );
 
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(
                 await calUserRewards(USER1_AMOUNT, TOTAL_AMOUNT, startTime)
             );
-            expect(await staking.connect(users[1]).callStatic.claimRewards()).to.equal(
+            expect(await staking.connect(users[1]).callStatic.claim()).to.equal(
                 await calUserRewards(USER2_AMOUNT, TOTAL_AMOUNT, startTime)
             );
             expect(await staking.lastTimestamp()).to.equal(startTime);
         });
 
-        it("Should deposit but receive no more rewards after end timestamp", async function () {
+        it("Should stake but receive no more rewards after end timestamp", async function () {
             const USER1_AMOUNT = parseEther("30");
             const USER2_AMOUNT = parseEther("10");
             const TOTAL_AMOUNT = USER1_AMOUNT.add(USER2_AMOUNT);
 
-            await staking.connect(users[0]).depositAndClaim(USER1_AMOUNT);
-            await staking.connect(users[1]).depositAndClaim(USER2_AMOUNT);
+            await staking.connect(users[0]).stake(USER1_AMOUNT);
+            await staking.connect(users[1]).stake(USER2_AMOUNT);
 
             await advanceBlockAtTime(startTimestamp + 11 * WEEK);
 
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(
                 await calUserRewards(USER1_AMOUNT, TOTAL_AMOUNT)
             );
-            const tx = await staking.connect(users[1]).claimRewards();
+            const tx = await staking.connect(users[1]).claim();
             expect(tx)
-                .to.emit(staking, "ClaimRewards")
+                .to.emit(staking, "Claim")
                 .withArgs(
                     users[1].address,
                     await calUserRewards(USER2_AMOUNT, TOTAL_AMOUNT),
@@ -244,25 +246,25 @@ describe("StakingReward", function () {
         });
     });
 
-    describe("withdraw()", function () {
+    describe("unstake()", function () {
         beforeEach(async function () {
             await staking.updateRate(rate);
-            await staking.connect(users[0]).depositAndClaim(parseEther("30"));
-            await staking.connect(users[1]).depositAndClaim(parseEther("10"));
+            await staking.connect(users[0]).stake(parseEther("30"));
+            await staking.connect(users[1]).stake(parseEther("10"));
         });
 
-        it("Should withdraw before start timestamp", async function () {
-            await staking.connect(users[0]).withdrawAndClaim(parseEther("10"));
+        it("Should unstake before start timestamp", async function () {
+            await staking.connect(users[0]).unstake(parseEther("10"));
 
             expect(await stakedToken.balanceOf(staking.address)).to.equal(parseEther("30"));
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(0);
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
             expect(await staking.lastTimestamp()).to.equal(startTimestamp);
             expect(await staking.globalDivident()).to.equal(0);
             expect(await staking.totalStakes()).to.equal(parseEther("30"));
             expect(await staking.stakes(users[0].address)).to.equal(parseEther("20"));
         });
 
-        it("Should withdraw deposits deposited before start timestamp", async function () {
+        it("Should unstake before start timestamp", async function () {
             const USER1_AMOUNT = parseEther("30");
             const USER2_AMOUNT = parseEther("10");
             const TOTAL_AMOUNT = USER1_AMOUNT.add(USER2_AMOUNT);
@@ -270,9 +272,9 @@ describe("StakingReward", function () {
             await advanceBlockAtTime(startTimestamp + 10);
 
             const amount = parseEther("10");
-            const tx = await staking.connect(users[0]).withdrawAndClaim(amount);
+            const tx = await staking.connect(users[0]).unstake(amount);
             expect(tx)
-                .to.emit(staking, "Withdraw")
+                .to.emit(staking, "Unstake")
                 .withArgs(
                     users[0].address,
                     amount,
@@ -281,7 +283,7 @@ describe("StakingReward", function () {
                 );
 
             expect(await stakedToken.balanceOf(staking.address)).to.equal(parseEther("30"));
-            expect(await staking.connect(users[0]).callStatic.claimRewards()).to.equal(0);
+            expect(await staking.connect(users[0]).callStatic.claim()).to.equal(0);
             expect(await staking.lastTimestamp()).to.equal(await currentTime());
             expect(await staking.globalDivident()).to.equal(await calGlobalDivident(TOTAL_AMOUNT));
             expect(await staking.totalStakes()).to.equal(parseEther("30"));
@@ -289,7 +291,7 @@ describe("StakingReward", function () {
         });
     });
 
-    describe("claimRewards()", function () {
+    describe("claim()", function () {
         beforeEach(async function () {
             await staking.updateRate(rate);
         });
@@ -302,10 +304,10 @@ describe("StakingReward", function () {
             const TOTAL_AMOUNT = USER1_AMOUNT.add(USER2_AMOUNT).add(USER3_AMOUNT).add(USER4_AMOUNT);
 
             await setAutomine(false);
-            await staking.connect(users[0]).depositAndClaim(USER1_AMOUNT);
-            await staking.connect(users[1]).depositAndClaim(USER2_AMOUNT);
-            await staking.connect(users[2]).depositAndClaim(USER3_AMOUNT);
-            await staking.connect(users[3]).depositAndClaim(USER4_AMOUNT);
+            await staking.connect(users[0]).stake(USER1_AMOUNT);
+            await staking.connect(users[1]).stake(USER2_AMOUNT);
+            await staking.connect(users[2]).stake(USER3_AMOUNT);
+            await staking.connect(users[3]).stake(USER4_AMOUNT);
             await advanceBlockAtTime(startTimestamp);
             await setAutomine(true);
 
@@ -316,10 +318,10 @@ describe("StakingReward", function () {
             expect(await rewardToken.balanceOf(users[3].address)).to.equal(0);
 
             await setAutomine(false);
-            await staking.connect(users[0]).depositAndClaim(parseEther("10"));
-            await staking.connect(users[1]).withdrawAndClaim(parseEther("10"));
-            await staking.connect(users[2]).depositAndClaim(parseEther("10"));
-            await staking.connect(users[3]).withdrawAndClaim(parseEther("10"));
+            await staking.connect(users[0]).stake(parseEther("10"));
+            await staking.connect(users[1]).unstake(parseEther("10"));
+            await staking.connect(users[2]).stake(parseEther("10"));
+            await staking.connect(users[3]).unstake(parseEther("10"));
             await advanceBlockAtTime(startTimestamp + 1 * WEEK);
             await setAutomine(true);
 
@@ -336,10 +338,10 @@ describe("StakingReward", function () {
 
             let lastTime = await currentTime();
             await setAutomine(false);
-            await staking.connect(users[0]).withdrawAndClaim(parseEther("20"));
-            await staking.connect(users[1]).depositAndClaim(parseEther("20"));
-            await staking.connect(users[2]).withdrawAndClaim(parseEther("20"));
-            await staking.connect(users[3]).depositAndClaim(parseEther("20"));
+            await staking.connect(users[0]).unstake(parseEther("20"));
+            await staking.connect(users[1]).stake(parseEther("20"));
+            await staking.connect(users[2]).unstake(parseEther("20"));
+            await staking.connect(users[3]).stake(parseEther("20"));
             await advanceBlockAtTime(startTimestamp + 2 * WEEK);
             await setAutomine(true);
 
@@ -364,10 +366,10 @@ describe("StakingReward", function () {
 
             lastTime = await currentTime();
             await setAutomine(false);
-            await staking.connect(users[0]).claimRewards();
-            await staking.connect(users[1]).claimRewards();
-            await staking.connect(users[2]).claimRewards();
-            await staking.connect(users[3]).claimRewards();
+            await staking.connect(users[0]).claim();
+            await staking.connect(users[1]).claim();
+            await staking.connect(users[2]).claim();
+            await staking.connect(users[3]).claim();
             await advanceBlockAtTime(startTimestamp + 3 * WEEK);
             await setAutomine(true);
 
