@@ -10,6 +10,8 @@ const parseBtcInSats = (value: string) => parseUnits(value, 18);
 const PRECISE_UNIT = parseUnits("1", 18);
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
+    await deployments.fixture([]);
+
     const [deployer, ...users] = waffle.provider.getWallets();
 
     await deployments.deploy("MockWBTC", {

@@ -172,7 +172,10 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
 
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 confiscation = confiscations[assets[i]];
-            IERC20(assets[i]).safeTransfer(liquidation, btcRater.calcOrigAmount(assets[i], confiscation));
+            IERC20(assets[i]).safeTransfer(
+                liquidation,
+                btcRater.calcOrigAmount(assets[i], confiscation)
+            );
             emit Confiscated(liquidation, assets[i], confiscation);
             delete confiscations[assets[i]];
         }

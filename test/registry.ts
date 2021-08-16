@@ -10,6 +10,8 @@ const parseBtcInSats = (value: string) => parseUnits(value, 18);
 const BTC_TO_SATS = 1e8;
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
+    await deployments.fixture([]);
+
     const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
 
     await deployments.deploy("MockWBTC", { from: deployer.address });
