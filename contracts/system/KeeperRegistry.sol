@@ -13,6 +13,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import {SATS} from "./SATS.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
 import {IBtcRater} from "../interfaces/IBtcRater.sol";
+import {ILiquidation} from "../interfaces/ILiquidation.sol";
 import {BtcUtility} from "../utils/BtcUtility.sol";
 
 contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-CT") {
@@ -21,10 +22,10 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    address public liquidation;
     address public system;
     SATS public immutable sats;
     IBtcRater public immutable btcRater;
+    ILiquidation public liquidation;
 
     EnumerableSet.AddressSet assetSet;
     uint32 public MIN_KEEPER_PERIOD = 15552000; // 6 month
@@ -163,20 +164,19 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
     }
 
     function updateLiquidation(address newLiquidation) external onlyOwner {
-        emit LiquidationUpdated(liquidation, newLiquidation);
-        liquidation = newLiquidation;
+        emit LiquidationUpdated(address(liquidation), newLiquidation);
+        liquidation = ILiquidation(newLiquidation);
     }
 
     function confiscate(address[] calldata assets) external {
-        require(liquidation != address(0), "liquidation not up yet");
+        require(address(liquidation) != address(0), "liquidation not up yet");
 
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 confiscation = confiscations[assets[i]];
-            IERC20(assets[i]).safeTransfer(
-                liquidation,
-                btcRater.calcOrigAmount(assets[i], confiscation)
-            );
-            emit Confiscated(liquidation, assets[i], confiscation);
+            uint256 amount = btcRater.calcOrigAmount(assets[i], confiscation);
+            IERC20(assets[i]).approve(address(liquidation), amount);
+            liquidation.receiveFund(assets[i], amount);
+            emit Confiscated(address(liquidation), assets[i], confiscation);
             delete confiscations[assets[i]];
         }
     }

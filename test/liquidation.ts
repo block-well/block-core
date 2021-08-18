@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { BigNumber, ethers, Wallet } from "ethers";
+import { BigNumber, ethers, Wallet, constants } from "ethers";
 import { deployments, waffle } from "hardhat";
 import { BtcRater, ERC20, KeeperRegistry, Liquidation } from "../build/typechain";
 import { advanceTimeAndBlock, currentTime, DAY } from "./helper";
@@ -109,7 +109,9 @@ describe("Liquidation", function () {
             expect(await registry.confiscations(wbtc.address)).to.equal(collateral);
 
             /* --- update liquidation contract address --- */
-            await registry.connect(deployer).updateLiquidation(liquidation.address);
+            await expect(registry.connect(deployer).updateLiquidation(liquidation.address))
+                .to.emit(registry, "LiquidationUpdated")
+                .withArgs(constants.AddressZero, liquidation.address);
             expect(await registry.liquidation()).to.equal(liquidation.address);
 
             /* --- confiscate asset to liquidation contract --- */
@@ -117,6 +119,13 @@ describe("Liquidation", function () {
             expect(await wbtc.balanceOf(liquidation.address)).to.equal(0);
 
             await expect(registry.confiscate([wbtc.address]))
+                .to.emit(liquidation, "InitialData")
+                .withArgs(
+                    await liquidation.startTimestamp(),
+                    await liquidation.duration(),
+                    wbtc.address,
+                    parseBtc("10")
+                )
                 .to.emit(registry, "Confiscated")
                 .withArgs(liquidation.address, wbtc.address, collateral);
 

@@ -3,13 +3,13 @@ pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-import {SATS} from "../system/SATS.sol";
+import {ILiquidation} from "../interfaces/ILiquidation.sol";
 import {IBtcRater} from "../interfaces/IBtcRater.sol";
+import {SATS} from "../system/SATS.sol";
 
-contract Liquidation is Ownable {
+contract Liquidation is ILiquidation {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20 for SATS;
@@ -20,13 +20,6 @@ contract Liquidation is Ownable {
     uint256 public immutable startTimestamp;
     uint256 public immutable duration;
     uint256 private constant PRECISE_UNIT = 1e18;
-
-    event AssetAuctioned(
-        address operator,
-        address asset,
-        uint256 amount,
-        uint256 discountSatsAmount
-    );
 
     constructor(
         address _sats,
@@ -40,6 +33,11 @@ contract Liquidation is Ownable {
         keeperRegistryAddress = _registryAddr;
         startTimestamp = _startTimestamp;
         duration = _duration; //20 days, 20*24*3600=1728000
+    }
+
+    function receiveFund(address asset, uint256 amount) external override {
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+        emit InitialData(startTimestamp, duration, asset, amount);
     }
 
     function discountPrice(uint256 timestamp) external view returns (uint256) {
