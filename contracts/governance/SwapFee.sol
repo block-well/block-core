@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-// import {IToken} from "../interfaces/IToken.sol";
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
 contract SwapFee is ISwapFee, Ownable {

@@ -7,14 +7,12 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import {ILiquidation} from "../interfaces/ILiquidation.sol";
 import {IBtcRater} from "../interfaces/IBtcRater.sol";
-import {SATS} from "../system/SATS.sol";
 
 contract Liquidation is ILiquidation {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-    using SafeERC20 for SATS;
 
-    SATS public immutable sats;
+    IERC20 public immutable sats;
     IBtcRater public immutable btcRater;
     address public immutable keeperRegistryAddress;
     uint256 public immutable startTimestamp;
@@ -28,7 +26,7 @@ contract Liquidation is ILiquidation {
         uint256 _startTimestamp,
         uint256 _duration
     ) {
-        sats = SATS(_sats);
+        sats = IERC20(_sats);
         btcRater = IBtcRater(_btcRater);
         keeperRegistryAddress = _registryAddr;
         startTimestamp = _startTimestamp;

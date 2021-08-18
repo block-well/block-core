@@ -163,13 +163,13 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         }
     }
 
-    function updateLiquidation(address newLiquidation) external onlyOwner {
-        emit LiquidationUpdated(address(liquidation), newLiquidation);
-        liquidation = ILiquidation(newLiquidation);
+    function updateLiquidation(ILiquidation newLiquidation) external onlyOwner {
+        emit LiquidationUpdated(address(liquidation), address(newLiquidation));
+        liquidation = newLiquidation;
     }
 
     function confiscate(address[] calldata assets) external {
-        require(address(liquidation) != address(0), "liquidation not up yet");
+        require(liquidation != ILiquidation(0), "liquidation not up yet");
 
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 confiscation = confiscations[assets[i]];
