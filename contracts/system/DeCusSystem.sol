@@ -11,15 +11,15 @@ import "@openzeppelin/contracts/drafts/EIP712.sol";
 
 import {IDeCusSystem} from "../interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
-import {IToken} from "../interfaces/IToken.sol";
 import {ISwapRewarder} from "../interfaces/ISwapRewarder.sol";
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 import {BtcUtility} from "../utils/BtcUtility.sol";
+import {SATS} from "./SATS.sol";
 
 contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "1.0") {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeERC20 for IToken;
+    using SafeERC20 for SATS;
 
     bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
     bytes32 private constant REQUEST_TYPEHASH =
@@ -31,7 +31,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     uint32 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint32 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
 
-    IToken public sats;
+    SATS public sats;
     IKeeperRegistry public keeperRegistry;
     ISwapRewarder public rewarder;
     ISwapFee public fee;
@@ -60,7 +60,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     function initialize(
-        IToken _sats,
+        SATS _sats,
         IKeeperRegistry _registry,
         ISwapRewarder _rewarder,
         ISwapFee _fee
