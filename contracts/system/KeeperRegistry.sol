@@ -43,14 +43,14 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
 
     constructor(
         address[] memory _assets,
-        address _sats,
-        address _btcRater
+        SATS _sats,
+        IBtcRater _btcRater
     ) {
-        btcRater = IBtcRater(_btcRater);
+        btcRater = _btcRater;
         for (uint256 i = 0; i < _assets.length; i++) {
             _addAsset(_assets[i]);
         }
-        sats = SATS(_sats);
+        sats = _sats;
     }
 
     function updateMinKeeperCollateral(uint256 amount) external onlyOwner {
@@ -175,7 +175,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
             uint256 confiscation = confiscations[assets[i]];
             uint256 amount = btcRater.calcOrigAmount(assets[i], confiscation);
             IERC20(assets[i]).approve(address(liquidation), amount);
-            liquidation.receiveFund(assets[i], amount);
+            liquidation.receiveFund(IERC20(assets[i]), amount);
             emit Confiscated(address(liquidation), assets[i], confiscation);
             delete confiscations[assets[i]];
         }

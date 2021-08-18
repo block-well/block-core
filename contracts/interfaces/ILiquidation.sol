@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface ILiquidation {
-    function receiveFund(address asset, uint256 amount) external;
+    function receiveFund(IERC20 asset, uint256 amount) external;
 
     event AssetAuctioned(
         address operator,

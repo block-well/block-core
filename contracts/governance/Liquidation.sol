@@ -20,22 +20,22 @@ contract Liquidation is ILiquidation {
     uint256 private constant PRECISE_UNIT = 1e18;
 
     constructor(
-        address _sats,
-        address _btcRater,
+        IERC20 _sats,
+        IBtcRater _btcRater,
         address _registryAddr,
         uint256 _startTimestamp,
         uint256 _duration
     ) {
-        sats = IERC20(_sats);
-        btcRater = IBtcRater(_btcRater);
+        sats = _sats;
+        btcRater = _btcRater;
         keeperRegistryAddress = _registryAddr;
         startTimestamp = _startTimestamp;
         duration = _duration; //20 days, 20*24*3600=1728000
     }
 
-    function receiveFund(address asset, uint256 amount) external override {
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        emit InitialData(startTimestamp, duration, asset, amount);
+    function receiveFund(IERC20 asset, uint256 amount) external override {
+        asset.safeTransferFrom(msg.sender, address(this), amount);
+        emit InitialData(startTimestamp, duration, address(asset), amount);
     }
 
     function discountPrice(uint256 timestamp) external view returns (uint256) {
@@ -47,19 +47,19 @@ contract Liquidation is ILiquidation {
         return PRECISE_UNIT.sub((timestamp.sub(startTimestamp)).mul(PRECISE_UNIT).div(duration));
     }
 
-    function calcDiscountSatsAmount(address asset, uint256 amount) public view returns (uint256) {
-        uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
+    function calcDiscountSatsAmount(IERC20 asset, uint256 amount) public view returns (uint256) {
+        uint256 normalizedAmount = btcRater.calcAmountInWei(address(asset), amount);
         uint256 satsAmount = btcRater.calcOrigAmount(address(sats), normalizedAmount);
         uint256 price = _discountPrice(block.timestamp);
         uint256 discountSatsAmount = satsAmount.mul(price).div(PRECISE_UNIT);
         return discountSatsAmount;
     }
 
-    function assetAuction(address asset, uint256 amount) external {
+    function assetAuction(IERC20 asset, uint256 amount) external {
         require(block.timestamp >= startTimestamp, "auction not start");
         uint256 discountSatsAmount = calcDiscountSatsAmount(asset, amount);
         sats.safeTransferFrom(msg.sender, keeperRegistryAddress, discountSatsAmount);
-        IERC20(asset).safeTransfer(msg.sender, amount);
-        emit AssetAuctioned(msg.sender, asset, amount, discountSatsAmount);
+        asset.safeTransfer(msg.sender, amount);
+        emit AssetAuctioned(msg.sender, address(asset), amount, discountSatsAmount);
     }
 }
