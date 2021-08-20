@@ -21,7 +21,7 @@ contract Airdrop is ReentrancyGuard, Ownable {
     uint256 public immutable deadline;
     mapping(uint256 => bool) public claimed;
 
-    event Claim(address user, uint256 index, uint256 amount);
+    event Claim(address indexed user, uint256 index, uint256 amount);
     event Refund(uint256 amount);
     event UpdateMerkleRoot(bytes32 newMerkleRoot);
 

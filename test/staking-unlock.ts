@@ -566,7 +566,16 @@ describe("StakingUnlock", function () {
                 const balanceStaking = await stakedToken.balanceOf(staking.address);
                 const balanceUser = await stakedToken.balanceOf(users[0].address);
 
-                await staking.connect(users[0]).unstake(stakedToken.address, lpAmount);
+                const rec = await staking.userStakeRecord(users[0].address);
+
+                const tx = await staking.connect(users[0]).unstake(stakedToken.address, lpAmount);
+                const unlockAmount = BigNumber.from(await currentTime())
+                    .sub(rec.lastTimestamp)
+                    .mul(rec.maxSpeed)
+                    .div(PRECISE_UNIT);
+                await expect(tx)
+                    .to.emit(staking, "Unstake")
+                    .withArgs(users[0].address, stakedToken.address, lpAmount, unlockAmount);
 
                 expect(await stakedToken.balanceOf(staking.address)).to.equal(
                     balanceStaking.sub(lpAmount)

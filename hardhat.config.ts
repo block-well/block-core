@@ -55,7 +55,14 @@ const config: HardhatUserConfig = {
         path: "./build/abi",
         clear: true,
         flat: true,
-        only: [":DeCusSystem$", ":KeeperRegistry$"],
+        only: [
+            ":DeCusSystem$",
+            ":KeeperRegistry$",
+            ":KeeperReward$",
+            ":StakingReward$",
+            ":Airdrop$",
+            ":StakingUnlock",
+        ],
         spacing: 2,
     },
     namedAccounts: {
