@@ -7,7 +7,7 @@ interface ILiquidation {
     function receiveFund(IERC20 asset, uint256 amount) external;
 
     event AssetAuctioned(
-        address operator,
+        address indexed operator,
         address asset,
         uint256 amount,
         uint256 discountSatsAmount

@@ -2,6 +2,8 @@
 pragma solidity ^0.7.6;
 
 interface IBtcRater {
+    event UpdateRates(address indexed asset, uint256 rate);
+
     function getConversionRate(address asset) external view returns (uint256);
 
     function calcAmountInWei(address asset, uint256 amount) external view returns (uint256);

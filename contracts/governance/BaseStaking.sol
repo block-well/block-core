@@ -24,7 +24,6 @@ contract BaseStaking is Ownable {
     uint256 public totalStakes;
     mapping(address => uint256) public stakes;
     mapping(address => uint256) public userDivident;
-    mapping(address => uint256) public claimableRewards;
 
     event UpdateRate(uint256 rate);
     event Stake(address indexed user, uint256 amount, uint256 rewards, uint256 globalDivident);
@@ -33,13 +32,13 @@ contract BaseStaking is Ownable {
 
     constructor(
         IERC20 _rewardToken,
-        IERC20 _increaseStakeAmountToken,
+        IERC20 _stakeToken,
         uint256 _startTimestamp,
         uint256 _endTimestamp
     ) {
         require(_startTimestamp >= block.timestamp, "Start cannot be in the past");
         rewardToken = _rewardToken;
-        stakeToken = _increaseStakeAmountToken;
+        stakeToken = _stakeToken;
         startTimestamp = _startTimestamp;
         lastTimestamp = _startTimestamp;
         endTimestamp = _endTimestamp;

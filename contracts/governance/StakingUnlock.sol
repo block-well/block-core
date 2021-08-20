@@ -105,7 +105,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         }
         lp.safeTransfer(msg.sender, amount);
 
-        emit UnStake(msg.sender, address(lp), amount, unlockAmount);
+        emit Unstake(msg.sender, address(lp), amount, unlockAmount);
     }
 
     function claim() external override nonReentrant returns (uint256 unlockAmount) {

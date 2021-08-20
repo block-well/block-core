@@ -16,11 +16,31 @@ interface IStakingUnlock {
         IERC20 lp;
     }
 
-    event SetLpConfig(address lp, uint256 speed, uint256 minTimespan);
-    event DepositLocked(address issuer, address user, uint256 amount, uint256 unlockAmount);
-    event Stake(address user, address lp, uint256 stakeAmount, uint256 unlockAmount);
-    event UnStake(address user, address lp, uint256 stakeAmount, uint256 unlockAmount);
-    event Claim(address user, address lp, uint256 stakeAmount, uint256 unlockAmount);
+    event SetLpConfig(address indexed lp, uint256 speed, uint256 minTimespan);
+    event DepositLocked(
+        address indexed issuer,
+        address indexed user,
+        uint256 amount,
+        uint256 unlockAmount
+    );
+    event Stake(
+        address indexed user,
+        address indexed lp,
+        uint256 stakeAmount,
+        uint256 unlockAmount
+    );
+    event Unstake(
+        address indexed user,
+        address indexed lp,
+        uint256 stakeAmount,
+        uint256 unlockAmount
+    );
+    event Claim(
+        address indexed user,
+        address indexed lp,
+        uint256 stakeAmount,
+        uint256 unlockAmount
+    );
 
     function depositLocked(address user, uint256 amount) external returns (uint256 unlockAmount);
 

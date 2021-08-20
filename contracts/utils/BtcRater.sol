@@ -18,12 +18,18 @@ contract BtcRater is Ownable, IBtcRater {
 
     constructor(address[] memory assets, uint256[] memory rates) {
         for (uint256 i = 0; i < assets.length; i++) {
-            btcConversionRates[assets[i]] = rates[i];
+            _updateRates(assets[i], rates[i]);
         }
     }
 
     function updateRates(address asset, uint256 rate) external onlyOwner {
+        _updateRates(asset, rate);
+    }
+
+    function _updateRates(address asset, uint256 rate) private onlyOwner {
         btcConversionRates[asset] = rate;
+
+        emit UpdateRates(asset, rate);
     }
 
     function calcAmountInWei(address asset, uint256 amount)
