@@ -149,7 +149,7 @@ describe("DeCusSystem", function () {
                 .withArgs(BTC_ADDRESS[1]);
         });
 
-        it("should delete group", async function () {
+        it("should delete group by group admin", async function () {
             let group = await system.getGroup(btcAddress);
             expect(group.required).equal(BigNumber.from(3));
             expect(group.maxSatoshi).equal(BigNumber.from(amountInSatoshi));
@@ -160,7 +160,7 @@ describe("DeCusSystem", function () {
                 await system.getReceiptId(btcAddress, group.nonce)
             );
 
-            await expect(system.deleteGroup(btcAddress))
+            await expect(system.connect(deployer).deleteGroup(btcAddress))
                 .to.emit(system, "GroupDeleted")
                 .withArgs(btcAddress);
 
@@ -171,6 +171,91 @@ describe("DeCusSystem", function () {
             expect(group.nonce).equal(BigNumber.from(0));
             expect(group.keepers).deep.equal([]);
             expect(group.workingReceiptId).equal(await system.getReceiptId(btcAddress, 0));
+        });
+
+        it("should delete group by keeper in the group", async function () {
+            const keeperInGroup = users[0];
+            const keeperNotInGroup = users[4];
+
+            await expect(system.connect(keeperNotInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+            await expect(system.connect(keeperInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+
+            await expect(system.connect(deployer).allowKeeperExit())
+                .to.emit(system, "AllowKeeperExit")
+                .withArgs(deployer.address);
+
+            await expect(system.connect(keeperNotInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+            await expect(system.connect(keeperInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+
+            expect(await system.keeperExiting(keeperInGroup.address)).to.be.false;
+            await expect(system.connect(keeperInGroup).toggleExitKeeper())
+                .to.emit(system, "ToggleExitKeeper")
+                .withArgs(keeperInGroup.address, true);
+            expect(await system.keeperExiting(keeperInGroup.address)).to.be.true;
+            await expect(system.connect(keeperNotInGroup).toggleExitKeeper())
+                .to.emit(system, "ToggleExitKeeper")
+                .withArgs(keeperNotInGroup.address, true);
+
+            await expect(system.connect(keeperNotInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+            await expect(system.connect(keeperInGroup).deleteGroup(btcAddress))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress);
+        });
+
+        it("delete groups by group admin", async function () {
+            const btcAddress2 = BTC_ADDRESS[1];
+            await system.addGroup(
+                btcAddress2,
+                3,
+                GROUP_SATOSHI,
+                group2Keepers.map((x) => x.address)
+            );
+
+            await expect(system.connect(deployer).deleteGroups([btcAddress, btcAddress2]))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress)
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress2);
+        });
+
+        it("delete groups by keeper", async function () {
+            const keeperInGroup = users[0];
+            const keeperNotInGroup = users[4];
+            const btcAddress2 = BTC_ADDRESS[1];
+            await system.addGroup(
+                btcAddress2,
+                3,
+                GROUP_SATOSHI,
+                group2Keepers.map((x) => x.address)
+            );
+
+            await system.connect(deployer).allowKeeperExit();
+
+            await system.connect(keeperNotInGroup).toggleExitKeeper();
+            await expect(
+                system.connect(keeperNotInGroup).deleteGroups([btcAddress, btcAddress2])
+            ).to.revertedWith("not authorized");
+
+            await system.connect(keeperInGroup).toggleExitKeeper();
+            await expect(system.connect(keeperInGroup).deleteGroups([btcAddress, btcAddress2]))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress)
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress2);
+
+            await expect(
+                system.connect(keeperNotInGroup).deleteGroups([btcAddress, btcAddress2])
+            ).to.revertedWith("not authorized");
         });
 
         it("delete group twice", async function () {
