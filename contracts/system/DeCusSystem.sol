@@ -31,6 +31,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     uint32 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
     uint32 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
 
+    bool public keeperExitAllowed = false;
     SATS public sats;
     IKeeperRegistry public keeperRegistry;
     ISwapRewarder public rewarder;
@@ -38,7 +39,8 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
     mapping(string => Group) private groups; // btc address -> Group
     mapping(bytes32 => Receipt) private receipts; // receipt ID -> Receipt
-    mapping(address => uint32) private cooldownUntil; // keeper address -> cooldown end timestamp
+    mapping(address => uint32) public cooldownUntil; // keeper address -> cooldown end timestamp
+    mapping(address => bool) public keeperExiting; // keeper -> exiting
 
     BtcRefundData private btcRefundData;
 
@@ -76,8 +78,15 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         _cooldown(keeper, _safeAdd(_blockTimestamp(), chillTime));
     }
 
-    function getCooldownTime(address keeper) external view returns (uint32) {
-        return cooldownUntil[keeper];
+    function allowKeeperExit() external onlyAdmin whenNotPaused {
+        keeperExitAllowed = true;
+        emit AllowKeeperExit(msg.sender);
+    }
+
+    function toggleExitKeeper() external whenNotPaused {
+        require(keeperExitAllowed, "keeper exit not allowed");
+        keeperExiting[msg.sender] = !keeperExiting[msg.sender];
+        emit ToggleExitKeeper(msg.sender, keeperExiting[msg.sender]);
     }
 
     // -------------------------------- group ----------------------------------
@@ -128,29 +137,26 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         emit GroupAdded(btcAddress, required, maxSatoshi, keepers);
     }
 
-    function deleteGroup(string calldata btcAddress) external onlyGroupAdmin whenNotPaused {
+    function deleteGroup(string calldata btcAddress) external whenNotPaused {
         Group storage group = groups[btcAddress];
 
-        bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
-        Receipt storage receipt = receipts[receiptId];
         require(
-            (receipt.status != Status.Available) ||
-                (_blockTimestamp() > receipt.updateTimestamp + GROUP_REUSING_GAP),
-            "receipt in resuing gap"
+            hasRole(GROUP_ROLE, msg.sender) ||
+                (keeperExiting[msg.sender] && group.keeperSet.contains(msg.sender)),
+            "not authorized"
         );
 
-        _clearReceipt(receipt, receiptId);
+        _deleteGroup(btcAddress, group);
+    }
 
-        for (uint8 i = 0; i < group.keeperSet.length(); i++) {
-            address keeper = group.keeperSet.at(i);
-            keeperRegistry.decrementRefCount(keeper);
+    function deleteGroups(string[] calldata btcAddresses) external whenNotPaused {
+        bool isGroupAdmin = hasRole(GROUP_ROLE, msg.sender);
+        for (uint256 i = 0; i < btcAddresses.length; i++) {
+            string calldata btcAddress = btcAddresses[i];
+            Group storage group = groups[btcAddress];
+            require(isGroupAdmin || group.keeperSet.contains(msg.sender), "not authorized");
+            _deleteGroup(btcAddress, group);
         }
-
-        require(group.currSatoshi == 0, "group balance > 0");
-
-        delete groups[btcAddress];
-
-        emit GroupDeleted(btcAddress);
     }
 
     // ------------------------------- receipt ---------------------------------
@@ -347,6 +353,29 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     // -------------------------------- group ----------------------------------
+    function _deleteGroup(string calldata btcAddress, Group storage group) private {
+        bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
+        Receipt storage receipt = receipts[receiptId];
+        require(
+            (receipt.status != Status.Available) ||
+                (_blockTimestamp() > receipt.updateTimestamp + GROUP_REUSING_GAP),
+            "receipt in resuing gap"
+        );
+
+        _clearReceipt(receipt, receiptId);
+
+        for (uint8 i = 0; i < group.keeperSet.length(); i++) {
+            address keeper = group.keeperSet.at(i);
+            keeperRegistry.decrementRefCount(keeper);
+        }
+
+        require(group.currSatoshi == 0, "group balance > 0");
+
+        delete groups[btcAddress];
+
+        emit GroupDeleted(btcAddress);
+    }
+
     function _revokeMint(bytes32 receiptId, Receipt storage receipt) private {
         _revokeDeposit(receipt);
 
