@@ -181,6 +181,17 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         }
     }
 
+    function addConfiscation(
+        address sender,
+        address asset,
+        uint256 amount
+    ) external override {
+        IERC20(asset).safeTransferFrom(sender, address(this), amount);
+        uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
+        confiscations[asset] = confiscations[asset].add(normalizedAmount);
+        emit ConfiscationAdded(asset, normalizedAmount);
+    }
+
     function addOverissue(uint256 overissuedAmount) external onlyOwner {
         require(overissuedAmount > 0, "zero overissued amount");
         uint256 satsConfiscation = confiscations[address(sats)];
