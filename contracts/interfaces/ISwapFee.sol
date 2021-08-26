@@ -5,10 +5,6 @@ pragma experimental ABIEncoderV2;
 interface ISwapFee {
     function getMintEthFee() external view returns (uint256);
 
-    function getMintFeeBps() external view returns (uint8);
-
-    function getBurnFeeBps() external view returns (uint8);
-
     function updateMintEthGasUsed(uint32 gasUsed) external;
 
     function updateMintEthGasPrice(uint16 gasPrice) external;

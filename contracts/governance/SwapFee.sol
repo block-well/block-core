@@ -13,10 +13,10 @@ contract SwapFee is ISwapFee, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    uint8 private _mintFeeBps;
-    uint8 private _burnFeeBps;
-    uint16 private _mintFeeGasPrice; // in gwei
-    uint32 private _mintFeeGasUsed;
+    uint8 public mintFeeBps;
+    uint8 public burnFeeBps;
+    uint16 public mintFeeGasPrice; // in gwei
+    uint32 public mintFeeGasUsed;
     IERC20 public immutable sats;
 
     event SatsCollected(address indexed to, address indexed asset, uint256 amount);
@@ -24,61 +24,49 @@ contract SwapFee is ISwapFee, Ownable {
 
     //================================= Public =================================
     constructor(
-        uint8 mintFeeBps,
-        uint8 burnFeeBps,
-        uint16 mintFeeGasPrice,
-        uint32 mintFeeGasUsed,
+        uint8 _mintFeeBps,
+        uint8 _burnFeeBps,
+        uint16 _mintFeeGasPrice,
+        uint32 _mintFeeGasUsed,
         IERC20 _sats
     ) {
-        _mintFeeBps = mintFeeBps;
-        _burnFeeBps = burnFeeBps;
-        _mintFeeGasUsed = mintFeeGasUsed;
-        _mintFeeGasPrice = mintFeeGasPrice;
+        mintFeeBps = _mintFeeBps;
+        burnFeeBps = _burnFeeBps;
+        mintFeeGasUsed = _mintFeeGasUsed;
+        mintFeeGasPrice = _mintFeeGasPrice;
         sats = _sats;
     }
 
     function getMintEthFee() public view override returns (uint256) {
-        return 1e9 * uint256(_mintFeeGasUsed) * uint256(_mintFeeGasPrice);
-    }
-
-    function getMintFeeBps() external view override returns (uint8) {
-        return _mintFeeBps;
-    }
-
-    function getBurnFeeBps() external view override returns (uint8) {
-        return _burnFeeBps;
+        return 1e9 * uint256(mintFeeGasUsed) * uint256(mintFeeGasPrice);
     }
 
     function updateMintEthGasUsed(uint32 gasUsed) external override onlyOwner {
-        _mintFeeGasUsed = gasUsed;
-
-        emit MintEthFeeUpdate(gasUsed, _mintFeeGasPrice);
+        mintFeeGasUsed = gasUsed;
+        emit MintEthFeeUpdate(gasUsed, mintFeeGasPrice);
     }
 
     function updateMintEthGasPrice(uint16 gasPrice) external override onlyOwner {
-        _mintFeeGasPrice = gasPrice;
-
-        emit MintEthFeeUpdate(_mintFeeGasUsed, gasPrice);
+        mintFeeGasPrice = gasPrice;
+        emit MintEthFeeUpdate(mintFeeGasUsed, gasPrice);
     }
 
     function updateMintFeeBps(uint8 bps) external override onlyOwner {
-        _mintFeeBps = bps;
-
+        mintFeeBps = bps;
         emit MintFeeBpsUpdate(bps);
     }
 
     function updateBurnFeeBps(uint8 bps) external override onlyOwner {
-        _burnFeeBps = bps;
-
+        burnFeeBps = bps;
         emit MintFeeBpsUpdate(bps);
     }
 
     function getMintFeeAmount(uint256 amount) external view override returns (uint256) {
-        return amount.mul(_mintFeeBps).div(10000);
+        return amount.mul(mintFeeBps).div(10000);
     }
 
     function getBurnFeeAmount(uint256 amount) public view override returns (uint256) {
-        return amount.mul(_burnFeeBps).div(10000);
+        return amount.mul(burnFeeBps).div(10000);
     }
 
     function payMintEthFee() external payable override {
@@ -87,12 +75,12 @@ contract SwapFee is ISwapFee, Ownable {
 
     function payExtraMintFee(address, uint256 amount) external view override returns (uint256) {
         // potentially to receive dcs
-        return amount.mul(_mintFeeBps).div(10000);
+        return amount.mul(mintFeeBps).div(10000);
     }
 
     function payExtraBurnFee(address, uint256 amount) external view override returns (uint256) {
         // potentially to receive dcs
-        return amount.mul(_burnFeeBps).div(10000);
+        return amount.mul(burnFeeBps).div(10000);
     }
 
     function collectSats(uint256 amount) public onlyOwner {

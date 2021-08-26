@@ -13,6 +13,7 @@ import {
     SwapRewarder,
     SwapFee,
 } from "../build/typechain";
+import { TimelockController } from "../build/typechain/TimelockController";
 
 const SATOSHI_SATS_MULTIPLIER = BigNumber.from(10).pow(10);
 const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
@@ -35,6 +36,9 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const dcs = (await ethers.getContract("DCS")) as DCS;
     const rewarder = (await ethers.getContract("SwapRewarder")) as SwapRewarder;
     const fee = (await ethers.getContract("SwapFee")) as SwapFee;
+    const timelockController = (await ethers.getContract(
+        "TimelockController"
+    )) as TimelockController;
 
     for (const user of users) {
         await wbtc.mint(user.address, parseBtc("100"));
@@ -42,7 +46,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
     }
 
-    return { deployer, users, system, registry, sats, dcs, rewarder, fee };
+    return { deployer, users, system, registry, sats, dcs, rewarder, fee, timelockController };
 });
 
 describe("DeCusSystem", function () {
@@ -54,13 +58,16 @@ describe("DeCusSystem", function () {
     let dcs: DCS;
     let rewarder: SwapRewarder;
     let fee: SwapFee;
+    let timelockController: TimelockController;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
     let group1Verifiers: Wallet[];
     let group2Verifiers: Wallet[];
+    const GROUP_ROLE = ethers.utils.id("GROUP_ROLE");
 
     beforeEach(async function () {
-        ({ deployer, users, system, registry, sats, dcs, rewarder, fee } = await setupFixture());
+        ({ deployer, users, system, registry, sats, dcs, rewarder, fee, timelockController } =
+            await setupFixture());
         group1Keepers = [users[0], users[1], users[2], users[3]];
         group2Keepers = [users[0], users[1], users[4], users[5]];
 
@@ -78,14 +85,60 @@ describe("DeCusSystem", function () {
         });
     });
 
+    const addGroupAdmin = async (admin: Wallet) => {
+        const delay = await timelockController.getMinDelay();
+        const grantData = system
+            .connect(deployer)
+            .interface.encodeFunctionData("grantRole", [GROUP_ROLE, admin.address]);
+        const revokeData = system
+            .connect(deployer)
+            .interface.encodeFunctionData("revokeRole", [GROUP_ROLE, deployer.address]);
+
+        const salt = ethers.utils.randomBytes(32);
+        const grantId = await timelockController.hashOperation(
+            system.address,
+            0,
+            grantData,
+            ethers.constants.HashZero,
+            salt
+        );
+        await timelockController.schedule(
+            system.address,
+            0,
+            grantData,
+            ethers.constants.HashZero,
+            salt,
+            delay
+        );
+
+        const salt2 = ethers.utils.randomBytes(32);
+        await timelockController
+            .connect(deployer)
+            .schedule(system.address, 0, revokeData, grantId, salt2, delay);
+
+        await advanceTimeAndBlock(delay.toNumber());
+
+        await timelockController.execute(
+            system.address,
+            0,
+            grantData,
+            ethers.constants.HashZero,
+            salt
+        );
+
+        await timelockController.execute(system.address, 0, revokeData, grantId, salt2);
+    };
+
     describe("addGroup()", function () {
-        const GROUP_ROLE = ethers.utils.id("GROUP_ROLE");
         let groupAdmin: Wallet;
 
         beforeEach(async function () {
             groupAdmin = users[9];
-            await system.connect(deployer).grantRole(GROUP_ROLE, groupAdmin.address);
-            await system.connect(deployer).revokeRole(GROUP_ROLE, deployer.address);
+
+            await addGroupAdmin(groupAdmin);
+
+            // await system.connect(deployer).grantRole(GROUP_ROLE, groupAdmin.address);
+            // await system.connect(deployer).revokeRole(GROUP_ROLE, deployer.address);
         });
 
         it("update minKeeperCollaternal", async function () {
@@ -93,9 +146,36 @@ describe("DeCusSystem", function () {
             const minKeeperWei = parseEther("1");
             expect(await registry.minKeeperCollateral()).to.be.lt(minKeeperWei);
 
-            await expect(registry.connect(deployer).updateMinKeeperCollateral(minKeeperWei))
+            const delay = await timelockController.getMinDelay();
+            const data = registry.interface.encodeFunctionData("updateMinKeeperCollateral", [
+                minKeeperWei,
+            ]);
+            const salt = ethers.utils.randomBytes(32);
+            await timelockController.schedule(
+                registry.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt,
+                delay
+            );
+            await advanceTimeAndBlock(delay.toNumber());
+
+            await expect(
+                timelockController.execute(
+                    registry.address,
+                    0,
+                    data,
+                    ethers.constants.HashZero,
+                    salt
+                )
+            )
                 .to.emit(registry, "MinCollateralUpdated")
                 .withArgs(minKeeperWei);
+
+            // await expect(registry.connect(deployer).updateMinKeeperCollateral(minKeeperWei))
+            //     .to.emit(registry, "MinCollateralUpdated")
+            //     .withArgs(minKeeperWei);
 
             const keepers = group1Keepers.map((x) => x.address);
             await expect(
@@ -123,6 +203,42 @@ describe("DeCusSystem", function () {
         });
     });
 
+    const setZeroSwapFee = async () => {
+        await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
+        await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
+        // const delay = await timelockController.getMinDelay();
+        // const data1 = fee.connect(deployer).interface.encodeFunctionData("updateBurnFeeBps", [0]);
+        // const data2 = fee
+        //     .connect(deployer)
+        //     .interface.encodeFunctionData("updateMintEthGasPrice", [0]);
+        // const salt1 = ethers.utils.randomBytes(32);
+        // const salt2 = ethers.utils.randomBytes(32);
+
+        // await timelockController.schedule(
+        //     fee.address,
+        //     0,
+        //     data1,
+        //     ethers.constants.HashZero,
+        //     salt1,
+        //     delay
+        // );
+
+        // await timelockController.schedule(
+        //     fee.address,
+        //     0,
+        //     data2,
+        //     ethers.constants.HashZero,
+        //     salt2,
+        //     delay
+        // );
+
+        // await advanceTimeAndBlock(delay.toNumber());
+
+        // await timelockController.execute(fee.address, 0, data1, ethers.constants.HashZero, salt1);
+
+        // await timelockController.execute(fee.address, 0, data2, ethers.constants.HashZero, salt2);
+    };
+
     describe("deleteGroup()", function () {
         const btcAddress = BTC_ADDRESS[0];
         const withdrawBtcAddress = BTC_ADDRESS[1];
@@ -139,8 +255,7 @@ describe("DeCusSystem", function () {
 
             await system.addGroup(btcAddress, 3, amountInSatoshi, keepers);
 
-            await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
-            await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
+            await setZeroSwapFee();
         });
 
         it("delete not exist", async function () {
@@ -149,7 +264,7 @@ describe("DeCusSystem", function () {
                 .withArgs(BTC_ADDRESS[1]);
         });
 
-        it("should delete group", async function () {
+        it("should delete group by group admin", async function () {
             let group = await system.getGroup(btcAddress);
             expect(group.required).equal(BigNumber.from(3));
             expect(group.maxSatoshi).equal(BigNumber.from(amountInSatoshi));
@@ -160,7 +275,7 @@ describe("DeCusSystem", function () {
                 await system.getReceiptId(btcAddress, group.nonce)
             );
 
-            await expect(system.deleteGroup(btcAddress))
+            await expect(system.connect(deployer).deleteGroup(btcAddress))
                 .to.emit(system, "GroupDeleted")
                 .withArgs(btcAddress);
 
@@ -171,6 +286,115 @@ describe("DeCusSystem", function () {
             expect(group.nonce).equal(BigNumber.from(0));
             expect(group.keepers).deep.equal([]);
             expect(group.workingReceiptId).equal(await system.getReceiptId(btcAddress, 0));
+        });
+
+        const allowKeeperExit = async () => {
+            const delay = await timelockController.getMinDelay();
+            const salt = ethers.utils.randomBytes(32);
+            const data = system.interface.encodeFunctionData("allowKeeperExit");
+            await timelockController.schedule(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt,
+                delay
+            );
+            await advanceTimeAndBlock(delay.toNumber());
+            await timelockController.execute(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt
+            );
+        };
+
+        it("should delete group by keeper in the group", async function () {
+            const keeperInGroup = users[0];
+            const keeperNotInGroup = users[4];
+
+            await expect(system.connect(keeperNotInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+            await expect(system.connect(keeperInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+
+            await allowKeeperExit();
+            // await expect(system.connect(deployer).allowKeeperExit())
+            //     .to.emit(system, "AllowKeeperExit")
+            //     .withArgs(deployer.address);
+
+            await expect(system.connect(keeperNotInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+            await expect(system.connect(keeperInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+
+            expect(await system.keeperExiting(keeperInGroup.address)).to.be.false;
+            await expect(system.connect(keeperInGroup).toggleExitKeeper())
+                .to.emit(system, "ToggleExitKeeper")
+                .withArgs(keeperInGroup.address, true);
+            expect(await system.keeperExiting(keeperInGroup.address)).to.be.true;
+            await expect(system.connect(keeperNotInGroup).toggleExitKeeper())
+                .to.emit(system, "ToggleExitKeeper")
+                .withArgs(keeperNotInGroup.address, true);
+
+            await expect(system.connect(keeperNotInGroup).deleteGroup(btcAddress)).to.revertedWith(
+                "not authorized"
+            );
+            await expect(system.connect(keeperInGroup).deleteGroup(btcAddress))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress);
+        });
+
+        it("delete groups by group admin", async function () {
+            const btcAddress2 = BTC_ADDRESS[1];
+            await system.addGroup(
+                btcAddress2,
+                3,
+                GROUP_SATOSHI,
+                group2Keepers.map((x) => x.address)
+            );
+
+            await expect(system.connect(deployer).deleteGroups([btcAddress, btcAddress2]))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress)
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress2);
+        });
+
+        it("delete groups by keeper", async function () {
+            const keeperInGroup = users[0];
+            const keeperNotInGroup = users[4];
+            const btcAddress2 = BTC_ADDRESS[1];
+            await system.addGroup(
+                btcAddress2,
+                3,
+                GROUP_SATOSHI,
+                group2Keepers.map((x) => x.address)
+            );
+
+            await allowKeeperExit();
+            // await system.connect(deployer).allowKeeperExit();
+
+            await system.connect(keeperNotInGroup).toggleExitKeeper();
+            await expect(
+                system.connect(keeperNotInGroup).deleteGroups([btcAddress, btcAddress2])
+            ).to.revertedWith("not authorized");
+
+            await system.connect(keeperInGroup).toggleExitKeeper();
+            await expect(system.connect(keeperInGroup).deleteGroups([btcAddress, btcAddress2]))
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress)
+                .to.emit(system, "GroupDeleted")
+                .withArgs(btcAddress2);
+
+            await expect(
+                system.connect(keeperNotInGroup).deleteGroups([btcAddress, btcAddress2])
+            ).to.revertedWith("not authorized");
         });
 
         it("delete group twice", async function () {
@@ -635,7 +859,32 @@ describe("DeCusSystem", function () {
         });
 
         const getSatsForBurn = async (user: Wallet, amount: BigNumber) => {
-            await sats.connect(deployer).grantRole(MINTER_ROLE, deployer.address);
+            // await sats.connect(deployer).grantRole(MINTER_ROLE, deployer.address);
+            // await sats.connect(deployer).mint(user.address, amount);
+            const delay = await timelockController.getMinDelay();
+            const grantData = sats.interface.encodeFunctionData("grantRole", [
+                MINTER_ROLE,
+                deployer.address,
+            ]);
+            const salt = ethers.utils.randomBytes(32);
+            await timelockController.schedule(
+                sats.address,
+                0,
+                grantData,
+                ethers.constants.HashZero,
+                salt,
+                delay
+            );
+
+            await advanceTimeAndBlock(delay.toNumber());
+
+            await timelockController.execute(
+                sats.address,
+                0,
+                grantData,
+                ethers.constants.HashZero,
+                salt
+            );
 
             await sats.connect(deployer).mint(user.address, amount);
         };
@@ -671,6 +920,28 @@ describe("DeCusSystem", function () {
             expect(await sats.balanceOf(fee.address)).to.be.equal(burnFeeAmount);
         });
 
+        const recoverBurn = async (receiptId: string) => {
+            const delay = await timelockController.getMinDelay();
+            const salt = ethers.utils.randomBytes(32);
+            const data = system.interface.encodeFunctionData("recoverBurn", [receiptId]);
+            await timelockController.schedule(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt,
+                delay
+            );
+            await advanceTimeAndBlock(delay.toNumber());
+            return timelockController.execute(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt
+            );
+        };
+
         it("recover burn", async function () {
             const redeemer = users[0];
             expect(await sats.balanceOf(redeemer.address)).to.be.equal(userSatsAmount);
@@ -698,9 +969,10 @@ describe("DeCusSystem", function () {
                 "require admin role"
             );
 
-            await expect(system.connect(deployer).recoverBurn(receiptId))
+            const tx = await recoverBurn(receiptId);
+            expect(tx)
                 .to.emit(system, "BurnRevoked")
-                .withArgs(receiptId, btcAddress, redeemer.address, deployer.address);
+                .withArgs(receiptId, btcAddress, redeemer.address, timelockController.address);
 
             receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.equal(Status.DepositReceived);
@@ -721,11 +993,9 @@ describe("DeCusSystem", function () {
         beforeEach(async function () {
             await addMockGroup();
 
-            await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
-            await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
+            await setZeroSwapFee();
 
             receiptId = await requestMint(users[0], btcAddress, nonce, BigNumber.from(0));
-
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
 
             await sats.connect(users[0]).approve(system.address, userSatsAmount);
@@ -802,11 +1072,32 @@ describe("DeCusSystem", function () {
             await addMockGroup();
         });
 
+        const refundBtc = async (btcAddress: string, txId: string) => {
+            const delay = await timelockController.getMinDelay();
+            const salt = ethers.utils.randomBytes(32);
+            const data = system.interface.encodeFunctionData("refundBtc", [btcAddress, txId]);
+            await timelockController.schedule(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt,
+                delay
+            );
+            await advanceTimeAndBlock(delay.toNumber());
+            return timelockController.execute(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt
+            );
+        };
+
         it("refund recorded", async function () {
-            const expiryTimestamp = (await system.REFUND_GAP()) + (1 + (await currentTime()));
-            await expect(system.refundBtc(btcAddress, txId))
-                .to.emit(system, "BtcRefunded")
-                .withArgs(btcAddress, txId, expiryTimestamp);
+            const tx = await refundBtc(btcAddress, txId);
+            const expiryTimestamp = (await system.REFUND_GAP()) + (await currentTime());
+            expect(tx).to.emit(system, "BtcRefunded").withArgs(btcAddress, txId, expiryTimestamp);
 
             const refundData = await system.getRefundData();
             expect(refundData.groupBtcAddress).to.be.equal(btcAddress);
@@ -818,21 +1109,26 @@ describe("DeCusSystem", function () {
             receiptId = await requestMint(users[0], btcAddress, nonce, mintEthFee);
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
 
-            await expect(system.refundBtc(btcAddress, txId)).to.revertedWith(
-                "receipt not in available state"
+            // expect(tx).to.revertedWith("receipt not in available state");
+            await expect(refundBtc(btcAddress, txId)).to.revertedWith(
+                "TimelockController: underlying transaction reverted"
             );
         });
 
         it("refund with clear receipt", async function () {
             receiptId = await requestMint(users[0], btcAddress, nonce, mintEthFee);
 
-            await expect(system.refundBtc(btcAddress, txId)).to.revertedWith("deposit in progress");
+            // expect(tx).to.revertedWith("deposit in progress");
+            await expect(refundBtc(btcAddress, txId)).to.revertedWith(
+                "TimelockController: underlying transaction reverted"
+            );
 
             await advanceTimeAndBlock(24 * 3600);
 
+            const tx = await refundBtc(btcAddress, txId);
             const expiryTimestamp = (await system.REFUND_GAP()) + (1 + (await currentTime()));
 
-            await expect(system.refundBtc(btcAddress, txId))
+            expect(tx)
                 .to.emit(system, "MintRevoked")
                 .withArgs(receiptId, btcAddress, deployer.address)
                 .to.emit(system, "BtcRefunded")
@@ -840,21 +1136,31 @@ describe("DeCusSystem", function () {
         });
 
         it("refund cool down", async function () {
-            const refundGap = await system.REFUND_GAP();
-            const expiryTimestamp = refundGap + (1 + (await currentTime()));
-            await expect(system.refundBtc(btcAddress, txId))
-                .to.emit(system, "BtcRefunded")
-                .withArgs(btcAddress, txId, expiryTimestamp);
-
             const txId2 = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169be";
-            await expect(system.refundBtc(btcAddress, txId2)).to.revertedWith("refund cool down");
+            const delay = await timelockController.getMinDelay();
+            const salt = ethers.utils.randomBytes(32);
+            const data = system.interface.encodeFunctionData("refundBtc", [btcAddress, txId2]);
+            await timelockController.schedule(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt,
+                delay
+            );
+
+            await refundBtc(btcAddress, txId);
+
+            await expect(
+                timelockController.execute(system.address, 0, data, ethers.constants.HashZero, salt)
+            ).to.revertedWith("TimelockController: underlying transaction reverted");
+            // ).to.revertedWith("refund cool down");
+
+            // await expect(system.refundBtc(btcAddress, txId2)).to.revertedWith("refund cool down");
 
             await advanceTimeAndBlock(24 * 3600);
 
-            const expiryTimestamp2 = refundGap + (1 + (await currentTime()));
-            await expect(system.refundBtc(btcAddress, txId2))
-                .to.emit(system, "BtcRefunded")
-                .withArgs(btcAddress, txId2, expiryTimestamp2);
+            await refundBtc(btcAddress, txId2);
         });
     });
     describe("fee() & reward()", function () {
