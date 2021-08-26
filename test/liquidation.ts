@@ -63,10 +63,10 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await sats.connect(deployer).mint(user.address, parseBtcInSats("100"));
 
         await wbtc.connect(user).approve(registry.address, parseBtc("100"));
-        await sats.connect(user).approve(liquidation.address, parseBtcInSats("100"));
+        await sats.connect(user).approve(registry.address, parseBtcInSats("100"));
     }
 
-    return { deployer, users, wbtc, sats, registry, liquidation };
+    return { deployer, users, wbtc, sats, registry, liquidation, rater };
 });
 
 describe("Liquidation", function () {
@@ -76,9 +76,10 @@ describe("Liquidation", function () {
     let sats: ERC20;
     let registry: KeeperRegistry;
     let liquidation: Liquidation;
+    let rater: BtcRater;
 
     beforeEach(async function () {
-        ({ deployer, users, wbtc, sats, registry, liquidation } = await setupFixture());
+        ({ deployer, users, wbtc, sats, registry, liquidation, rater } = await setupFixture());
     });
 
     describe("punishKeeper() & confiscate() & assetAuction()", function () {
@@ -160,7 +161,9 @@ describe("Liquidation", function () {
             expect(discountSatsAmount).to.equal(parseBtcInSats("10"));
 
             await expect(
-                liquidation.connect(users[1]).assetAuction(wbtc.address, wbtcAmount)
+                liquidation
+                    .connect(users[1])
+                    .assetAuction(wbtc.address, wbtcAmount, registry.address)
             ).to.revertedWith("auction not start");
 
             //2. auction after one day
@@ -176,11 +179,26 @@ describe("Liquidation", function () {
             discountSatsAmount = await liquidation.calcDiscountSatsAmount(wbtc.address, wbtcAmount);
             expect(discountSatsAmount).to.equal(parseBtcInSats("10").mul(price).div(PRECISE_UNIT));
 
-            const tx = await liquidation.connect(users[1]).assetAuction(wbtc.address, wbtcAmount);
+            //recipient is wrong
+            await expect(
+                liquidation
+                    .connect(users[1])
+                    .assetAuction(wbtc.address, wbtcAmount, liquidation.address)
+            ).to.revertedWith("recipient not match registry");
+
+            //successful auction
+            const tx = await liquidation
+                .connect(users[1])
+                .assetAuction(wbtc.address, wbtcAmount, registry.address);
             discountSatsAmount = await liquidation.calcDiscountSatsAmount(wbtc.address, wbtcAmount);
             await expect(tx)
                 .to.emit(liquidation, "AssetAuctioned")
-                .withArgs(users[1].address, wbtc.address, wbtcAmount, discountSatsAmount);
+                .withArgs(users[1].address, wbtc.address, wbtcAmount, discountSatsAmount)
+                .to.emit(registry, "ConfiscationAdded")
+                .withArgs(
+                    sats.address,
+                    await rater.calcAmountInWei(sats.address, discountSatsAmount)
+                );
 
             //contract wbtc & sats balances now
             expect(await wbtc.balanceOf(liquidation.address)).to.equal(

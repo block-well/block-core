@@ -4,17 +4,19 @@ pragma solidity ^0.7.6;
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {ILiquidation} from "../interfaces/ILiquidation.sol";
 import {IBtcRater} from "../interfaces/IBtcRater.sol";
+import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
 
-contract Liquidation is ILiquidation {
+contract Liquidation is ILiquidation, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     IERC20 public immutable sats;
     IBtcRater public immutable btcRater;
-    address public immutable keeperRegistryAddress;
+    IKeeperRegistry public immutable registry;
     uint256 public immutable startTimestamp;
     uint256 public immutable duration;
     uint256 private constant PRECISE_UNIT = 1e18;
@@ -22,13 +24,13 @@ contract Liquidation is ILiquidation {
     constructor(
         IERC20 _sats,
         IBtcRater _btcRater,
-        address _registryAddr,
+        IKeeperRegistry _registry,
         uint256 _startTimestamp,
         uint256 _duration
     ) {
         sats = _sats;
         btcRater = _btcRater;
-        keeperRegistryAddress = _registryAddr;
+        registry = _registry;
         startTimestamp = _startTimestamp;
         duration = _duration; //20 days, 20*24*3600=1728000
     }
@@ -55,10 +57,16 @@ contract Liquidation is ILiquidation {
         return discountSatsAmount;
     }
 
-    function assetAuction(IERC20 asset, uint256 amount) external {
+    function assetAuction(
+        IERC20 asset,
+        uint256 amount,
+        address recipient
+    ) external nonReentrant {
         require(block.timestamp >= startTimestamp, "auction not start");
+        require(recipient == address(registry), "recipient not match registry");
+
         uint256 discountSatsAmount = calcDiscountSatsAmount(asset, amount);
-        sats.safeTransferFrom(msg.sender, keeperRegistryAddress, discountSatsAmount);
+        registry.addConfiscation(msg.sender, address(sats), discountSatsAmount);
         asset.safeTransfer(msg.sender, amount);
         emit AssetAuctioned(msg.sender, address(asset), amount, discountSatsAmount);
     }

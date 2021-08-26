@@ -20,6 +20,12 @@ interface IKeeperRegistry {
         address[] calldata keepers
     ) external;
 
+    function addConfiscation(
+        address sender,
+        address asset,
+        uint256 amount
+    ) external;
+
     function incrementRefCount(address keeper) external;
 
     function decrementRefCount(address keeper) external;
@@ -41,6 +47,7 @@ interface IKeeperRegistry {
 
     event LiquidationUpdated(address indexed previousLiquidation, address indexed newLiquidation);
     event Confiscated(address indexed liquidation, address asset, uint256 amount);
+    event ConfiscationAdded(address asset, uint256 amount);
     event OverissueAdded(uint256 total, uint256 added, uint256 deduction);
     event OffsetOverissued(
         address indexed operator,
