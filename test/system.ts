@@ -203,6 +203,42 @@ describe("DeCusSystem", function () {
         });
     });
 
+    const setZeroSwapFee = async () => {
+        await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
+        await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
+        // const delay = await timelockController.getMinDelay();
+        // const data1 = fee.connect(deployer).interface.encodeFunctionData("updateBurnFeeBps", [0]);
+        // const data2 = fee
+        //     .connect(deployer)
+        //     .interface.encodeFunctionData("updateMintEthGasPrice", [0]);
+        // const salt1 = ethers.utils.randomBytes(32);
+        // const salt2 = ethers.utils.randomBytes(32);
+
+        // await timelockController.schedule(
+        //     fee.address,
+        //     0,
+        //     data1,
+        //     ethers.constants.HashZero,
+        //     salt1,
+        //     delay
+        // );
+
+        // await timelockController.schedule(
+        //     fee.address,
+        //     0,
+        //     data2,
+        //     ethers.constants.HashZero,
+        //     salt2,
+        //     delay
+        // );
+
+        // await advanceTimeAndBlock(delay.toNumber());
+
+        // await timelockController.execute(fee.address, 0, data1, ethers.constants.HashZero, salt1);
+
+        // await timelockController.execute(fee.address, 0, data2, ethers.constants.HashZero, salt2);
+    };
+
     describe("deleteGroup()", function () {
         const btcAddress = BTC_ADDRESS[0];
         const withdrawBtcAddress = BTC_ADDRESS[1];
@@ -219,8 +255,7 @@ describe("DeCusSystem", function () {
 
             await system.addGroup(btcAddress, 3, amountInSatoshi, keepers);
 
-            await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
-            await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
+            await setZeroSwapFee();
         });
 
         it("delete not exist", async function () {
@@ -958,11 +993,9 @@ describe("DeCusSystem", function () {
         beforeEach(async function () {
             await addMockGroup();
 
-            await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
-            await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
+            await setZeroSwapFee();
 
             receiptId = await requestMint(users[0], btcAddress, nonce, BigNumber.from(0));
-
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
 
             await sats.connect(users[0]).approve(system.address, userSatsAmount);

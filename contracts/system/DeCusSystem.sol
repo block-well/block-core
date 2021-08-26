@@ -27,10 +27,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
 
     uint32 public constant KEEPER_COOLDOWN = 10 minutes;
-    uint32 public constant WITHDRAW_VERIFICATION_END = 1 hours; // TODO: change to 1/2 days for production
-    uint32 public constant MINT_REQUEST_GRACE_PERIOD = 1 hours; // TODO: change to 8 hours for production
-    uint32 public constant GROUP_REUSING_GAP = 10 minutes; // TODO: change to 30 minutes for production
-    uint32 public constant REFUND_GAP = 10 minutes; // TODO: change to 1 day or more for production
+    uint32 public constant WITHDRAW_VERIFICATION_END = 8 hours;
+    uint32 public constant MINT_REQUEST_GRACE_PERIOD = 18 hours;
+    uint32 public constant GROUP_REUSING_GAP = 30 minutes;
+    uint32 public constant REFUND_GAP = 1 days;
 
     bool public keeperExitAllowed = false;
     SATS public sats;
@@ -113,7 +113,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         Group storage group = groups[btcAddress];
 
         keepers = new address[](group.keeperSet.length());
-        for (uint8 i = 0; i < group.keeperSet.length(); i++) {
+        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
             keepers[i] = group.keeperSet.at(i);
         }
 
@@ -135,7 +135,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         group.required = required;
         group.maxSatoshi = maxSatoshi;
-        for (uint8 i = 0; i < keepers.length; i++) {
+        for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
             require(keeperRegistry.isKeeperQualified(keeper), "keeper has insufficient collateral");
             group.keeperSet.add(keeper);
@@ -372,15 +372,13 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _clearReceipt(receipt, receiptId);
 
-        for (uint8 i = 0; i < group.keeperSet.length(); i++) {
+        for (uint256 i = 0; i < group.keeperSet.length(); i++) {
             address keeper = group.keeperSet.at(i);
             keeperRegistry.decrementRefCount(keeper);
         }
-
         require(group.currSatoshi == 0, "group balance > 0");
 
         delete groups[btcAddress];
-
         emit GroupDeleted(btcAddress);
     }
 

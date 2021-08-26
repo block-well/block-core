@@ -53,7 +53,15 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         deployer
     );
 
-    // we will transfer dcs's owner manually later after all allocation has been done
+    // DCS: we will transfer dcs's owner manually later after all allocation has been done
+
+    // SwapFee: we will do it after all setup
+    // await deployments.execute(
+    //     "SwapFee",
+    //     { from: deployer, log: true },
+    //     "transferOwnership",
+    //     timelockController.address
+    // );
 };
 
 export default func;
