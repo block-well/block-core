@@ -22,6 +22,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     using SafeERC20 for SATS;
 
     bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
+    bytes32 public constant GUARD_ROLE = keccak256("GUARD_ROLE");
     bytes32 private constant REQUEST_TYPEHASH =
         keccak256(abi.encodePacked("MintRequest(bytes32 receiptId,bytes32 txId,uint256 height)"));
 
@@ -44,13 +45,6 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
     BtcRefundData private btcRefundData;
 
-    //================================= Public =================================
-    constructor() {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-
-        _setupRole(GROUP_ROLE, msg.sender);
-    }
-
     modifier onlyAdmin() {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "require admin role");
         _;
@@ -59,6 +53,20 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     modifier onlyGroupAdmin() {
         require(hasRole(GROUP_ROLE, msg.sender), "require group admin role");
         _;
+    }
+
+    modifier onlyGuard() {
+        require(hasRole(GUARD_ROLE, msg.sender), "require guard role");
+        _;
+    }
+
+    //================================= Public =================================
+    constructor() {
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+        _setupRole(GROUP_ROLE, msg.sender);
+
+        _setupRole(GUARD_ROLE, msg.sender);
     }
 
     function initialize(
@@ -74,7 +82,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     // ------------------------------ keeper -----------------------------------
-    function chill(address keeper, uint32 chillTime) external onlyAdmin {
+    function chill(address keeper, uint32 chillTime) external onlyGuard {
         _cooldown(keeper, _safeAdd(_blockTimestamp(), chillTime));
     }
 
@@ -321,11 +329,11 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     // -------------------------------- Pausable -----------------------------------
-    function pause() public onlyAdmin {
+    function pause() public onlyGuard {
         _pause();
     }
 
-    function unpause() public onlyAdmin {
+    function unpause() public onlyGuard {
         _unpause();
     }
 
