@@ -1130,7 +1130,7 @@ describe("DeCusSystem", function () {
 
             expect(tx)
                 .to.emit(system, "MintRevoked")
-                .withArgs(receiptId, btcAddress, deployer.address)
+                .withArgs(receiptId, btcAddress, timelockController.address)
                 .to.emit(system, "BtcRefunded")
                 .withArgs(btcAddress, txId, expiryTimestamp);
         });

@@ -26,7 +26,7 @@ contract BtcRater is Ownable, IBtcRater {
         _updateRates(asset, rate);
     }
 
-    function _updateRates(address asset, uint256 rate) private onlyOwner {
+    function _updateRates(address asset, uint256 rate) private {
         btcConversionRates[asset] = rate;
 
         emit UpdateRates(asset, rate);
