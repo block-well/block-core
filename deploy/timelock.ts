@@ -6,7 +6,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployer } = await getNamedAccounts();
 
     // const delay = 3600 * 24 * 2; // 2 days
-    const delay = 15 * 60; // 15 minutes for test
+    const delay = 15 * 60; // TODO: 15 minutes for test
     const timelockController = await deployments.deploy("TimelockController", {
         from: deployer,
         args: [delay, [deployer], [deployer]],

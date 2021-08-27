@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {SATS} from "./SATS.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
@@ -16,7 +17,12 @@ import {IBtcRater} from "../interfaces/IBtcRater.sol";
 import {ILiquidation} from "../interfaces/ILiquidation.sol";
 import {BtcUtility} from "../utils/BtcUtility.sol";
 
-contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-CT") {
+contract KeeperRegistry is
+    Ownable,
+    IKeeperRegistry,
+    ERC20("DeCus CToken", "DCS-CT"),
+    ReentrancyGuard
+{
     using Math for uint256;
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
@@ -84,7 +90,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         emit EarlyExitFeeBpsUpdated(bps);
     }
 
-    function swapAsset(address asset, uint256 amount) external {
+    function swapAsset(address asset, uint256 amount) external nonReentrant {
         require(assetSet.contains(asset), "assets not accepted");
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -114,7 +120,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         _addKeeper(msg.sender, asset, btcRater.calcAmountInWei(asset, amount));
     }
 
-    function deleteKeeper(uint256 cAmount) external {
+    function deleteKeeper(uint256 cAmount) external nonReentrant {
         KeeperData storage data = keeperData[msg.sender];
         require(data.refCount == 0, "ref count > 0");
 
@@ -168,7 +174,7 @@ contract KeeperRegistry is Ownable, IKeeperRegistry, ERC20("DeCus CToken", "DCS-
         liquidation = newLiquidation;
     }
 
-    function confiscate(address[] calldata assets) external {
+    function confiscate(address[] calldata assets) external nonReentrant {
         require(liquidation != ILiquidation(0), "liquidation not up yet");
 
         for (uint256 i = 0; i < assets.length; i++) {
