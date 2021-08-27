@@ -7,7 +7,7 @@ import keccak256 from "keccak256";
 const { parseEther, parseUnits } = ethers.utils;
 const parsePrecise = (value: string) => parseUnits(value, 18);
 import { advanceBlockAtTime, advanceTimeAndBlock, currentTime, WEEK, DAY, HOUR } from "./helper";
-import { ERC20, StakingUnlock, MockERC20, Airdrop } from "../build/typechain";
+import { ERC20, StakingUnlock, Airdrop } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture([]);
@@ -33,21 +33,24 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     await deployments.deploy("LpToken", {
         contract: "MockERC20",
+        args: ["LpToken", "LpToken", 18],
         from: deployer.address,
     });
-    const stakedToken = (await ethers.getContract("LpToken")) as MockERC20;
+    const stakedToken = (await ethers.getContract("LpToken")) as ERC20;
 
     await deployments.deploy("LpToken2", {
         contract: "MockERC20",
+        args: ["LpToken2", "LpToken2", 18],
         from: deployer.address,
     });
-    const stakedToken2 = (await ethers.getContract("LpToken2")) as MockERC20;
+    const stakedToken2 = (await ethers.getContract("LpToken2")) as ERC20;
 
     await deployments.deploy("UnknownERC20", {
         contract: "MockERC20",
+        args: ["Unknown", "Unknown", 18],
         from: deployer.address,
     });
-    const unknownToken = (await ethers.getContract("UnknownERC20")) as MockERC20;
+    const unknownToken = (await ethers.getContract("UnknownERC20")) as ERC20;
 
     await deployments.deploy("StakingUnlock", {
         from: deployer.address,

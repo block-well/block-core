@@ -3,7 +3,7 @@ pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 
-contract MockBTC is ERC20Burnable {
+contract MockERC20 is ERC20Burnable {
     constructor(
         string memory name,
         string memory symbol,
@@ -17,10 +17,6 @@ contract MockBTC is ERC20Burnable {
     }
 }
 
-contract MockWBTC is MockBTC {
-    constructor() MockBTC("Wrapped Bitcoin", "WBTC", 8) {}
-}
-
-contract MockERC20 is MockBTC {
-    constructor() MockBTC("Other ERC20", "OTHER", 18) {}
+contract MockWBTC is MockERC20 {
+    constructor() MockERC20("Wrapped Bitcoin", "WBTC", 8) {}
 }

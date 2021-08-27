@@ -21,6 +21,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     await deployments.deploy("MockHBTC", {
         contract: "MockERC20",
+        args: ["HBTC", "HBTC", 18],
         from: deployer.address,
     });
     const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
