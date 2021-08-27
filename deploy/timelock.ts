@@ -37,6 +37,14 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         timelockController.address
     );
 
+    // BtcRater
+    await deployments.execute(
+        "BtcRater",
+        { from: deployer, log: true },
+        "transferOwnership",
+        timelockController.address
+    );
+
     // SATS
     await deployments.execute(
         "SATS",

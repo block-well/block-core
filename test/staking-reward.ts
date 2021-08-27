@@ -21,7 +21,10 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     await deployments.deploy("DCS", { from: deployer.address });
     const rewardToken = (await ethers.getContract("DCS")) as ERC20;
 
-    await deployments.deploy("MockERC20", { from: deployer.address });
+    await deployments.deploy("MockERC20", {
+        from: deployer.address,
+        args: ["StakeToken", "StakeToken", 18],
+    });
     const stakedToken = (await ethers.getContract("MockERC20")) as ERC20;
 
     const currentTimestamp = await currentTime();

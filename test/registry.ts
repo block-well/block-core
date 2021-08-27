@@ -29,7 +29,11 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     const dcs = await deployments.deploy("DCS", { from: deployer.address });
 
-    await deployments.deploy("MockHBTC", { contract: "MockERC20", from: deployer.address });
+    await deployments.deploy("MockHBTC", {
+        contract: "MockERC20",
+        args: ["HBTC", "HBTC", 18],
+        from: deployer.address,
+    });
     const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
 
     await deployments.deploy("DeCusSystem", { from: deployer.address, args: [] });
@@ -111,8 +115,12 @@ describe("KeeperRegistry", function () {
             const MockWBTC = await ethers.getContractFactory("MockWBTC");
             const wbtc2 = await MockWBTC.connect(deployer).deploy();
 
-            const MockERC20 = await ethers.getContractFactory("MockERC20");
-            const hbtc2 = await MockERC20.connect(deployer).deploy();
+            await deployments.deploy("HBTC2", {
+                contract: "MockERC20",
+                from: deployer.address,
+                args: ["HBTC2", "HBTC2", 18],
+            });
+            const hbtc2 = await ethers.getContract("HBTC2");
 
             await expect(registry.connect(deployer).addAsset(wbtc2.address))
                 .to.emit(registry, "AssetAdded")

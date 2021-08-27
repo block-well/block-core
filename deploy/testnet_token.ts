@@ -11,6 +11,13 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         args: [],
         log: true,
     });
+
+    await deployments.deploy("USDT", {
+        contract: "MockERC20",
+        from: deployer,
+        args: ["USDT", "USDT", 18],
+        log: true,
+    });
 };
 
 export default func;
