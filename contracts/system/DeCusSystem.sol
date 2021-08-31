@@ -148,22 +148,28 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     function deleteGroup(string calldata btcAddress) external whenNotPaused {
         Group storage group = groups[btcAddress];
 
+        bool force = hasRole(DEFAULT_ADMIN_ROLE, msg.sender);
         require(
-            hasRole(GROUP_ROLE, msg.sender) ||
+            force ||
+                hasRole(GROUP_ROLE, msg.sender) ||
                 (keeperExiting[msg.sender] && group.keeperSet.contains(msg.sender)),
             "not authorized"
         );
 
-        _deleteGroup(btcAddress, group);
+        _deleteGroup(btcAddress, group, force);
     }
 
     function deleteGroups(string[] calldata btcAddresses) external whenNotPaused {
+        bool force = hasRole(DEFAULT_ADMIN_ROLE, msg.sender);
         bool isGroupAdmin = hasRole(GROUP_ROLE, msg.sender);
         for (uint256 i = 0; i < btcAddresses.length; i++) {
             string calldata btcAddress = btcAddresses[i];
             Group storage group = groups[btcAddress];
-            require(isGroupAdmin || group.keeperSet.contains(msg.sender), "not authorized");
-            _deleteGroup(btcAddress, group);
+            require(
+                force || isGroupAdmin || group.keeperSet.contains(msg.sender),
+                "not authorized"
+            );
+            _deleteGroup(btcAddress, group, force);
         }
     }
 
@@ -361,7 +367,11 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     // -------------------------------- group ----------------------------------
-    function _deleteGroup(string calldata btcAddress, Group storage group) private {
+    function _deleteGroup(
+        string calldata btcAddress,
+        Group storage group,
+        bool force
+    ) private {
         bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
         Receipt storage receipt = receipts[receiptId];
         require(
@@ -371,13 +381,18 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         );
 
         _clearReceipt(receipt, receiptId);
+        if ((force && (receipt.status == Status.DepositReceived))) {
+            receipt.status = Status.Available;
+            group.currSatoshi = 0;
+        }
+        delete receipts[receiptId];
 
         for (uint256 i = 0; i < group.keeperSet.length(); i++) {
             address keeper = group.keeperSet.at(i);
             keeperRegistry.decrementRefCount(keeper);
         }
-        require(group.currSatoshi == 0, "group balance > 0");
 
+        require(group.currSatoshi == 0, "group balance > 0");
         delete groups[btcAddress];
         emit GroupDeleted(btcAddress);
     }
