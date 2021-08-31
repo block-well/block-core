@@ -87,12 +87,14 @@ describe("DeCusSystem", function () {
 
     const addGroupAdmin = async (admin: Wallet) => {
         const delay = await timelockController.getMinDelay();
-        const grantData = system
-            .connect(deployer)
-            .interface.encodeFunctionData("grantRole", [GROUP_ROLE, admin.address]);
-        const revokeData = system
-            .connect(deployer)
-            .interface.encodeFunctionData("revokeRole", [GROUP_ROLE, deployer.address]);
+        const grantData = system.interface.encodeFunctionData("grantRole", [
+            GROUP_ROLE,
+            admin.address,
+        ]);
+        const revokeData = system.interface.encodeFunctionData("revokeRole", [
+            GROUP_ROLE,
+            deployer.address,
+        ]);
 
         const salt = ethers.utils.randomBytes(32);
         const grantId = await timelockController.hashOperation(
@@ -207,10 +209,8 @@ describe("DeCusSystem", function () {
         await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
         await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
         // const delay = await timelockController.getMinDelay();
-        // const data1 = fee.connect(deployer).interface.encodeFunctionData("updateBurnFeeBps", [0]);
-        // const data2 = fee
-        //     .connect(deployer)
-        //     .interface.encodeFunctionData("updateMintEthGasPrice", [0]);
+        // const data1 = fee.interface.encodeFunctionData("updateBurnFeeBps", [0]);
+        // const data2 = fee.interface.encodeFunctionData("updateMintEthGasPrice", [0]);
         // const salt1 = ethers.utils.randomBytes(32);
         // const salt2 = ethers.utils.randomBytes(32);
 
@@ -1126,7 +1126,7 @@ describe("DeCusSystem", function () {
             await advanceTimeAndBlock(24 * 3600);
 
             const tx = await refundBtc(btcAddress, txId);
-            const expiryTimestamp = (await system.REFUND_GAP()) + (1 + (await currentTime()));
+            const expiryTimestamp = (await system.REFUND_GAP()) + (await currentTime());
 
             expect(tx)
                 .to.emit(system, "MintRevoked")
