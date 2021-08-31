@@ -32,7 +32,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
             registry.address,
             rewardStart,
             rewardEnd,
-            process.env.KEEPER_REWARD_VALIDATOR,
+            process.env.KEEPER_REWARD_VALIDATOR ?? hre.ethers.constants.AddressZero,
         ],
         log: true,
     });

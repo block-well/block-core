@@ -473,6 +473,27 @@ describe("DeCusSystem", function () {
             await expect(system.connect(deployer).deleteGroup(btcAddress)).to.revertedWith(
                 "group balance > 0"
             );
+
+            // only owner can delete group when MintVerified
+            const delay = await timelockController.getMinDelay();
+            const salt = ethers.utils.randomBytes(32);
+            const data = system.interface.encodeFunctionData("deleteGroup", [btcAddress]);
+            await timelockController.schedule(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt,
+                delay
+            );
+            await advanceTimeAndBlock(delay.toNumber());
+            await timelockController.execute(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt
+            );
         });
 
         it("delete group when burn requested", async function () {
