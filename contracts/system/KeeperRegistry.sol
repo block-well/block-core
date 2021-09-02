@@ -200,22 +200,14 @@ contract KeeperRegistry is
 
     function addOverissue(uint256 overissuedAmount) external onlyOwner {
         require(overissuedAmount > 0, "zero overissued amount");
-        uint256 satsConfiscation = confiscations[address(sats)];
-        uint256 deduction = 0;
-        if (satsConfiscation > 0) {
-            deduction = overissuedAmount.min(satsConfiscation);
-            sats.burn(deduction);
-            overissuedAmount = overissuedAmount.sub(deduction);
-            confiscations[address(sats)] = satsConfiscation.sub(deduction);
-        }
         overissuedTotal = overissuedTotal.add(overissuedAmount);
-        emit OverissueAdded(overissuedTotal, overissuedAmount, deduction);
+        emit OverissueAdded(overissuedTotal, overissuedAmount);
     }
 
     function offsetOverissue(uint256 satsAmount) external {
-        sats.burnFrom(msg.sender, satsAmount);
         overissuedTotal = overissuedTotal.sub(satsAmount);
-
+        confiscations[address(sats)] = confiscations[address(sats)].sub(satsAmount);
+        sats.burn(satsAmount);
         emit OffsetOverissued(msg.sender, satsAmount, overissuedTotal);
     }
 

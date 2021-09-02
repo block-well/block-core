@@ -214,6 +214,33 @@ describe("Liquidation", function () {
             expect(await sats.balanceOf(users[1].address)).to.equal(
                 origUserSats.sub(discountSatsAmount)
             );
+
+            /* --- offset overissue --- */
+            //add overissue
+            expect(await registry.overissuedTotal()).to.equal(0);
+
+            const overissuedAmount = parseBtcInSats("5");
+            await expect(registry.connect(deployer).addOverissue(overissuedAmount))
+                .to.emit(registry, "OverissueAdded")
+                .withArgs(parseBtcInSats("5"), overissuedAmount);
+
+            expect(await sats.balanceOf(registry.address)).to.equal(discountSatsAmount);
+            expect(await registry.confiscations(sats.address)).to.be.equal(discountSatsAmount);
+            expect(await registry.overissuedTotal()).to.equal(parseBtcInSats("5"));
+
+            //offset overissue
+            const satsAmount = parseBtcInSats("5");
+            await expect(registry.connect(deployer).offsetOverissue(satsAmount))
+                .to.emit(registry, "OffsetOverissued")
+                .withArgs(deployer.address, satsAmount, 0);
+
+            expect(await sats.balanceOf(registry.address)).to.equal(
+                discountSatsAmount.sub(satsAmount)
+            );
+            expect(await registry.confiscations(sats.address)).to.be.equal(
+                discountSatsAmount.sub(satsAmount)
+            );
+            expect(await registry.overissuedTotal()).to.equal(0);
         });
     });
 });
