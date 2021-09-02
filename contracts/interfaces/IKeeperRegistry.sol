@@ -48,7 +48,7 @@ interface IKeeperRegistry {
     event LiquidationUpdated(address indexed previousLiquidation, address indexed newLiquidation);
     event Confiscated(address indexed liquidation, address asset, uint256 amount);
     event ConfiscationAdded(address asset, uint256 amount);
-    event OverissueAdded(uint256 total, uint256 added, uint256 deduction);
+    event OverissueAdded(uint256 total, uint256 added);
     event OffsetOverissued(
         address indexed operator,
         uint256 satsAmount,
