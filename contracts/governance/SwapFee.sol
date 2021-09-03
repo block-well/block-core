@@ -13,14 +13,11 @@ contract SwapFee is ISwapFee, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    uint8 public mintFeeBps;
-    uint8 public burnFeeBps;
-    uint16 public mintFeeGasPrice; // in gwei
-    uint32 public mintFeeGasUsed;
+    uint8 public immutable mintFeeBps;
+    uint8 public immutable burnFeeBps;
+    uint16 public immutable mintFeeGasPrice; // in gwei
+    uint32 public immutable mintFeeGasUsed;
     IERC20 public immutable sats;
-
-    event SatsCollected(address indexed to, address indexed asset, uint256 amount);
-    event EtherCollected(address indexed to, uint256 amount);
 
     //================================= Public =================================
     constructor(
@@ -41,26 +38,6 @@ contract SwapFee is ISwapFee, Ownable {
         return 1e9 * uint256(mintFeeGasUsed) * uint256(mintFeeGasPrice);
     }
 
-    function updateMintEthGasUsed(uint32 gasUsed) external override onlyOwner {
-        mintFeeGasUsed = gasUsed;
-        emit MintEthFeeUpdate(gasUsed, mintFeeGasPrice);
-    }
-
-    function updateMintEthGasPrice(uint16 gasPrice) external override onlyOwner {
-        mintFeeGasPrice = gasPrice;
-        emit MintEthFeeUpdate(mintFeeGasUsed, gasPrice);
-    }
-
-    function updateMintFeeBps(uint8 bps) external override onlyOwner {
-        mintFeeBps = bps;
-        emit MintFeeBpsUpdate(bps);
-    }
-
-    function updateBurnFeeBps(uint8 bps) external override onlyOwner {
-        burnFeeBps = bps;
-        emit MintFeeBpsUpdate(bps);
-    }
-
     function getMintFeeAmount(uint256 amount) external view override returns (uint256) {
         return amount.mul(mintFeeBps).div(10000);
     }
@@ -74,23 +51,21 @@ contract SwapFee is ISwapFee, Ownable {
     }
 
     function payExtraMintFee(address, uint256 amount) external view override returns (uint256) {
-        // potentially to receive dcs
         return amount.mul(mintFeeBps).div(10000);
     }
 
     function payExtraBurnFee(address, uint256 amount) external view override returns (uint256) {
-        // potentially to receive dcs
         return amount.mul(burnFeeBps).div(10000);
     }
 
     function collectSats(uint256 amount) public onlyOwner {
         sats.safeTransfer(msg.sender, amount);
-        emit SatsCollected(msg.sender, address(sats), amount);
+        emit FeeCollected(msg.sender, address(sats), amount);
     }
 
     function collectEther(address payable to, uint256 amount) public onlyOwner {
         (bool sent, ) = to.call{value: amount}("");
         require(sent, "failed to send ether");
-        emit EtherCollected(to, amount);
+        emit FeeCollected(to, address(0), amount);
     }
 }

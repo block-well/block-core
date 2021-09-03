@@ -3,17 +3,17 @@ pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import {ISwapRewarder} from "../interfaces/ISwapRewarder.sol";
 
-contract SwapRewarder is ISwapRewarder {
+contract SwapRewarder is ISwapRewarder, Ownable {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable dcs;
-    address public immutable owner;
     address public immutable minter;
-    uint256 public mintRewardAmount = 2000 ether;
-    uint256 public burnRewardAmount = 100 ether;
+    uint256 public immutable mintRewardAmount;
+    uint256 public immutable burnRewardAmount;
 
     event RewarderAbort(address indexed to, uint256 amount);
 
@@ -22,10 +22,16 @@ contract SwapRewarder is ISwapRewarder {
         _;
     }
 
-    constructor(IERC20 _dcs, address _minter) {
+    constructor(
+        IERC20 _dcs,
+        address _minter,
+        uint256 _mintRewardAmount,
+        uint256 _burnRewardAmount
+    ) {
         dcs = _dcs;
         minter = _minter;
-        owner = msg.sender;
+        mintRewardAmount = _mintRewardAmount;
+        burnRewardAmount = _burnRewardAmount;
     }
 
     function mintReward(address to, uint256) external override onlyMinter {
@@ -44,9 +50,7 @@ contract SwapRewarder is ISwapRewarder {
         emit SwapRewarded(to, burnRewardAmount, false);
     }
 
-    function abort() external {
-        require(owner == msg.sender, "only owner");
-
+    function abort() external onlyOwner {
         uint256 balance = dcs.balanceOf(address(this));
 
         dcs.safeTransfer(msg.sender, balance);
