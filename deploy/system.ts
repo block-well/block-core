@@ -8,7 +8,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const sats = await deployments.get("SATS");
     await deployments.deploy("SwapFee", {
         from: deployer,
-        args: [0, 20, 100, 300000, sats.address],
+        args: [0, 20, 10, 300000, sats.address], // TODO: check value before deploy
         log: true,
     });
 
@@ -21,7 +21,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const dcs = await deployments.get("DCS");
     await deployments.deploy("SwapRewarder", {
         from: deployer,
-        args: [dcs.address, system.address],
+        args: [
+            dcs.address,
+            system.address,
+            hre.ethers.utils.parseEther("40"),
+            hre.ethers.utils.parseEther("10"),
+        ], // TODO: check value before deploy
         log: true,
     });
 };

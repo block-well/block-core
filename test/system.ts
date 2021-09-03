@@ -205,37 +205,61 @@ describe("DeCusSystem", function () {
     });
 
     const setZeroSwapFee = async () => {
-        await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
-        await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
-        // const delay = await timelockController.getMinDelay();
-        // const data1 = fee.interface.encodeFunctionData("updateBurnFeeBps", [0]);
-        // const data2 = fee.interface.encodeFunctionData("updateMintEthGasPrice", [0]);
-        // const salt1 = ethers.utils.randomBytes(32);
-        // const salt2 = ethers.utils.randomBytes(32);
+        return setSwapFee(0, 0, 0, 0);
+    };
 
-        // await timelockController.schedule(
-        //     fee.address,
-        //     0,
-        //     data1,
-        //     ethers.constants.HashZero,
-        //     salt1,
-        //     delay
-        // );
+    const setSwapFee = async (
+        mintFeeBps: number,
+        burnFeeBps: number,
+        mintFeeGasPrice: number,
+        mintFeeGasUsed: number
+    ) => {
+        // await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
+        // await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
 
-        // await timelockController.schedule(
-        //     fee.address,
-        //     0,
-        //     data2,
-        //     ethers.constants.HashZero,
-        //     salt2,
-        //     delay
-        // );
+        await deployments.deploy("SwapFee", {
+            from: deployer.address,
+            args: [mintFeeBps, burnFeeBps, mintFeeGasPrice, mintFeeGasUsed, sats.address],
+        });
+        fee = (await ethers.getContract("SwapFee")) as SwapFee;
 
-        // await advanceTimeAndBlock(delay.toNumber());
+        const delay = await timelockController.getMinDelay();
+        const data = system.interface.encodeFunctionData("initialize", [
+            await system.sats(),
+            await system.keeperRegistry(),
+            await system.rewarder(),
+            fee.address,
+        ]);
+        const salt = ethers.utils.randomBytes(32);
 
-        // await timelockController.execute(fee.address, 0, data1, ethers.constants.HashZero, salt1);
+        await timelockController.schedule(
+            system.address,
+            0,
+            data,
+            ethers.constants.HashZero,
+            salt,
+            delay
+        );
 
-        // await timelockController.execute(fee.address, 0, data2, ethers.constants.HashZero, salt2);
+        await advanceTimeAndBlock(delay.toNumber());
+
+        await timelockController.execute(system.address, 0, data, ethers.constants.HashZero, salt);
+
+        return fee;
+    };
+
+    const setSwapRewarder = async (mintRewardAmount: BigNumber, burnRewardAmount: BigNumber) => {
+        await deployments.deploy("SwapRewarder", {
+            from: deployer.address,
+            args: [
+                await rewarder.dcs(),
+                await rewarder.minter(),
+                mintRewardAmount,
+                burnRewardAmount,
+            ],
+        });
+        rewarder = (await ethers.getContract("SwapRewarder")) as SwapRewarder;
+        return rewarder;
     };
 
     describe("deleteGroup()", function () {
@@ -1199,8 +1223,16 @@ describe("DeCusSystem", function () {
 
         beforeEach(async function () {
             await addMockGroup();
-            await fee.connect(deployer).updateMintFeeBps(mintFeeBps);
-            await fee.connect(deployer).updateBurnFeeBps(burnFeeBps);
+
+            await setSwapFee(
+                mintFeeBps,
+                burnFeeBps,
+                await fee.mintFeeGasPrice(),
+                await fee.mintFeeGasUsed()
+            );
+
+            await setSwapRewarder(parseEther("40"), parseEther("10"));
+
             mintEthFee = await fee.getMintEthFee();
 
             dcsMintReward = await rewarder.mintRewardAmount();
@@ -1272,7 +1304,7 @@ describe("DeCusSystem", function () {
             expect(await sats.balanceOf(deployer.address)).to.equal(0);
 
             await expect(fee.connect(deployer).collectSats(totalFeeAmount))
-                .to.emit(fee, "SatsCollected")
+                .to.emit(fee, "FeeCollected")
                 .withArgs(deployer.address, sats.address, totalFeeAmount);
 
             expect(await sats.balanceOf(fee.address)).to.equal(0);
@@ -1285,8 +1317,8 @@ describe("DeCusSystem", function () {
             expect(await ethers.provider.getBalance(coordinator.address)).to.equal(0);
 
             await expect(fee.connect(deployer).collectEther(coordinator.address, etherAmount))
-                .to.emit(fee, "EtherCollected")
-                .withArgs(coordinator.address, etherAmount);
+                .to.emit(fee, "FeeCollected")
+                .withArgs(coordinator.address, ethers.constants.AddressZero, etherAmount);
 
             expect(await ethers.provider.getBalance(fee.address)).to.equal(0);
             expect(await ethers.provider.getBalance(coordinator.address)).to.equal(etherAmount);

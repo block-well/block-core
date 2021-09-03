@@ -61,7 +61,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     const rewarder = await deployments.deploy("SwapRewarder", {
         from: deployer.address,
-        args: [dcs.address, system.address],
+        args: [dcs.address, system.address, parseEther("40"), parseEther("10")],
     });
 
     await deployments.execute(
