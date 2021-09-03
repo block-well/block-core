@@ -34,9 +34,9 @@ contract KeeperRegistry is
     ILiquidation public liquidation;
 
     EnumerableSet.AddressSet assetSet;
+    uint256 public minKeeperCollateral;
     uint32 public MIN_KEEPER_PERIOD = 15552000; // 6 month
     uint8 public earlyExitFeeBps = 100;
-    uint256 public minKeeperCollateral = 1e14; // TODO: change this in production
 
     mapping(address => KeeperData) public keeperData;
     uint256 public overissuedTotal;
@@ -50,9 +50,11 @@ contract KeeperRegistry is
     constructor(
         address[] memory _assets,
         SATS _sats,
-        IBtcRater _btcRater
+        IBtcRater _btcRater,
+        uint256 _minKeeperCollateral
     ) {
         btcRater = _btcRater;
+        minKeeperCollateral = _minKeeperCollateral;
         for (uint256 i = 0; i < _assets.length; i++) {
             _addAsset(_assets[i]);
         }

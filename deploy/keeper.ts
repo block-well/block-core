@@ -3,20 +3,30 @@ import { DeployFunction } from "hardhat-deploy/types";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
-    const { deployer } = await getNamedAccounts();
+    const { deployer, btc } = await getNamedAccounts();
 
-    const wbtc = await deployments.get("WBTC");
+    const sats = await deployments.get("SATS");
+
+    const btcAddress = btc ? btc : (await deployments.get("BTC")).address;
     await deployments.deploy("BtcRater", {
         from: deployer,
-        args: [[wbtc.address], [1]],
+        args: [
+            [btcAddress, sats.address],
+            [1, 1e8],
+        ],
         log: true,
     });
 
-    const sats = await deployments.get("SATS");
     const rater = await deployments.get("BtcRater");
+    const minKeeperCollateral = ["mainnet", "bsc"].includes(hre.network.name) ? "0.1" : "0.0001"; // TODO: check value before deploy
     const registry = await deployments.deploy("KeeperRegistry", {
         from: deployer,
-        args: [[wbtc.address], sats.address, rater.address],
+        args: [
+            [btcAddress],
+            sats.address,
+            rater.address,
+            hre.ethers.utils.parseEther(minKeeperCollateral),
+        ],
         log: true,
     });
 

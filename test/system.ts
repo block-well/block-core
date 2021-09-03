@@ -2,7 +2,6 @@ import { expect } from "chai";
 import { BigNumber, Wallet, constants, ContractTransaction } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
 const { parseUnits, parseEther } = ethers.utils;
-const parseBtc = (value: string) => parseUnits(value, 8);
 import { prepareSignature, advanceTimeAndBlock, currentTime, getReceiptId, Status } from "./helper";
 import {
     DeCusSystem,
@@ -16,8 +15,7 @@ import {
 import { TimelockController } from "../build/typechain/TimelockController";
 
 const SATOSHI_SATS_MULTIPLIER = BigNumber.from(10).pow(10);
-const KEEPER_SATOSHI = parseBtc("0.5"); // 50000000
-const GROUP_SATOSHI = parseBtc("0.6");
+const GROUP_SATOSHI = parseUnits("0.6", 8);
 const BTC_ADDRESS = [
     "38aNsdfsdfsdfsdfsdfdsfsdf0",
     "38aNsdfsdfsdfsdfsdfdsfsdf1",
@@ -29,7 +27,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     await deployments.fixture();
 
     const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
-    const wbtc = (await ethers.getContract("WBTC")) as ERC20;
+    const btc = (await ethers.getContract("BTC")) as ERC20;
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
     const sats = (await ethers.getContract("SATS")) as SATS;
@@ -40,10 +38,11 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         "TimelockController"
     )) as TimelockController;
 
+    const btcDecimals = await btc.decimals();
     for (const user of users) {
-        await wbtc.mint(user.address, parseBtc("100"));
-        await wbtc.connect(user).approve(registry.address, parseBtc("100"));
-        await registry.connect(user).addKeeper(wbtc.address, KEEPER_SATOSHI);
+        await btc.mint(user.address, parseUnits("100", btcDecimals));
+        await btc.connect(user).approve(registry.address, parseUnits("100", btcDecimals));
+        await registry.connect(user).addKeeper(btc.address, parseUnits("0.5", btcDecimals));
     }
 
     return { deployer, users, system, registry, sats, dcs, rewarder, fee, timelockController };

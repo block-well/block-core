@@ -39,7 +39,7 @@ contract BtcRater is Ownable, IBtcRater {
         returns (uint256)
     {
         // e.g. wbtc&1e8, returns 1e18
-        // e.g. hbtc&1e18, returns 1e18
+        // e.g. btcb&1e18, returns 1e18
         // e.g. sats&1e18, returns 1e18
         uint256 valueInWeiDecimal = amount.mul(
             BtcUtility.getWeiMultiplier(IERC20Extension(asset).decimals())
@@ -53,7 +53,7 @@ contract BtcRater is Ownable, IBtcRater {
         override
         returns (uint256)
     {
-        // e.g. 1e18 => wbtc&1e8
+        // e.g. 1e18 => btcb&1e8
         // e.g. 1e18 => hbtc&1e18
         // e.g. 1e18 => sats&1e18
         return
