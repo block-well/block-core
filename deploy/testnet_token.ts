@@ -5,8 +5,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    await deployments.deploy("WBTC", {
-        contract: "MockWBTC",
+    const wbtcNetworks = ["ropsten", "kovan"];
+    // const prodNetworks = ["ropsten", "kovan", "hardhat"];
+    const btcContract = wbtcNetworks.includes(hre.network.name) ? "MockWBTC" : "MockBTCB";
+
+    await deployments.deploy("BTC", {
+        contract: btcContract,
         from: deployer,
         args: [],
         log: true,
@@ -23,5 +27,5 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func;
 func.tags = ["TestToken"];
 func.skip = async (hre) => {
-    return hre.network.name == "mainnet";
+    return ["mainnet", "bsc"].includes(hre.network.name);
 };

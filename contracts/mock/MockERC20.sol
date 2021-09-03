@@ -20,3 +20,7 @@ contract MockERC20 is ERC20Burnable {
 contract MockWBTC is MockERC20 {
     constructor() MockERC20("Wrapped Bitcoin", "WBTC", 8) {}
 }
+
+contract MockBTCB is MockERC20 {
+    constructor() MockERC20("BTCB Token", "BTCB", 18) {}
+}
