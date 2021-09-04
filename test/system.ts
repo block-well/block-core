@@ -21,7 +21,7 @@ const BTC_ADDRESS = [
     "38aNsdfsdfsdfsdfsdfdsfsdf1",
     "38aNsdfsdfsdfsdfsdfdsfsdf2",
 ];
-const MINTER_ROLE = ethers.utils.id("MINTER_ROLE");
+// const MINTER_ROLE = ethers.utils.id("MINTER_ROLE");
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture();
@@ -930,36 +930,36 @@ describe("DeCusSystem", function () {
             await verifyMint(users[0], group1Verifiers, receiptId, txId, height);
         });
 
-        const getSatsForBurn = async (user: Wallet, amount: BigNumber) => {
-            // await sats.connect(deployer).grantRole(MINTER_ROLE, deployer.address);
-            // await sats.connect(deployer).mint(user.address, amount);
-            const delay = await timelockController.getMinDelay();
-            const grantData = sats.interface.encodeFunctionData("grantRole", [
-                MINTER_ROLE,
-                deployer.address,
-            ]);
-            const salt = ethers.utils.randomBytes(32);
-            await timelockController.schedule(
-                sats.address,
-                0,
-                grantData,
-                ethers.constants.HashZero,
-                salt,
-                delay
-            );
+        // const getSatsForBurn = async (user: Wallet, amount: BigNumber) => {
+        //     // await sats.connect(deployer).grantRole(MINTER_ROLE, deployer.address);
+        //     // await sats.connect(deployer).mint(user.address, amount);
+        //     const delay = await timelockController.getMinDelay();
+        //     const grantData = sats.interface.encodeFunctionData("grantRole", [
+        //         MINTER_ROLE,
+        //         deployer.address,
+        //     ]);
+        //     const salt = ethers.utils.randomBytes(32);
+        //     await timelockController.schedule(
+        //         sats.address,
+        //         0,
+        //         grantData,
+        //         ethers.constants.HashZero,
+        //         salt,
+        //         delay
+        //     );
 
-            await advanceTimeAndBlock(delay.toNumber());
+        //     await advanceTimeAndBlock(delay.toNumber());
 
-            await timelockController.execute(
-                sats.address,
-                0,
-                grantData,
-                ethers.constants.HashZero,
-                salt
-            );
+        //     await timelockController.execute(
+        //         sats.address,
+        //         0,
+        //         grantData,
+        //         ethers.constants.HashZero,
+        //         salt
+        //     );
 
-            await sats.connect(deployer).mint(user.address, amount);
-        };
+        //     await sats.connect(deployer).mint(user.address, amount);
+        // };
 
         it("request burn", async function () {
             const redeemer = users[1];

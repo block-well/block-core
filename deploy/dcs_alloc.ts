@@ -1,8 +1,6 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
 import { ethers } from "hardhat";
-import { BigNumber } from "ethers";
-import { KeeperReward } from "../build/typechain";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
@@ -15,26 +13,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         { from: deployer, log: true },
         "mint",
         swapRewarder.address,
-        ethers.utils.parseEther("4000000") // initial allocation
+        ethers.utils.parseEther("4000000") // TODO: check initial allocation
     );
-
-    const rate = BigNumber.from("2378234398782344000"); // 6250000 token per month at the beginning
-    const keeperReward = (await ethers.getContract("KeeperReward")) as KeeperReward;
-    const supply = (await keeperReward.endTimestamp())
-        .sub(await keeperReward.startTimestamp())
-        .mul(rate);
-
-    await deployments.execute("DCS", { from: deployer, log: true }, "mint", deployer, supply);
-
-    await deployments.execute(
-        "DCS",
-        { from: deployer, log: true },
-        "approve",
-        keeperReward.address,
-        supply
-    );
-
-    await deployments.execute("KeeperReward", { from: deployer, log: true }, "updateRate", rate);
 };
 
 export default func;
