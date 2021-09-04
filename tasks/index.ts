@@ -23,7 +23,7 @@ export const waitForConfirmations = async (
 task("addKeeper", "add keeper")
     .addParam("privKey", "Keeper private key")
     .addParam("amount", "Keeper collateral amount in BTC", "0.01", types.string)
-    .addOptionalParam("asset", "WBTC or other BTC", "WBTC")
+    .addOptionalParam("asset", "WBTC or BTCB", "BTC")
     .setAction(
         async ({ privKey, amount, asset }, { ethers }): Promise<ContractTransaction | null> => {
             const keeper = new ethers.Wallet(privKey, ethers.provider);
@@ -109,4 +109,3 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         console.log(`${groupId} : ${receipt.status} : ${date} : ${minable}`);
     }
 });
-
