@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { BigNumber, Wallet, constants, ContractTransaction } from "ethers";
+import { BigNumber, Wallet, constants } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
 const { parseUnits, parseEther } = ethers.utils;
 import { prepareSignature, advanceTimeAndBlock, currentTime, getReceiptId, Status } from "./helper";
@@ -10,7 +10,7 @@ import {
     KeeperRegistry,
     DCS,
     SwapRewarder,
-    SwapFee,
+    ISwapFee,
 } from "../build/typechain";
 import { TimelockController } from "../build/typechain/TimelockController";
 
@@ -33,7 +33,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const sats = (await ethers.getContract("SATS")) as SATS;
     const dcs = (await ethers.getContract("DCS")) as DCS;
     const rewarder = (await ethers.getContract("SwapRewarder")) as SwapRewarder;
-    const fee = (await ethers.getContract("SwapFee")) as SwapFee;
+    const fee = (await ethers.getContract("SwapFee")) as ISwapFee;
     const timelockController = (await ethers.getContract(
         "TimelockController"
     )) as TimelockController;
@@ -56,7 +56,7 @@ describe("DeCusSystem", function () {
     let sats: SATS;
     let dcs: DCS;
     let rewarder: SwapRewarder;
-    let fee: SwapFee;
+    let fee: ISwapFee;
     let timelockController: TimelockController;
     let group1Keepers: Wallet[];
     let group2Keepers: Wallet[];
@@ -205,10 +205,11 @@ describe("DeCusSystem", function () {
     });
 
     const setZeroSwapFee = async () => {
-        return setSwapFee(0, 0, 0, 0);
+        return setSwapFee("SwapFeeSats", 0, 0, 0, 0);
     };
 
     const setSwapFee = async (
+        contract: "SwapFeeDcs" | "SwapFeeSats",
         mintFeeBps: number,
         burnFeeBps: number,
         mintFeeGasPrice: number,
@@ -218,10 +219,11 @@ describe("DeCusSystem", function () {
         // await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
 
         await deployments.deploy("SwapFee", {
+            contract: contract,
             from: deployer.address,
             args: [mintFeeBps, burnFeeBps, mintFeeGasPrice, mintFeeGasUsed, sats.address],
         });
-        fee = (await ethers.getContract("SwapFee")) as SwapFee;
+        fee = (await ethers.getContract("SwapFee")) as ISwapFee;
 
         const delay = await timelockController.getMinDelay();
         const data = system.interface.encodeFunctionData("initialize", [
@@ -249,6 +251,8 @@ describe("DeCusSystem", function () {
     };
 
     const setSwapRewarder = async (mintRewardAmount: BigNumber, burnRewardAmount: BigNumber) => {
+        const rewarderBalance = await dcs.balanceOf(rewarder.address);
+
         await deployments.deploy("SwapRewarder", {
             from: deployer.address,
             args: [
@@ -259,6 +263,30 @@ describe("DeCusSystem", function () {
             ],
         });
         rewarder = (await ethers.getContract("SwapRewarder")) as SwapRewarder;
+        dcs.mint(rewarder.address, rewarderBalance);
+
+        const delay = await timelockController.getMinDelay();
+        const data = system.interface.encodeFunctionData("initialize", [
+            await system.sats(),
+            await system.keeperRegistry(),
+            rewarder.address,
+            await system.fee(),
+        ]);
+        const salt = ethers.utils.randomBytes(32);
+
+        await timelockController.schedule(
+            system.address,
+            0,
+            data,
+            ethers.constants.HashZero,
+            salt,
+            delay
+        );
+
+        await advanceTimeAndBlock(delay.toNumber());
+
+        await timelockController.execute(system.address, 0, data, ethers.constants.HashZero, salt);
+
         return rewarder;
     };
 
@@ -609,7 +637,7 @@ describe("DeCusSystem", function () {
         receiptId: string,
         txId: string,
         height: number
-    ): Promise<ContractTransaction> => {
+    ) => {
         const [rList, sList, packedV] = await prepareSignature(
             keepers,
             system.address,
@@ -619,7 +647,7 @@ describe("DeCusSystem", function () {
         );
 
         const keeperAddresses = keepers.map((x) => x.address);
-        return await system
+        return system
             .connect(user)
             .verifyMint({ receiptId, txId, height }, keeperAddresses, rList, sList, packedV);
     };
@@ -935,22 +963,17 @@ describe("DeCusSystem", function () {
 
         it("request burn", async function () {
             const redeemer = users[1];
+            const burnFeeAmount = await fee.burnFeeDcs();
             await sats.connect(users[0]).transfer(redeemer.address, userSatsAmount);
+            await dcs.connect(deployer).mint(redeemer.address, burnFeeAmount);
 
             let receipt = await system.getReceipt(receiptId);
             expect(receipt.recipient).to.equal(users[0].address);
 
-            let burnAmount = userSatsAmount;
-
-            // require extra burn fee to burn
-            const burnFeeAmount = await fee.getBurnFeeAmount(burnAmount);
-            if (burnFeeAmount.gt(0)) {
-                await getSatsForBurn(redeemer, burnFeeAmount);
-                burnAmount = burnAmount.add(burnFeeAmount);
-            }
-
-            expect(await sats.balanceOf(redeemer.address)).to.equal(burnAmount);
-            await sats.connect(redeemer).approve(system.address, burnAmount);
+            expect(await sats.balanceOf(redeemer.address)).to.equal(userSatsAmount);
+            expect(await dcs.balanceOf(redeemer.address)).to.equal(burnFeeAmount);
+            await sats.connect(redeemer).approve(system.address, userSatsAmount);
+            await dcs.connect(redeemer).approve(fee.address, burnFeeAmount);
             await expect(system.connect(redeemer).requestBurn(receiptId, withdrawBtcAddress))
                 .to.emit(system, "BurnRequested")
                 .withArgs(receiptId, btcAddress, withdrawBtcAddress, redeemer.address);
@@ -961,7 +984,8 @@ describe("DeCusSystem", function () {
             expect(receipt.withdrawBtcAddress).to.be.equal(withdrawBtcAddress);
             expect(await sats.balanceOf(redeemer.address)).to.be.equal(0);
             expect(await sats.balanceOf(system.address)).to.be.equal(userSatsAmount);
-            expect(await sats.balanceOf(fee.address)).to.be.equal(burnFeeAmount);
+            expect(await dcs.balanceOf(redeemer.address)).to.be.equal(0);
+            expect(await dcs.balanceOf(fee.address)).to.be.equal(burnFeeAmount);
         });
 
         const recoverBurn = async (receiptId: string) => {
@@ -988,19 +1012,15 @@ describe("DeCusSystem", function () {
 
         it("recover burn", async function () {
             const redeemer = users[0];
+            const mintRewardAmount = await rewarder.mintRewardAmount();
+            const burnFeeAmount = await fee.burnFeeDcs();
+            await sats.connect(users[0]).transfer(redeemer.address, userSatsAmount);
+
             expect(await sats.balanceOf(redeemer.address)).to.be.equal(userSatsAmount);
+            expect(await dcs.balanceOf(redeemer.address)).to.equal(mintRewardAmount);
 
-            let burnAmount = userSatsAmount;
-
-            // require extra burn fee to burn
-            const burnFeeAmount = await fee.getBurnFeeAmount(burnAmount);
-            if (burnFeeAmount.gt(0)) {
-                await getSatsForBurn(redeemer, burnFeeAmount);
-                burnAmount = burnAmount.add(burnFeeAmount);
-            }
-
-            expect(await sats.balanceOf(redeemer.address)).to.equal(burnAmount);
-            await sats.connect(redeemer).approve(system.address, burnAmount);
+            await sats.connect(redeemer).approve(system.address, userSatsAmount);
+            await dcs.connect(redeemer).approve(fee.address, burnFeeAmount);
             await expect(system.connect(redeemer).requestBurn(receiptId, withdrawBtcAddress))
                 .to.emit(system, "BurnRequested")
                 .withArgs(receiptId, btcAddress, withdrawBtcAddress, redeemer.address);
@@ -1021,7 +1041,13 @@ describe("DeCusSystem", function () {
             receipt = await system.getReceipt(receiptId);
             expect(receipt.status).to.equal(Status.DepositReceived);
             expect(await sats.balanceOf(redeemer.address)).to.be.equal(userSatsAmount);
-            expect(await sats.balanceOf(fee.address)).to.be.equal(burnFeeAmount);
+            expect(await sats.balanceOf(system.address)).to.be.equal(0);
+            expect(await sats.balanceOf(fee.address)).to.be.equal(0);
+            // fee is not refunded
+            expect(await dcs.balanceOf(redeemer.address)).to.be.equal(
+                mintRewardAmount.sub(burnFeeAmount)
+            );
+            expect(await dcs.balanceOf(fee.address)).to.be.equal(burnFeeAmount);
         });
     });
 
@@ -1207,6 +1233,7 @@ describe("DeCusSystem", function () {
             await refundBtc(btcAddress, txId2);
         });
     });
+
     describe("fee() & reward()", function () {
         const btcAddress = BTC_ADDRESS[0];
         const btcAddress2 = BTC_ADDRESS[1];
@@ -1215,113 +1242,252 @@ describe("DeCusSystem", function () {
         const txId = "0xa1658ce2e63e9f91b6ff5e75c5a69870b04de471f5cd1cc3e53be158b46169bd";
         const height = 1940801;
         const groupSatsAmount = GROUP_SATOSHI.mul(SATOSHI_SATS_MULTIPLIER);
-        const mintFeeBps = 1;
-        const burnFeeBps = 5;
-        let dcsMintReward: BigNumber;
-        let dcsBurnReward: BigNumber;
-        let mintEthFee: BigNumber;
 
         beforeEach(async function () {
             await addMockGroup();
+        });
 
-            await setSwapFee(
-                mintFeeBps,
-                burnFeeBps,
-                await fee.mintFeeGasPrice(),
-                await fee.mintFeeGasUsed()
+        describe("SwapFeeSats", function () {
+            const mintFeeBps = 1;
+            const burnFeeBps = 5;
+            let dcsMintReward: BigNumber;
+            let dcsBurnReward: BigNumber;
+            let mintEthFee: BigNumber;
+
+            beforeEach(async function () {
+                await setSwapFee(
+                    "SwapFeeSats",
+                    mintFeeBps,
+                    burnFeeBps,
+                    await fee.mintFeeGasPrice(),
+                    await fee.mintFeeGasUsed()
+                );
+                mintEthFee = await fee.getMintEthFee();
+
+                rewarder = await setSwapRewarder(parseEther("40"), parseEther("10"));
+                dcsMintReward = await rewarder.mintRewardAmount();
+                dcsBurnReward = await rewarder.burnRewardAmount();
+            });
+
+            it("reward not empty", async function () {
+                expect(dcsMintReward).to.gt(parseEther("1"));
+                expect(dcsBurnReward).to.gt(parseEther("1"));
+            });
+
+            it("mint & burn", async function () {
+                const user = users[0];
+
+                let dcsReward = BigNumber.from(0);
+                expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+
+                // first mint
+                const receiptId = await requestMint(user, btcAddress, nonce, mintEthFee);
+                let tx = await verifyMint(user, group1Verifiers, receiptId, txId, height);
+                expect(tx)
+                    .emit(rewarder, "SwapRewarded")
+                    .withArgs(user.address, dcsMintReward, true);
+
+                const mintFeeAmount = groupSatsAmount.mul(mintFeeBps).div(10000);
+                let userAmount = groupSatsAmount.sub(mintFeeAmount);
+                let totalFeeAmount = mintFeeAmount;
+                expect(await sats.balanceOf(user.address)).to.equal(userAmount);
+                expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
+
+                dcsReward = dcsReward.add(dcsMintReward);
+                expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+
+                await advanceTimeAndBlock(24 * 3600);
+
+                // second mint
+                const receiptId2 = await requestMint(user, btcAddress2, nonce, mintEthFee);
+                tx = await verifyMint(user, group2Verifiers, receiptId2, txId, height);
+                expect(tx)
+                    .emit(rewarder, "SwapRewarded")
+                    .withArgs(user.address, dcsMintReward, true);
+
+                totalFeeAmount = totalFeeAmount.mul(2);
+                userAmount = userAmount.mul(2);
+                expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
+                expect(await sats.balanceOf(user.address)).to.equal(userAmount);
+
+                dcsReward = dcsReward.add(dcsMintReward);
+                expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+
+                // burn
+                const burnFeeAmount = groupSatsAmount.mul(burnFeeBps).div(10000);
+                const payAmount = groupSatsAmount.add(burnFeeAmount);
+                totalFeeAmount = totalFeeAmount.add(burnFeeAmount);
+                await sats.connect(user).approve(system.address, payAmount);
+                await system.connect(user).requestBurn(receiptId, withdrawBtcAddress);
+
+                expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
+
+                expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+
+                // verify burn
+                await expect(system.connect(user).verifyBurn(receiptId))
+                    .to.emit(rewarder, "SwapRewarded")
+                    .withArgs(user.address, dcsBurnReward, false);
+
+                expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
+
+                dcsReward = dcsReward.add(dcsBurnReward);
+                expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+
+                // admin collect fee
+                expect(await sats.balanceOf(deployer.address)).to.equal(0);
+
+                await expect(fee.connect(deployer).collectSats(totalFeeAmount))
+                    .to.emit(fee, "FeeCollected")
+                    .withArgs(deployer.address, sats.address, totalFeeAmount);
+
+                expect(await sats.balanceOf(fee.address)).to.equal(0);
+                expect(await sats.balanceOf(deployer.address)).to.equal(totalFeeAmount);
+
+                // admin collect ether to coordinator
+                const etherAmount = await ethers.provider.getBalance(fee.address);
+                const coordinator = ethers.Wallet.createRandom();
+
+                expect(await ethers.provider.getBalance(coordinator.address)).to.equal(0);
+
+                await expect(fee.connect(deployer).collectEther(coordinator.address, etherAmount))
+                    .to.emit(fee, "FeeCollected")
+                    .withArgs(coordinator.address, ethers.constants.AddressZero, etherAmount);
+
+                expect(await ethers.provider.getBalance(fee.address)).to.equal(0);
+                expect(await ethers.provider.getBalance(coordinator.address)).to.equal(etherAmount);
+            });
+        });
+
+        const setSwapFeeDcs = async (
+            burnFeeDcs: BigNumber,
+            mintFeeGasPrice: number,
+            mintFeeGasUsed: number
+        ) => {
+            await deployments.deploy("SwapFee", {
+                contract: "SwapFeeDcs",
+                from: deployer.address,
+                args: [burnFeeDcs, mintFeeGasPrice, mintFeeGasUsed, dcs.address],
+            });
+            fee = (await ethers.getContract("SwapFee")) as ISwapFee;
+
+            const delay = await timelockController.getMinDelay();
+            const data = system.interface.encodeFunctionData("initialize", [
+                await system.sats(),
+                await system.keeperRegistry(),
+                await system.rewarder(),
+                fee.address,
+            ]);
+            const salt = ethers.utils.randomBytes(32);
+
+            await timelockController.schedule(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt,
+                delay
             );
 
-            await setSwapRewarder(parseEther("40"), parseEther("10"));
+            await advanceTimeAndBlock(delay.toNumber());
 
-            mintEthFee = await fee.getMintEthFee();
+            await timelockController.execute(
+                system.address,
+                0,
+                data,
+                ethers.constants.HashZero,
+                salt
+            );
 
-            dcsMintReward = await rewarder.mintRewardAmount();
-            dcsBurnReward = await rewarder.burnRewardAmount();
-        });
+            return fee;
+        };
 
-        it("reward not empty", async function () {
-            expect(dcsMintReward).to.gt(parseEther("1"));
-            expect(dcsBurnReward).to.gt(parseEther("1"));
-        });
+        describe("SwapFeeDcs", function () {
+            const burnFeeDcs = parseEther("30");
+            let dcsMintReward: BigNumber;
+            let dcsBurnReward: BigNumber;
+            let mintEthFee: BigNumber;
 
-        it("mint & burn", async function () {
-            const user = users[0];
+            beforeEach(async function () {
+                await setSwapFeeDcs(
+                    burnFeeDcs,
+                    await fee.mintFeeGasPrice(),
+                    await fee.mintFeeGasUsed()
+                );
+                mintEthFee = await fee.getMintEthFee();
 
-            let dcsReward = BigNumber.from(0);
-            expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+                await setSwapRewarder(parseEther("40"), parseEther("0"));
 
-            // first mint
-            const receiptId = await requestMint(user, btcAddress, nonce, mintEthFee);
-            let tx = await verifyMint(user, group1Verifiers, receiptId, txId, height);
-            expect(tx).emit(rewarder, "SwapRewarded").withArgs(user.address, dcsMintReward, true);
+                dcsMintReward = await rewarder.mintRewardAmount();
+                dcsBurnReward = await rewarder.burnRewardAmount();
+            });
 
-            const mintFeeAmount = groupSatsAmount.mul(mintFeeBps).div(10000);
-            let userAmount = groupSatsAmount.sub(mintFeeAmount);
-            let totalFeeAmount = mintFeeAmount;
-            expect(await sats.balanceOf(user.address)).to.equal(userAmount);
-            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
+            it("reward & feecheck", async function () {
+                expect(dcsMintReward).to.gt(parseEther("1"));
+                expect(dcsBurnReward).to.equal(0);
 
-            dcsReward = dcsReward.add(dcsMintReward);
-            expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+                expect(await fee.getMintFeeAmount(0)).to.equal(0);
+                expect(await fee.getBurnFeeAmount(0)).to.equal(0);
+                expect(
+                    await fee.callStatic.payExtraMintFee(ethers.constants.AddressZero, 0)
+                ).to.equal(0);
+            });
 
-            await advanceTimeAndBlock(24 * 3600);
+            it("mint & burn", async function () {
+                const user = users[0];
 
-            // second mint
-            const receiptId2 = await requestMint(user, btcAddress2, nonce, mintEthFee);
-            tx = await verifyMint(user, group2Verifiers, receiptId2, txId, height);
-            expect(tx).emit(rewarder, "SwapRewarded").withArgs(user.address, dcsMintReward, true);
+                let userDCSAmount = BigNumber.from(0);
+                expect(await dcs.balanceOf(user.address)).to.equal(userDCSAmount);
 
-            totalFeeAmount = totalFeeAmount.mul(2);
-            userAmount = userAmount.mul(2);
-            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
-            expect(await sats.balanceOf(user.address)).to.equal(userAmount);
+                // mint
+                const receiptId = await requestMint(user, btcAddress, nonce, mintEthFee);
+                await expect(verifyMint(user, group1Verifiers, receiptId, txId, height))
+                    .emit(rewarder, "SwapRewarded")
+                    .withArgs(user.address, dcsMintReward, true);
 
-            dcsReward = dcsReward.add(dcsMintReward);
-            expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+                const userSatsAmount = groupSatsAmount;
+                userDCSAmount = userDCSAmount.add(dcsMintReward);
+                expect(await sats.balanceOf(user.address)).to.equal(userSatsAmount);
+                expect(await dcs.balanceOf(user.address)).to.equal(userDCSAmount);
+                expect(await sats.balanceOf(fee.address)).to.equal(0);
 
-            // burn
-            const burnFeeAmount = groupSatsAmount.mul(burnFeeBps).div(10000);
-            const payAmount = groupSatsAmount.add(burnFeeAmount);
-            totalFeeAmount = totalFeeAmount.add(burnFeeAmount);
-            await sats.connect(user).approve(system.address, payAmount);
-            await system.connect(user).requestBurn(receiptId, withdrawBtcAddress);
+                await advanceTimeAndBlock(24 * 3600);
 
-            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
+                // burn
+                const burnFeeAmount = await fee.burnFeeDcs();
+                await sats.connect(user).approve(system.address, groupSatsAmount);
+                await dcs.connect(user).approve(fee.address, burnFeeAmount);
+                await system.connect(user).requestBurn(receiptId, withdrawBtcAddress);
 
-            expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+                userDCSAmount = userDCSAmount.sub(burnFeeDcs);
+                expect(userDCSAmount).to.gt(0);
+                expect(await dcs.balanceOf(user.address)).to.equal(userDCSAmount);
+                expect(await sats.balanceOf(user.address)).to.equal(0);
+                expect(await sats.balanceOf(fee.address)).to.equal(0);
 
-            // verify burn
-            await expect(system.connect(user).verifyBurn(receiptId))
-                .to.emit(rewarder, "SwapRewarded")
-                .withArgs(user.address, dcsBurnReward, false);
+                // admin collect fee
+                expect(await sats.balanceOf(deployer.address)).to.equal(0);
 
-            expect(await sats.balanceOf(fee.address)).to.equal(totalFeeAmount);
+                await expect(fee.connect(deployer).collectDcs(burnFeeAmount))
+                    .to.emit(fee, "FeeCollected")
+                    .withArgs(deployer.address, dcs.address, burnFeeAmount);
 
-            dcsReward = dcsReward.add(dcsBurnReward);
-            expect(await dcs.balanceOf(user.address)).to.equal(dcsReward);
+                expect(await sats.balanceOf(fee.address)).to.equal(0);
+                expect(await dcs.balanceOf(deployer.address)).to.equal(burnFeeAmount);
 
-            // admin collect fee
-            expect(await sats.balanceOf(deployer.address)).to.equal(0);
+                // admin collect ether to coordinator
+                const etherAmount = await ethers.provider.getBalance(fee.address);
+                const coordinator = ethers.Wallet.createRandom();
 
-            await expect(fee.connect(deployer).collectSats(totalFeeAmount))
-                .to.emit(fee, "FeeCollected")
-                .withArgs(deployer.address, sats.address, totalFeeAmount);
+                expect(await ethers.provider.getBalance(coordinator.address)).to.equal(0);
 
-            expect(await sats.balanceOf(fee.address)).to.equal(0);
-            expect(await sats.balanceOf(deployer.address)).to.equal(totalFeeAmount);
+                await expect(fee.connect(deployer).collectEther(coordinator.address, etherAmount))
+                    .to.emit(fee, "FeeCollected")
+                    .withArgs(coordinator.address, ethers.constants.AddressZero, etherAmount);
 
-            // admin collect ether to coordinator
-            const etherAmount = await ethers.provider.getBalance(fee.address);
-            const coordinator = ethers.Wallet.createRandom();
-
-            expect(await ethers.provider.getBalance(coordinator.address)).to.equal(0);
-
-            await expect(fee.connect(deployer).collectEther(coordinator.address, etherAmount))
-                .to.emit(fee, "FeeCollected")
-                .withArgs(coordinator.address, ethers.constants.AddressZero, etherAmount);
-
-            expect(await ethers.provider.getBalance(fee.address)).to.equal(0);
-            expect(await ethers.provider.getBalance(coordinator.address)).to.equal(etherAmount);
+                expect(await ethers.provider.getBalance(fee.address)).to.equal(0);
+                expect(await ethers.provider.getBalance(coordinator.address)).to.equal(etherAmount);
+            });
         });
     });
 

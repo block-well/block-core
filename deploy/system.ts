@@ -5,10 +5,11 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    const sats = await deployments.get("SATS");
+    const dcs = await deployments.get("DCS");
     await deployments.deploy("SwapFee", {
+        contract: "SwapFeeDcs",
         from: deployer,
-        args: [0, 20, 10, 300000, sats.address], // TODO: check value before deploy
+        args: [hre.ethers.utils.parseEther("100"), 10, 300000, dcs.address], // TODO: check value before deploy
         log: true,
     });
 
@@ -18,15 +19,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         log: true,
     });
 
-    const dcs = await deployments.get("DCS");
     await deployments.deploy("SwapRewarder", {
         from: deployer,
-        args: [
-            dcs.address,
-            system.address,
-            hre.ethers.utils.parseEther("40"),
-            hre.ethers.utils.parseEther("10"),
-        ], // TODO: check value before deploy
+        args: [dcs.address, system.address, hre.ethers.utils.parseEther("200"), 0], // TODO: check value before deploy
         log: true,
     });
 };
