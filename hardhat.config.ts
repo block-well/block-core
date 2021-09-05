@@ -68,8 +68,8 @@ const config: HardhatUserConfig = {
     namedAccounts: {
         deployer: 0,
         btc: {
-            mainnet: 0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c,
-            bsc: 0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c,
+            mainnet: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+            bsc: "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c",
         },
     },
 };
@@ -79,28 +79,42 @@ if (etherscanKey) {
     config.etherscan = { apiKey: etherscanKey };
 }
 
+const privateKey = process.env.PRIVATE_KEY;
+const accounts = privateKey
+    ? [`0x${privateKey}`]
+    : {
+          mnemonic:
+              process.env.MNEMONIC ||
+              "decus decus decus decus decus decus decus decus decus decus decus decus",
+          count: 2,
+      };
+
 const infuraId = process.env.INFURA_PROJECT_ID;
-if (infuraId) {
-    const privateKey = `0x${process.env.PRIVATE_KEY}`;
-    config.networks = {
-        ...config.networks,
-        kovan: {
-            url: `https://kovan.infura.io/v3/${infuraId}`,
-            accounts: [privateKey],
-        },
-        ropsten: {
-            url: `https://ropsten.infura.io/v3/${infuraId}`,
-            accounts: [privateKey],
-        },
-        bsct: {
-            url: "https://data-seed-prebsc-1-s2.binance.org:8545",
-            accounts: [privateKey],
-            chainId: 97,
-            gasMultiplier: 2,
-            // gasPrice: 20e9,
-        },
-    };
-}
+
+config.networks = {
+    ...config.networks,
+    kovan: {
+        url: `https://kovan.infura.io/v3/${infuraId}`,
+        accounts,
+    },
+    ropsten: {
+        url: `https://ropsten.infura.io/v3/${infuraId}`,
+        accounts,
+    },
+    bsct: {
+        url: "https://data-seed-prebsc-1-s2.binance.org:8545",
+        accounts,
+        chainId: 97,
+        gasMultiplier: 2,
+        // gasPrice: 20e9,
+    },
+    bsc: {
+        url: "https://bsc-dataseed1.defibit.io/",
+        accounts,
+        chainId: 56,
+        gasPrice: 5e9,
+    },
+};
 
 process.env.HARDHAT_DEPLOY_LOG = "true";
 

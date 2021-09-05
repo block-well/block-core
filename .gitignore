@@ -8,5 +8,4 @@
 /tasks
 !/tasks/index.ts
 
-.env
-.env.bsc
+.env*

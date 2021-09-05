@@ -75,3 +75,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 export default func;
 func.tags = ["All", "Timelock"];
 func.dependencies = ["Init", "System", "Token", "Keeper"];
+func.skip = async () => {
+    return Boolean(process.env.SKIP_TIMELOCK);
+};

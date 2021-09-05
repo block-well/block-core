@@ -20,6 +20,13 @@ export const waitForConfirmations = async (
     console.log(`<==`);
 };
 
+task("accounts", "Prints the list of accounts", async (_args, hre) => {
+    const accounts = await hre.ethers.getSigners();
+    for (const account of accounts) {
+        console.log(account.address);
+    }
+});
+
 task("addKeeper", "add keeper")
     .addParam("privKey", "Keeper private key")
     .addParam("amount", "Keeper collateral amount in BTC", "0.01", types.string)
