@@ -45,6 +45,8 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         await registry.connect(user).addKeeper(btc.address, parseUnits("0.5", btcDecimals));
     }
 
+    await dcs.connect(deployer).mint(rewarder.address, parseEther("4000000"));
+
     return { deployer, users, system, registry, sats, dcs, rewarder, fee, timelockController };
 });
 
