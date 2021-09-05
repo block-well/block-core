@@ -63,17 +63,31 @@ task("addKeeper", "add keeper")
 
 task("groupStatus", "print status of all groups").setAction(async (args, { ethers }) => {
     const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
-    const events = await decusSystem.queryFilter(
+    console.log(`DeCusSystem: ${decusSystem.address}`);
+    const addEvents = await decusSystem.queryFilter(
         decusSystem.filters.GroupAdded(null, null, null, null)
     );
-    console.log(`DeCusSystem: ${decusSystem.address}`);
+    const deleteEvents = await decusSystem.queryFilter(decusSystem.filters.GroupDeleted(null));
 
-    const groupIds = events
+    const addGroupIds = addEvents
         .map((e) => e.args.btcAddress)
         .filter((elem, index, self) => {
             return index === self.indexOf(elem);
         });
-    console.log(`total groups: ${groupIds.length}`);
+
+    const deleteGroupIds = deleteEvents
+        .map((e) => e.args.btcAddress)
+        .filter((elem, index, self) => {
+            return index === self.indexOf(elem);
+        });
+
+    const groupIds = addGroupIds.filter((elem) => {
+        return !deleteGroupIds.includes(elem);
+    });
+
+    console.log(
+        `Groups ${groupIds.length}: #added ${addGroupIds.length} #deleted ${deleteGroupIds.length}`
+    );
 
     const now = (await decusSystem.provider.getBlock("latest")).timestamp;
 
