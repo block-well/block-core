@@ -100,10 +100,10 @@ contract KeeperRegistry is
         require(data.asset != address(0), "keeper not exist");
         require(data.asset != asset, "same asset");
 
-        _refundKeeper(data, data.amount);
-
         uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
         require(normalizedAmount >= data.amount, "cannot reduce amount");
+
+        _refundKeeper(data, data.amount);
 
         data.asset = asset;
         data.amount = normalizedAmount;
@@ -132,7 +132,7 @@ contract KeeperRegistry is
 
         emit KeeperDeleted(msg.sender, data.asset, refundAmount, cAmount);
 
-        delete keeperData[msg.sender];
+        if (data.amount == 0) delete keeperData[msg.sender];
     }
 
     function importKeepers(
@@ -257,6 +257,7 @@ contract KeeperRegistry is
         private
         returns (uint256 amount)
     {
+        data.amount = data.amount.sub(cAmount);
         amount = cAmount;
         address asset = data.asset;
         if (_blockTimestamp() < data.joinTimestamp + MIN_KEEPER_PERIOD) {

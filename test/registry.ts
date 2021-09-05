@@ -346,6 +346,46 @@ describe("KeeperRegistry", function () {
             expect(await btc.balanceOf(keeper.address)).to.equal(origAmount.add(btcAmount));
         });
 
+        it("delete keeper twice", async function () {
+            const keeper = group1Keepers[0];
+            let keeperData = await registry.getKeeper(keeper.address);
+            expect(keeperData.refCount).to.equal(0);
+
+            const minKeeperPeriod = await registry.MIN_KEEPER_PERIOD();
+            await advanceTimeAndBlock(minKeeperPeriod);
+
+            const origAmount = await btc.balanceOf(keeper.address);
+            const firstDeleteAmount = keeperData.amount.div(2);
+
+            await expect(registry.connect(keeper).deleteKeeper(firstDeleteAmount))
+                .to.emit(registry, "KeeperDeleted")
+                .withArgs(
+                    keeper.address,
+                    btc.address,
+                    keeperAmountIn18Decimal.div(2),
+                    firstDeleteAmount
+                )
+                .to.emit(btc, "Transfer")
+                .withArgs(registry.address, keeper.address, btcAmount.div(2));
+
+            const secondDeleteAmount = keeperData.amount.sub(firstDeleteAmount);
+            await expect(registry.connect(keeper).deleteKeeper(secondDeleteAmount))
+                .to.emit(registry, "KeeperDeleted")
+                .withArgs(
+                    keeper.address,
+                    btc.address,
+                    keeperAmountIn18Decimal.div(2),
+                    secondDeleteAmount
+                )
+                .to.emit(btc, "Transfer")
+                .withArgs(registry.address, keeper.address, btcAmount.div(2));
+
+            expect(await btc.balanceOf(keeper.address)).to.equal(origAmount.add(btcAmount));
+            keeperData = await registry.getKeeper(keeper.address);
+            expect(keeperData.amount).to.equal(0);
+            expect(keeperData.joinTimestamp).to.equal(0);
+        });
+
         it("add & delete group before delete keeper", async function () {
             expect((await registry.getKeeper(group1Keepers[0].address)).refCount).to.equal(0);
             const counter = new Map();
