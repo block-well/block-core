@@ -2,10 +2,6 @@ import { ethers } from "hardhat";
 import { BigNumber, BigNumberish, Wallet } from "ethers";
 const { solidityKeccak256 } = ethers.utils;
 
-export const HOUR = 3600;
-export const DAY = HOUR * 24;
-export const WEEK = DAY * 7;
-
 const mintRequestTypes = [
     { name: "receiptId", type: "bytes32" },
     { name: "txId", type: "bytes32" },

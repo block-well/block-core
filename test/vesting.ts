@@ -2,7 +2,8 @@ import { expect } from "chai";
 import { BigNumber, Wallet } from "ethers";
 import { waffle, ethers, deployments } from "hardhat";
 const { parseEther } = ethers.utils;
-import { advanceBlockAtTime, advanceTimeAndBlock, currentTime, WEEK } from "./helper";
+import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
+import { WEEK } from "./time";
 import { ERC20, Vesting } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
