@@ -9,9 +9,8 @@ import {
     advanceTimeAndBlock,
     currentTime,
     setAutomine,
-    WEEK,
-    DAY,
 } from "./helper";
+import { WEEK, DAY } from "./time";
 import { ERC20, StakingReward } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {

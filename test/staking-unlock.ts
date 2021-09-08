@@ -6,7 +6,8 @@ import keccak256 from "keccak256";
 
 const { parseEther, parseUnits } = ethers.utils;
 const parsePrecise = (value: string) => parseUnits(value, 18);
-import { advanceBlockAtTime, advanceTimeAndBlock, currentTime, WEEK, DAY, HOUR } from "./helper";
+import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
+import { WEEK, DAY, HOUR } from "./time";
 import { ERC20, StakingUnlock, Airdrop } from "../build/typechain";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {

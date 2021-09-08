@@ -2,7 +2,8 @@ import { expect } from "chai";
 import { BigNumber, ethers, Wallet, constants } from "ethers";
 import { deployments, waffle } from "hardhat";
 import { BtcRater, ERC20, KeeperRegistry, Liquidation } from "../build/typechain";
-import { advanceTimeAndBlock, currentTime, DAY } from "./helper";
+import { advanceTimeAndBlock, currentTime } from "./helper";
+import { DAY } from "./time";
 
 const { parseEther, parseUnits } = ethers.utils;
 const parseBtcInSats = (value: string) => parseUnits(value, 18);
