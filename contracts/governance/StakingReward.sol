@@ -6,10 +6,11 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import {BaseStaking} from "./BaseStaking.sol";
 
-contract StakingReward is BaseStaking, ReentrancyGuard {
+contract StakingReward is Ownable, BaseStaking, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using Math for uint256;
@@ -20,6 +21,14 @@ contract StakingReward is BaseStaking, ReentrancyGuard {
         uint256 _startTimestamp,
         uint256 _endTimestamp
     ) BaseStaking(_rewardToken, _stakeToken, _startTimestamp, _endTimestamp) {}
+
+    function updateRate(uint256 _rate) external onlyOwner {
+        _updateRate(_rate);
+    }
+
+    function updateEndTimestamp(uint256 _endTimestamp) external onlyOwner {
+        _updateEndTimestamp(_endTimestamp);
+    }
 
     function stake(uint256 amount) external nonReentrant returns (uint256 rewards) {
         return _stake(msg.sender, amount);

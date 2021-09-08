@@ -10,6 +10,7 @@ import {
     currentTime,
     setAutomine,
     WEEK,
+    DAY,
 } from "./helper";
 import { ERC20, StakingReward } from "../build/typechain";
 
@@ -109,6 +110,55 @@ describe("StakingReward", function () {
             expect(await staking.lastTimestamp()).to.equal(startTimestamp);
             expect(await staking.globalDivident()).to.equal(0);
             expect(await staking.totalStakes()).to.equal(0);
+        });
+    });
+
+    describe("updateEndTimestamp()", function () {
+        beforeEach(async function () {
+            await staking.connect(deployer).updateRate(rate);
+        });
+
+        it("cannot end in the past", async function () {
+            const newEndTimestamp = await currentTime();
+            await expect(
+                staking.connect(deployer).updateEndTimestamp(newEndTimestamp)
+            ).to.revertedWith("invalid endtimestamp");
+        });
+
+        it("cannot change after endtime", async function () {
+            await advanceBlockAtTime(endTimestamp);
+            const newEndTimestamp = endTimestamp + WEEK;
+            await expect(
+                staking.connect(deployer).updateEndTimestamp(newEndTimestamp)
+            ).to.revertedWith("invalid endtimestamp");
+        });
+
+        it("extend endtime", async function () {
+            const newEndTimestamp = endTimestamp + WEEK;
+            const diff = rate.mul(WEEK);
+            const balance = await rewardToken.balanceOf(staking.address);
+            await rewardToken.connect(deployer).mint(deployer.address, diff);
+            await rewardToken.connect(deployer).approve(staking.address, diff);
+            await expect(staking.connect(deployer).updateEndTimestamp(newEndTimestamp))
+                .to.emit(staking, "UpdateEndTimestamp")
+                .withArgs(newEndTimestamp);
+
+            expect(diff).to.gt(0);
+            const newBalance = await rewardToken.balanceOf(staking.address);
+            expect(newBalance).to.equal(balance.add(diff));
+        });
+
+        it("move endtime earlier", async function () {
+            const newEndTimestamp = endTimestamp - DAY;
+            const diff = rate.mul(DAY);
+            const balance = await rewardToken.balanceOf(staking.address);
+            await expect(staking.connect(deployer).updateEndTimestamp(newEndTimestamp))
+                .to.emit(staking, "UpdateEndTimestamp")
+                .withArgs(newEndTimestamp);
+
+            expect(diff).to.gt(0);
+            const newBalance = await rewardToken.balanceOf(staking.address);
+            expect(newBalance).to.equal(balance.sub(diff));
         });
     });
 

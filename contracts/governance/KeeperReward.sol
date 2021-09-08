@@ -8,10 +8,11 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/drafts/EIP712.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import {BaseStaking} from "./BaseStaking.sol";
 
-contract KeeperReward is BaseStaking, ReentrancyGuard, EIP712("KeeperReward", "1.0") {
+contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperReward", "1.0") {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using Math for uint256;
@@ -39,6 +40,7 @@ contract KeeperReward is BaseStaking, ReentrancyGuard, EIP712("KeeperReward", "1
     uint256 public checkinTimespan = 30 minutes;
     uint256 public absentTimespan = 18 hours;
     uint256 public appealTimespan = 12 hours;
+    uint256 public immutable maxKeeperStake;
     mapping(address => uint256) public keeperPenalties;
     mapping(address => Accusation) public keeperAccusations;
 
@@ -55,9 +57,11 @@ contract KeeperReward is BaseStaking, ReentrancyGuard, EIP712("KeeperReward", "1
         IERC20 _stakeToken,
         uint256 _startTimestamp,
         uint256 _endTimestamp,
+        uint256 _maxKeeperStake,
         address _validator
     ) BaseStaking(_rewardToken, _stakeToken, _startTimestamp, _endTimestamp) {
         validator = _validator;
+        maxKeeperStake = _maxKeeperStake;
     }
 
     function setValidator(address _validator) external onlyOwner {
@@ -81,6 +85,14 @@ contract KeeperReward is BaseStaking, ReentrancyGuard, EIP712("KeeperReward", "1
         emit SetPenalty(_penalty);
     }
 
+    function updateRate(uint256 _rate) external onlyOwner {
+        _updateRate(_rate);
+    }
+
+    function updateEndTimestamp(uint256 _endTimestamp) external onlyOwner {
+        _updateEndTimestamp(_endTimestamp);
+    }
+
     function stake(uint256 amount, OnlineProof calldata proof)
         external
         nonReentrant
@@ -91,7 +103,9 @@ contract KeeperReward is BaseStaking, ReentrancyGuard, EIP712("KeeperReward", "1
 
         _verifyProof(proof, block.timestamp.sub(checkinTimespan), block.timestamp.add(TIME_BUFFER));
 
-        return _stake(proof.keeper, amount);
+        rewards = _stake(proof.keeper, amount);
+
+        require(stakes[proof.keeper] <= maxKeeperStake, "exceed per keeper stake");
     }
 
     function unstake(uint256 amount, OnlineProof calldata proof)

@@ -101,7 +101,7 @@ contract KeeperRegistry is
         require(data.asset != asset, "same asset");
 
         uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
-        require(normalizedAmount >= data.amount, "cannot reduce amount");
+        require(normalizedAmount == data.amount, "cannot reduce amount");
 
         _refundKeeper(data, data.amount);
 

@@ -34,6 +34,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const endTimestamp = startTimestamp + duration;
 
     const validator = ethers.Wallet.createRandom();
+    const maxKeeperStake = ethers.utils.parseEther("100");
 
     await deployments.deploy("KeeperReward", {
         from: deployer.address,
@@ -42,6 +43,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
             stakedToken.address,
             startTimestamp,
             endTimestamp,
+            maxKeeperStake,
             validator.address,
         ],
     });
@@ -51,7 +53,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     await rewardToken.connect(deployer).mint(deployer.address, rate.mul(duration));
     await rewardToken.connect(deployer).approve(stakingReward.address, rate.mul(duration));
 
-    const amount = parseEther("100");
+    const amount = parseEther("1000");
     for (const user of users.slice(0, 4)) {
         await stakedToken.connect(deployer).mint(user.address, amount);
         await stakedToken.connect(user).approve(stakingReward.address, amount);
@@ -387,6 +389,27 @@ describe("KeeperReward", function () {
 
             expect(await staking.stakes(users[0].address)).to.equal(amount);
             expect(await staking.stakes(users[1].address)).to.equal(0);
+        });
+
+        it("Stake exceeds max amount", async () => {
+            const currentTimestamp = await currentTime();
+            const amount = parseEther("101");
+            const proof = await getOnlineProof(users[0].address, currentTimestamp);
+            proof.keeper = users[0].address;
+
+            await expect(staking.connect(users[0]).stake(amount, proof)).to.revertedWith(
+                "exceed per keeper stake"
+            );
+
+            const maxStakeAmount = await staking.maxKeeperStake();
+            await expect(await staking.connect(users[0]).stake(maxStakeAmount, proof)).to.emit(
+                staking,
+                "Stake"
+            );
+
+            await expect(staking.connect(users[0]).stake(1, proof)).to.revertedWith(
+                "exceed per keeper stake"
+            );
         });
     });
 

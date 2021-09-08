@@ -5,9 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract BaseStaking is Ownable {
+contract BaseStaking {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using Math for uint256;
@@ -15,7 +14,7 @@ contract BaseStaking is Ownable {
     IERC20 public immutable rewardToken;
     IERC20 public immutable stakeToken;
     uint256 public immutable startTimestamp;
-    uint256 public immutable endTimestamp;
+    uint256 public endTimestamp;
     uint256 private constant PRECISE_UNIT = 1e18;
 
     uint256 public rate;
@@ -26,6 +25,7 @@ contract BaseStaking is Ownable {
     mapping(address => uint256) public userDivident;
 
     event UpdateRate(uint256 rate);
+    event UpdateEndTimestamp(uint256 endTimestamp);
     event Stake(address indexed user, uint256 amount, uint256 rewards, uint256 globalDivident);
     event Unstake(address indexed user, uint256 amount, uint256 rewards, uint256 globalDivident);
     event Claim(address indexed user, uint256 rewards, uint256 globalDivident);
@@ -49,7 +49,7 @@ contract BaseStaking is Ownable {
         return globalDivident.add(newDivident);
     }
 
-    function updateRate(uint256 _rate) external onlyOwner {
+    function _updateRate(uint256 _rate) internal {
         require(_rate != rate, "same rate");
 
         _updateGlobalDivident();
@@ -66,6 +66,23 @@ contract BaseStaking is Ownable {
         emit UpdateRate(_rate);
 
         rate = _rate;
+    }
+
+    function _updateEndTimestamp(uint256 _endTimestamp) internal {
+        require(
+            (block.timestamp < _endTimestamp) && (block.timestamp < endTimestamp),
+            "invalid endtimestamp"
+        );
+        if (_endTimestamp > endTimestamp) {
+            uint256 rewardDifference = (_endTimestamp - endTimestamp).mul(rate);
+            rewardToken.safeTransferFrom(msg.sender, address(this), rewardDifference);
+        } else {
+            uint256 rewardDifference = (endTimestamp - _endTimestamp).mul(rate);
+            rewardToken.safeTransfer(msg.sender, rewardDifference);
+        }
+
+        endTimestamp = _endTimestamp;
+        emit UpdateEndTimestamp(_endTimestamp);
     }
 
     function _stake(address user, uint256 amount) internal returns (uint256 rewards) {
