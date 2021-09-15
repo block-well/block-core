@@ -21,6 +21,12 @@ contract Airdrop is ReentrancyGuard, Ownable {
     uint256 public immutable deadline;
     mapping(uint256 => bool) public claimed;
 
+    event Initialize(
+        address stakingUnlock,
+        address rewardToken,
+        bytes32 merkleRoot,
+        uint256 deadline
+    );
     event Claim(address indexed user, uint256 index, uint256 amount);
     event Refund(uint256 amount);
     event UpdateMerkleRoot(bytes32 newMerkleRoot);
@@ -35,6 +41,8 @@ contract Airdrop is ReentrancyGuard, Ownable {
         rewardToken = _rewardToken;
         merkleRoot = _merkleRoot;
         deadline = _deadline;
+
+        emit Initialize(address(_stakingUnlock), address(_rewardToken), _merkleRoot, _deadline);
     }
 
     function updateMerkleRoot(bytes32 newMerkleRoot) external onlyOwner {
