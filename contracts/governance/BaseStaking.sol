@@ -24,6 +24,12 @@ contract BaseStaking {
     mapping(address => uint256) public stakes;
     mapping(address => uint256) public userDivident;
 
+    event Initialize(
+        address rewardToken,
+        address _stakeToken,
+        uint256 _startTimestamp,
+        uint256 endTimestamp
+    );
     event UpdateRate(uint256 rate);
     event UpdateEndTimestamp(uint256 endTimestamp);
     event Stake(address indexed user, uint256 amount, uint256 rewards, uint256 globalDivident);
@@ -42,6 +48,13 @@ contract BaseStaking {
         startTimestamp = _startTimestamp;
         lastTimestamp = _startTimestamp;
         endTimestamp = _endTimestamp;
+
+        emit Initialize(
+            address(_rewardToken),
+            address(_stakeToken),
+            _startTimestamp,
+            _endTimestamp
+        );
     }
 
     function calGlobalDivident() public view returns (uint256) {
