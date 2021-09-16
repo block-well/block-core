@@ -29,6 +29,7 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
         address accuser;
         uint256 collateral;
         uint256 timestamp;
+        uint256 divident;
     }
 
     uint256 public constant TIME_BUFFER = 1 hours;
@@ -133,12 +134,15 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
     function accuse(address keeper) external nonReentrant {
         require(stakes[keeper] > 0, "keeper not staking");
 
+        _updateGlobalDivident();
+
         Accusation storage p = keeperAccusations[keeper];
         require(p.accuser == address(0), "ongoing accusation");
 
         p.accuser = msg.sender;
         p.collateral = accusationPenalty;
         p.timestamp = block.timestamp;
+        p.divident = globalDivident;
 
         rewardToken.safeTransferFrom(msg.sender, address(this), accusationPenalty);
 
@@ -151,7 +155,7 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
         require(p.accuser != address(0), "no accusation");
         require(block.timestamp < _accusationTime.add(appealTimespan), "late for appeal");
 
-        _verifyProof(proof, _accusationTime.sub(appealTimespan), _accusationTime);
+        _verifyProof(proof, _accusationTime.sub(absentTimespan), _accusationTime);
 
         _loseAccusation(p, msg.sender);
 
@@ -164,9 +168,8 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
         require(p.accuser != address(0), "no accusation");
         require(block.timestamp >= p.timestamp.add(appealTimespan), "wait for appeal");
 
-        _winAccusation(p, keeper);
-
-        emit AccuseWin(keeper, p.accuser, p.collateral);
+        uint256 penalty = _winAccusation(p, keeper);
+        emit AccuseWin(keeper, p.accuser, penalty);
         delete keeperAccusations[keeper];
     }
 
@@ -188,11 +191,16 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
 
     function _winAccusation(Accusation storage p, address keeper)
         internal
-        returns (uint256 rewards)
+        returns (uint256 penalty)
     {
-        keeperPenalties[keeper] = p.collateral;
+        _updateGlobalDivident();
+        penalty =
+            p.collateral +
+            _multiplyDecimalPrecise(stakes[keeper], globalDivident.sub(p.divident));
+        keeperPenalties[keeper] = penalty;
+
         rewardToken.safeTransfer(p.accuser, p.collateral * 2);
-        rewards = _unstake(keeper, stakes[keeper]);
+        _unstake(keeper, stakes[keeper]);
     }
 
     function _loseAccusation(Accusation storage p, address recipient) internal {
