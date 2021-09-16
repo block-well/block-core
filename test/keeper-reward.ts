@@ -736,6 +736,7 @@ describe("KeeperReward", function () {
             await rewardToken.connect(accuser).approve(staking.address, accusationPenalty);
             const tx = await staking.connect(accuser).accuse(target.address);
             const appealTimestamp = await currentTime();
+            const divident = await staking.globalDivident();
             await expect(tx)
                 .to.emit(staking, "Accuse")
                 .withArgs(target.address, accuser.address, accusationPenalty, appealTimestamp)
@@ -746,6 +747,7 @@ describe("KeeperReward", function () {
                 accuser.address,
                 accusationPenalty,
                 BigNumber.from(appealTimestamp),
+                divident,
             ]);
         });
 
@@ -766,10 +768,13 @@ describe("KeeperReward", function () {
         });
 
         it("Should accuse and win", async function () {
+            await advanceBlockAtTime(startTimestamp + WEEK);
             expect(await rewardToken.balanceOf(accuser.address)).to.equal(accusationPenalty);
+            expect(await rewardToken.balanceOf(target.address)).to.equal(0);
 
             await rewardToken.connect(accuser).approve(staking.address, accusationPenalty);
             await staking.connect(accuser).accuse(target.address);
+            const prevRewards = await calUserRewards(stakeAmount, totalAmount, startTimestamp);
 
             // wait for appeal
             await expect(staking.connect(accuser).winAccusation(target.address)).to.revertedWith(
@@ -781,14 +786,20 @@ describe("KeeperReward", function () {
             expect(await rewardToken.balanceOf(accuser.address)).to.equal(0);
             expect(await staking.stakes(target.address)).to.equal(stakeAmount);
 
-            await expect(staking.connect(accuser).winAccusation(target.address))
+            const tx = await staking.connect(accuser).winAccusation(target.address);
+            const offlinePenalty = (
+                await calUserRewards(stakeAmount, totalAmount, startTimestamp)
+            ).sub(prevRewards);
+            const penalty = offlinePenalty.add(accusationPenalty);
+            const rewards = prevRewards.sub(accusationPenalty);
+            expect(tx)
                 .to.emit(staking, "AccuseWin")
-                .withArgs(target.address, accuser.address, accusationPenalty)
+                .withArgs(target.address, accuser.address, penalty)
                 .to.emit(staking, "Unstake")
-                .withArgs(target.address, stakeAmount, 0, 0);
+                .withArgs(target.address, stakeAmount, rewards, await staking.globalDivident());
 
             expect(await staking.stakes(target.address)).to.equal(0);
-            expect(await rewardToken.balanceOf(target.address)).to.equal(0);
+            expect(await rewardToken.balanceOf(target.address)).to.equal(rewards);
 
             // can not accuse twice
             await expect(staking.connect(accuser).winAccusation(target.address)).to.revertedWith(
@@ -803,12 +814,12 @@ describe("KeeperReward", function () {
 
             await rewardToken.connect(accuser).approve(staking.address, accusationPenalty);
             await staking.connect(accuser).accuse(target.address);
+            const rewards = await calUserRewards(stakeAmount, totalAmount, startTimestamp);
 
             await advanceTimeAndBlock(appealTimespan.toNumber());
             await staking.connect(accuser).winAccusation(target.address);
 
             expect(await staking.stakes(target.address)).to.equal(0);
-            const rewards = await calUserRewards(stakeAmount, totalAmount, startTimestamp);
 
             expect(await rewardToken.balanceOf(target.address)).to.equal(
                 rewards.sub(accusationPenalty)
@@ -821,13 +832,12 @@ describe("KeeperReward", function () {
 
             await rewardToken.connect(accuser).approve(staking.address, accusationPenalty);
             await staking.connect(accuser).accuse(target.address);
+            const rewards = await calUserRewards(stakeAmount, totalAmount, startTimestamp);
 
             await advanceTimeAndBlock(appealTimespan.toNumber());
             await staking.connect(accuser).winAccusation(target.address);
 
             expect(await staking.stakes(target.address)).to.equal(0);
-
-            const rewards = await calUserRewards(stakeAmount, totalAmount, startTimestamp);
 
             expect(await rewardToken.balanceOf(target.address)).to.equal(0);
             expect(await staking.keeperPenalties(target.address)).to.equal(

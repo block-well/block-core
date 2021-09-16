@@ -137,13 +137,13 @@ contract BaseStaking {
         rewards = _releaseReward(account, rewards);
     }
 
-    function _increaseStakeAmount(address account, uint256 amount) private {
+    function _increaseStakeAmount(address account, uint256 amount) internal {
         stakeToken.safeTransferFrom(account, address(this), amount);
         totalStakes = totalStakes.add(amount);
         stakes[account] = stakes[account].add(amount);
     }
 
-    function _decreaseStakeAmount(address account, uint256 amount) private {
+    function _decreaseStakeAmount(address account, uint256 amount) internal {
         stakeToken.safeTransfer(account, amount);
         totalStakes = totalStakes.sub(amount, "Exceed staked balances");
         stakes[account] = stakes[account].sub(amount, "Exceed staked balances");
@@ -164,8 +164,7 @@ contract BaseStaking {
         }
     }
 
-    function _updateGlobalDivident() private {
-        // Skip if before start timestamp
+    function _updateGlobalDivident() internal {
         if (block.timestamp < startTimestamp) return;
 
         (uint256 newDivident, uint256 nextTimestamp) = _calGlobalDivident(block.timestamp);
