@@ -207,16 +207,16 @@ describe("DeCusSystem", function () {
     });
 
     const setZeroSwapFee = async () => {
-        return setSwapFee("SwapFeeSats", 0, 0, 0, 0);
+        return setSwapFeeSats(0, 0, 0, 0);
     };
 
-    const setSwapFee = async (
-        contract: "SwapFeeDcs" | "SwapFeeSats",
+    const setSwapFeeSats = async (
         mintFeeBps: number,
         burnFeeBps: number,
         mintFeeGasPrice: number,
         mintFeeGasUsed: number
     ) => {
+        const contract = "SwapFeeSats";
         // await fee.connect(deployer).updateBurnFeeBps(0); // skip burn fee
         // await fee.connect(deployer).updateMintEthGasPrice(0); // skip mint fee
 
@@ -1257,8 +1257,7 @@ describe("DeCusSystem", function () {
             let mintEthFee: BigNumber;
 
             beforeEach(async function () {
-                await setSwapFee(
-                    "SwapFeeSats",
+                await setSwapFeeSats(
                     mintFeeBps,
                     burnFeeBps,
                     await fee.mintFeeGasPrice(),
@@ -1369,7 +1368,7 @@ describe("DeCusSystem", function () {
             await deployments.deploy("SwapFee", {
                 contract: "SwapFeeDcs",
                 from: deployer.address,
-                args: [burnFeeDcs, mintFeeGasPrice, mintFeeGasUsed, dcs.address],
+                args: [burnFeeDcs, mintFeeGasPrice, mintFeeGasUsed, dcs.address, system.address],
             });
             fee = (await ethers.getContract("SwapFee")) as ISwapFee;
 

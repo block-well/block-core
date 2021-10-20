@@ -51,14 +51,13 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         args: [[btc.address, hbtc.address], sats.address, rater.address, 1e14],
     });
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
+    const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
 
     const fee = await deployments.deploy("SwapFee", {
         contract: "SwapFeeDcs",
         from: deployer.address,
-        args: [0, 50, 11111, sats.address],
+        args: [0, 50, 11111, sats.address, system.address],
     });
-
-    const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
 
     const rewarder = await deployments.deploy("SwapRewarder", {
         from: deployer.address,
