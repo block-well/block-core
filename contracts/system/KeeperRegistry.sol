@@ -194,6 +194,9 @@ contract KeeperRegistry is
         address asset,
         uint256 amount
     ) external override {
+        require(liquidation != ILiquidation(0), "caller contract not up yet");
+        require(msg.sender == address(liquidation), "only liquidation can call");
+
         IERC20(asset).safeTransferFrom(sender, address(this), amount);
         uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
         confiscations[asset] = confiscations[asset].add(normalizedAmount);
