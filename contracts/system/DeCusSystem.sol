@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/drafts/EIP712.sol";
+import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
 import {IDeCusSystem} from "../interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
@@ -429,7 +430,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
             require(cooldownUntil[keeper] <= _blockTimestamp(), "keeper is in cooldown");
             require(group.keeperSet.contains(keeper), "keeper is not in group");
-            require(ecrecover(digest, uint8(packedV), r[i], s[i]) == keeper, "invalid signature");
+            require(
+                ECDSA.recover(digest, uint8(packedV), r[i], s[i]) == keeper,
+                "invalid signature"
+            );
             // assert keepers.length <= 32
             packedV >>= 8;
 
