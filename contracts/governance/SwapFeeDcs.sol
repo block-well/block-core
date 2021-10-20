@@ -17,18 +17,21 @@ contract SwapFeeDcs is ISwapFee, Ownable {
     uint32 public immutable mintFeeGasUsed;
     uint256 public immutable burnFeeDcs;
     IERC20 public immutable dcs;
+    address public system;
 
     //================================= Public =================================
     constructor(
         uint256 _burnFeeDcs,
         uint16 _mintFeeGasPrice,
         uint32 _mintFeeGasUsed,
-        IERC20 _dcs
+        IERC20 _dcs,
+        address _system
     ) {
         mintFeeGasUsed = _mintFeeGasUsed;
         mintFeeGasPrice = _mintFeeGasPrice;
         burnFeeDcs = _burnFeeDcs;
         dcs = _dcs;
+        system = _system;
     }
 
     function getMintEthFee() public view override returns (uint256) {
@@ -52,6 +55,7 @@ contract SwapFeeDcs is ISwapFee, Ownable {
     }
 
     function payExtraBurnFee(address from, uint256) external override returns (uint256) {
+        require(msg.sender == system, "only system");
         dcs.safeTransferFrom(from, address(this), burnFeeDcs);
         return 0;
     }
