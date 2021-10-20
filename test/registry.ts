@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { Wallet, constants, BigNumber } from "ethers";
 import { deployments, ethers, waffle } from "hardhat";
-import { KeeperRegistry, ERC20, BtcRater, DeCusSystem } from "../build/typechain";
+import { KeeperRegistry, ERC20, BtcRater, DeCusSystem, Liquidation } from "../build/typechain";
 import { advanceTimeAndBlock, currentTime } from "./helper";
 
 const { parseEther, parseUnits } = ethers.utils;
@@ -558,6 +558,28 @@ describe("KeeperRegistry", function () {
             expect(await registry.confiscations(sats.address)).to.be.equal(collateral);
             expect(await registry.confiscations(btc.address)).to.be.equal(collateral);
             expect(await registry.confiscations(hbtc.address)).to.be.equal(collateral);
+        });
+    });
+
+    describe("addConfiscation()", function () {
+        it("should not be called if liquidation not up yet", async function () {
+            await expect(
+                registry.addConfiscation(users[0].address, sats.address, 10)
+            ).to.revertedWith("caller contract not up yet");
+        });
+        it("should not be called if caller is not liquidation", async function () {
+            await deployments.deploy("Liquidation", {
+                from: deployer.address,
+                args: [sats.address, rater.address, registry.address, await currentTime(), 1728000],
+            });
+            const liquidation = (await ethers.getContract("Liquidation")) as Liquidation;
+            await expect(registry.connect(deployer).updateLiquidation(liquidation.address))
+                .to.emit(registry, "LiquidationUpdated")
+                .withArgs(constants.AddressZero, liquidation.address);
+            expect(await registry.liquidation()).to.equal(liquidation.address);
+            await expect(
+                registry.addConfiscation(users[0].address, sats.address, 10)
+            ).to.revertedWith("only liquidation can call");
         });
     });
 
