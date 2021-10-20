@@ -12,8 +12,8 @@ contract Staking {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
-    IERC20 public immutable stakeToken; // DODO LP Token
-    IERC20 public immutable rewardToken; // DCS
+    // IERC20 public immutable stakeToken; // DODO LP Token
+    // IERC20 public immutable rewardToken; // DCS
 
     struct UserData {
         uint256 totalAmount;
@@ -32,16 +32,16 @@ contract Staking {
     event Staked(address user, uint256 amount);
     event Unstaked(address user, uint256 amount);
 
-    constructor(IERC20 _stakeToken, IERC20 _rewardToken) {
-        stakeToken = _stakeToken;
-        rewardToken = _rewardToken;
+    // constructor(IERC20 _stakeToken, IERC20 _rewardToken) {
+    //     stakeToken = _stakeToken;
+    //     rewardToken = _rewardToken;
 
-        emit Initialize(address(_rewardToken), address(_stakeToken));
-    }
+    //     emit Initialize(address(_rewardToken), address(_stakeToken));
+    // }
 
     function _aprPerSecond() private view returns (uint256) {
-        // 25% / 365 / 3600
-        return PRECISE_UNIT.mul(apr).div(100).div(365).div(3600);
+        // 25% / 365 / 24 / 3600
+        return PRECISE_UNIT.mul(apr).div(100).div(365).div(24).div(3600);
     }
 
     function stake(address user, uint256 amount) external {
@@ -51,7 +51,7 @@ contract Staking {
         userData.totalAmount = userData.totalAmount.add(amount);
         userData.data.push(EachTimeData(block.timestamp, amount, block.timestamp));
 
-        stakeToken.safeTransferFrom(user, address(this), amount);
+        // stakeToken.safeTransferFrom(user, address(this), amount);
         emit Staked(user, amount);
     }
 
@@ -98,24 +98,25 @@ contract Staking {
         UserData storage userData = usersData[user];
         require(amount <= userData.totalAmount, "unstake amount exceeds total staked amount");
 
-        uint256 reward = _calRewardAfterFee(user, amount);
+        // uint256 reward = _calRewardAfterFee(user, amount);
 
         if (amount == userData.totalAmount) {
             delete usersData[user];
         } else {
             userData.totalAmount = userData.totalAmount.sub(amount);
-            _updateData(userData.data, amount);
+            _updateData(userData, amount);
         }
 
-        stakeToken.safeTransfer(user, amount);
-        rewardToken.safeTransfer(user, reward);
+        // stakeToken.safeTransfer(user, amount);
+        // rewardToken.safeTransfer(user, reward);
 
         emit Unstaked(user, amount);
     }
 
-    function _updateData(EachTimeData[] storage data, uint256 amount) private {
+    function _updateData(UserData storage userData, uint256 amount) private {
         uint256 remain = amount;
         uint256 index = 0;
+        EachTimeData[] memory data = userData.data;
         // 根据amount的值，时间从前往后匹配EachTimeData
         for (uint256 i = 0; i < data.length; i++) {
             if (remain > data[i].amount) {
@@ -124,23 +125,23 @@ contract Staking {
                 index = i + 1;
                 break;
             } else {
-                data[i].amount = data[i].amount.sub(remain);
+                userData.data[i].amount = data[i].amount.sub(remain);
                 index = i;
                 break;
             }
         }
         if (index == 0) {
             for (uint256 i = 0; i < data.length; i++) {
-                data[i].timeForFee = block.timestamp; // 重置手续费时间
+                userData.data[i].timeForFee = block.timestamp; // 重置手续费时间
             }
         } else {
             // 数据前移
             EachTimeData[] storage newData;
             for (uint256 i = index; i < data.length; i++) {
-                data[i].timeForFee = block.timestamp;
-                newData.push(data[i]);
+                userData.data[i].timeForFee = block.timestamp; // 重置手续费时间
+                newData.push(userData.data[i]);
             }
-            data = newData;
+            userData.data = newData;
         }
     }
 }

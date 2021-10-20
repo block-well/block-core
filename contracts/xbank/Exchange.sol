@@ -37,7 +37,7 @@ contract Exchange is Ownable {
         require(msg.sender == whiteAddress, "caller not in whitelist");
 
         btcb.safeTransferFrom(msg.sender, address(this), amount);
-        sats.safeTransfer(msg.sender, amount.mul(1e8));
+        sats.safeTransfer(msg.sender, amount);
 
         emit Exchanged(block.timestamp, amount, msg.sender);
     }
@@ -45,7 +45,7 @@ contract Exchange is Ownable {
     function exchangeBack(uint256 amount) external {
         require(msg.sender == whiteAddress, "caller not in whitelist");
 
-        sats.safeTransferFrom(msg.sender, address(this), amount.mul(1e8));
+        sats.safeTransferFrom(msg.sender, address(this), amount);
         btcb.safeTransfer(msg.sender, amount);
 
         emit ExchangedBack(block.timestamp, amount, msg.sender);
