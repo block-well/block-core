@@ -101,6 +101,7 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
     {
         Accusation storage p = keeperAccusations[proof.keeper];
         require(p.accuser == address(0), "ongoing accusation");
+        require(msg.sender == proof.keeper, "only self");
 
         _verifyProof(proof, block.timestamp.sub(checkinTimespan), block.timestamp.add(TIME_BUFFER));
 
@@ -116,6 +117,7 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
     {
         Accusation storage p = keeperAccusations[proof.keeper];
         require(p.accuser == address(0), "ongoing accusation");
+        require(msg.sender == proof.keeper, "only self");
 
         _verifyProof(proof, block.timestamp.sub(checkinTimespan), block.timestamp.add(TIME_BUFFER));
 
