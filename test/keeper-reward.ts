@@ -382,12 +382,7 @@ describe("KeeperReward", function () {
                 staking
                     .connect(users[1])
                     .stake(amount, await getOnlineProof(users[0].address, currentTimestamp))
-            )
-                .to.emit(staking, "Stake")
-                .withArgs(users[0].address, amount, 0, 0);
-
-            expect(await staking.stakes(users[0].address)).to.equal(amount);
-            expect(await staking.stakes(users[1].address)).to.equal(0);
+            ).to.revertedWith("only self");
         });
 
         it("Stake exceeds max amount", async () => {
@@ -492,12 +487,7 @@ describe("KeeperReward", function () {
                 staking
                     .connect(users[1])
                     .unstake(amount, await getOnlineProof(users[0].address, currentTimestamp))
-            )
-                .to.emit(staking, "Unstake")
-                .withArgs(users[0].address, amount, 0, 0);
-
-            expect(await staking.stakes(users[0].address)).to.equal(parseEther("29"));
-            expect(await staking.stakes(users[1].address)).to.equal(parseEther("10"));
+            ).to.revertedWith("only self");
         });
     });
 
@@ -716,10 +706,10 @@ describe("KeeperReward", function () {
             await staking.updateRate(rate);
 
             await staking
-                .connect(users[1])
+                .connect(users[0])
                 .stake(stakeAmount, await getOnlineProof(users[0].address));
             await staking
-                .connect(users[2])
+                .connect(users[1])
                 .stake(stakeAmount, await getOnlineProof(users[1].address));
 
             totalAmount = stakeAmount.mul(2);
