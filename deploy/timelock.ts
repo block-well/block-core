@@ -1,12 +1,12 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
+import { GOVERN_CONFIG } from "../config";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    // const delay = 3600 * 24 * 2; // 2 days
-    const delay = 15 * 60; // TODO: 15 minutes for test
+    const delay = GOVERN_CONFIG.TIMELOCK_DELAY;
     const timelockController = await deployments.deploy("TimelockController", {
         from: deployer,
         args: [delay, [deployer], [deployer]],
@@ -76,5 +76,5 @@ export default func;
 func.tags = ["All", "Timelock"];
 func.dependencies = ["Init", "System", "Token", "Keeper"];
 func.skip = async () => {
-    return Boolean(process.env.SKIP_TIMELOCK);
+    return GOVERN_CONFIG.TIMELOCK_SKIP;
 };

@@ -1,5 +1,6 @@
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { DeployFunction } from "hardhat-deploy/types";
+import { KEEPER_CONFIG } from "../config";
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
@@ -18,7 +19,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     });
 
     const rater = await deployments.get("BtcRater");
-    const minKeeperCollateral = ["mainnet", "bsc"].includes(hre.network.name) ? "0.1" : "0.0001"; // TODO: check value before deploy
+    const minKeeperCollateral = KEEPER_CONFIG.UNIT_AMOUNT;
     await deployments.deploy("KeeperRegistry", {
         from: deployer,
         args: [

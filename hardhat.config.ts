@@ -108,6 +108,13 @@ config.networks = {
         gasMultiplier: 2,
         // gasPrice: 20e9,
     },
+    bsct2: {
+        url: "https://data-seed-prebsc-1-s2.binance.org:8545",
+        accounts,
+        chainId: 97,
+        gasMultiplier: 2,
+        // gasPrice: 20e9,
+    },
     bsc: {
         url: "https://bsc-dataseed1.defibit.io/",
         accounts,

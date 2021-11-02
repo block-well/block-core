@@ -4,7 +4,7 @@
         "check": "npm run lint && prettier --ignore-path .gitignore -c .",
         "fmt": "prettier --ignore-path .gitignore -w .",
         "lint": "eslint --ext .js,.ts --ignore-path .gitignore .",
-        "test": "unset SKIP_TIMELOCK && hardhat test",
+        "test": "unset TIMELOCK_SKIP && hardhat test",
         "coverage": "hardhat coverage --solcoverjs ./.decus.solcover.js",
         "compile": "SKIP_LOAD=1 hardhat compile",
         "deploy": "hardhat deploy",
@@ -14,6 +14,8 @@
         "verify:ropsten": "npx hardhat etherscan-verify --network ropsten",
         "deploy:bsct": "hardhat deploy --network bsct",
         "verify:bsct": "hardhat etherscan-verify --network bsct",
+        "deploy:bsct2": "hardhat deploy --network bsct2",
+        "verify:bsct2": "hardhat etherscan-verify --network bsct2",
         "deploy:bsc": "hardhat deploy --network bsc",
         "verify:bsc": "hardhat etherscan-verify --network bsc",
         "abi:go": "abigen --abi=./build/abi/DeCusSystem.json --pkg=abi --type=DeCusSystem --out=../decus-keeper-client/eth/abi/decus_system.go && abigen --abi=./build/abi/KeeperRegistry.json --pkg=abi --type=KeeperRegistry --out=../decus-keeper-client/eth/abi/keeper_registry.go"
