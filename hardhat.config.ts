@@ -1,9 +1,7 @@
 import path from "path";
 import fs from "fs";
-import "@nomiclabs/hardhat-waffle";
-import "solidity-coverage";
-import "hardhat-gas-reporter";
-import "hardhat-typechain";
+import "@nomicfoundation/hardhat-toolbox";
+import "@typechain/hardhat";
 import "hardhat-deploy";
 import "hardhat-abi-exporter";
 import { HardhatUserConfig, NetworksUserConfig } from "hardhat/types";
@@ -28,7 +26,7 @@ const networks: NetworksUserConfig = {
 const config: HardhatUserConfig = {
     networks: networks,
     solidity: {
-        version: "0.7.6",
+        version: "0.8.18",
         settings: {
             optimizer: {
                 enabled: true,

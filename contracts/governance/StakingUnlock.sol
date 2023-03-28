@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/math/Math.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../interfaces/IStakingUnlock.sol";
@@ -52,7 +52,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         userLocked[user] = userLocked[user].add(amount);
         rewardToken.safeTransferFrom(msg.sender, address(this), amount);
 
-        if (rec.lp != IERC20(0)) _updateMaxSpeed(user, rec);
+        if (rec.lp != IERC20(address(0))) _updateMaxSpeed(user, rec);
 
         emit DepositLocked(msg.sender, user, amount, unlockAmount);
     }
@@ -67,7 +67,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         require((config.speed > 0) && (config.minTimespan > 0), "unknown stake token");
 
         UserStakeRecord storage rec = userStakeRecord[msg.sender];
-        if (rec.lp == IERC20(0)) {
+        if (rec.lp == IERC20(address(0))) {
             rec.lp = lp;
         } else {
             require(rec.lp == lp, "lp unmatched");
@@ -110,7 +110,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
 
     function claim() external override nonReentrant returns (uint256 unlockAmount) {
         UserStakeRecord storage rec = userStakeRecord[msg.sender];
-        require((rec.lp != IERC20(0)), "no stake token");
+        require((rec.lp != IERC20(address(0))), "no stake token");
 
         unlockAmount = _settleUserUnlock(msg.sender, rec);
 

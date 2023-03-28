@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.18;
 
 interface IKeeperRegistry {
     struct KeeperData {
@@ -13,12 +12,6 @@ interface IKeeperRegistry {
     function getCollateralWei(address keeper) external view returns (uint256);
 
     function isKeeperQualified(address keeper) external view returns (bool);
-
-    function importKeepers(
-        uint256 amount,
-        address asset,
-        address[] calldata keepers
-    ) external;
 
     function addConfiscation(
         address sender,
