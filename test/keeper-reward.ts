@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber, Wallet } from "ethers";
-import { waffle, ethers, deployments } from "hardhat";
+import { ethers, deployments } from "hardhat";
 const { parseEther, parseUnits } = ethers.utils;
 const parsePrecise = (value: string) => parseUnits(value, 18);
 import {
@@ -11,12 +11,14 @@ import {
     setAutomine,
 } from "./helper";
 import { WEEK, DAY } from "./time";
-import { DCS, ERC20, KeeperReward } from "../build/typechain";
+import { DCS, ERC20, MockERC20, KeeperReward } from "../build/typechain";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture([]);
 
-    const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
+    const { deployer } = await ethers.getNamedSigners();
+    const users = await ethers.getUnnamedSigners();
 
     await deployments.deploy("DCS", { from: deployer.address });
     const rewardToken = (await ethers.getContract("DCS")) as DCS;
@@ -25,7 +27,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         from: deployer.address,
         args: ["StakeToken", "StakeToken", 18],
     });
-    const stakedToken = (await ethers.getContract("MockERC20")) as ERC20;
+    const stakedToken = (await ethers.getContract("MockERC20")) as MockERC20;
 
     const currentTimestamp = await currentTime();
     const startTimestamp = currentTimestamp + WEEK;
@@ -62,8 +64,8 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 });
 
 describe("KeeperReward", function () {
-    let deployer: Wallet;
-    let users: Wallet[];
+    let deployer: SignerWithAddress;
+    let users: SignerWithAddress[];
     let validator: Wallet;
     let rewardToken: DCS;
     let stakedToken: ERC20;
@@ -688,9 +690,9 @@ describe("KeeperReward", function () {
     describe("accuse()", function () {
         const stakeAmount = parseEther("10");
         let totalAmount: BigNumber;
-        let target: Wallet;
-        let accuser: Wallet;
-        let accuser2: Wallet;
+        let target: SignerWithAddress;
+        let accuser: SignerWithAddress;
+        let accuser2: SignerWithAddress;
         let accusationPenalty: BigNumber;
         let appealTimespan: BigNumber;
 
@@ -720,7 +722,7 @@ describe("KeeperReward", function () {
 
         it("Should accuse by anyone with collateral", async function () {
             await expect(staking.connect(accuser).accuse(target.address)).to.revertedWith(
-                "ERC20: transfer amount exceeds allowance"
+                "ERC20: insufficient allowance"
             );
 
             await rewardToken.connect(accuser).approve(staking.address, accusationPenalty);

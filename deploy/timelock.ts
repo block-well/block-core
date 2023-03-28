@@ -9,7 +9,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const delay = 15 * 60; // TODO: 15 minutes for test
     const timelockController = await deployments.deploy("TimelockController", {
         from: deployer,
-        args: [delay, [deployer], [deployer]],
+        args: [delay, [deployer], [deployer], hre.ethers.constants.AddressZero],
         log: true,
     });
 

@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "ethers";
-import { deployments, waffle } from "hardhat";
+import { deployments } from "hardhat";
 import { BtcRater, ERC20 } from "../build/typechain";
 
 const { parseUnits } = ethers.utils;
@@ -9,7 +9,7 @@ const hbtcAmt = (value: string) => parseUnits(value, 18);
 const satsAmt = (value: string) => parseUnits(value, 18);
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
-    const [deployer] = waffle.provider.getWallets();
+    const { deployer } = await ethers.getNamedSigners();
 
     await deployments.deploy("MockWBTC", { from: deployer.address });
     const wbtc = (await ethers.getContract("MockWBTC")) as ERC20;

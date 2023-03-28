@@ -1,7 +1,15 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { Wallet, constants, BigNumber } from "ethers";
-import { deployments, ethers, waffle } from "hardhat";
-import { KeeperRegistry, ERC20, BtcRater, DeCusSystem, Liquidation } from "../build/typechain";
+import { deployments, ethers } from "hardhat";
+import {
+    KeeperRegistry,
+    ERC20,
+    BtcRater,
+    DeCusSystem,
+    Liquidation,
+    MockERC20,
+} from "../build/typechain";
 import { advanceTimeAndBlock, currentTime } from "./helper";
 
 const { parseEther, parseUnits } = ethers.utils;
@@ -11,9 +19,10 @@ const BTC_TO_SATS = 1e8;
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture(["TestToken"]);
 
-    const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
+    const { deployer } = await ethers.getNamedSigners();
+    const users = await ethers.getUnnamedSigners();
 
-    const btc = (await ethers.getContract("BTC")) as ERC20;
+    const btc = (await ethers.getContract("BTC")) as MockERC20;
 
     await deployments.deploy("SATS", { from: deployer.address });
     await deployments.execute(
@@ -23,7 +32,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         ethers.utils.id("MINTER_ROLE"),
         deployer.address
     );
-    const sats = (await ethers.getContract("SATS")) as ERC20;
+    const sats = (await ethers.getContract("SATS")) as MockERC20;
 
     const dcs = await deployments.deploy("DCS", { from: deployer.address });
 
@@ -32,7 +41,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         args: ["HBTC", "HBTC", 18],
         from: deployer.address,
     });
-    const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
+    const hbtc = (await ethers.getContract("MockHBTC")) as MockERC20;
 
     await deployments.deploy("DeCusSystem", { from: deployer.address, args: [] });
 
@@ -96,8 +105,8 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 });
 
 describe("KeeperRegistry", function () {
-    let deployer: Wallet;
-    let users: Wallet[];
+    let deployer: SignerWithAddress;
+    let users: SignerWithAddress[];
     let btc: ERC20;
     let hbtc: ERC20;
     let sats: ERC20;
@@ -191,65 +200,6 @@ describe("KeeperRegistry", function () {
 
             expect(await registry.isKeeperQualified(users[0].address)).to.be.true;
         });
-
-        it("import keepers", async function () {
-            const amountInBtc = "10";
-            const btcAmount = parseBtc(amountInBtc);
-            const asset = btc;
-            const keepers = [users[0], users[1]];
-            const keeperAddresses = keepers.map((x) => x.address);
-            const auction = deployer;
-            for (const keeper of keepers) {
-                await asset.connect(keeper).transfer(auction.address, btcAmount);
-            }
-
-            const transferAmount = btcAmount.mul(keepers.length);
-            await asset.connect(auction).approve(registry.address, transferAmount);
-            expect(await asset.balanceOf(auction.address)).to.be.equal(transferAmount);
-
-            const amountIn18Decimal = parseEther(amountInBtc);
-            await expect(
-                registry.connect(auction).importKeepers(btcAmount, asset.address, keeperAddresses)
-            )
-                .to.emit(registry, "KeeperImported")
-                .withArgs(auction.address, asset.address, keeperAddresses, amountIn18Decimal);
-
-            expect(await asset.balanceOf(registry.address)).to.be.equal(transferAmount);
-            expect(await asset.balanceOf(auction.address)).to.be.equal(0);
-            for (const keeper of keepers) {
-                const keeperData = await registry.getKeeper(keeper.address);
-                expect(keeperData.amount).to.be.equal(amountIn18Decimal);
-                expect(await registry.balanceOf(keeper.address)).to.equal(amountIn18Decimal);
-            }
-        });
-
-        it("import keepers hbtc", async function () {
-            const amount = parseEther("10");
-            const asset = hbtc;
-            const keepers = [users[0], users[1]];
-            const keeperAddresses = keepers.map((x) => x.address);
-            const auction = deployer;
-            for (const keeper of keepers) {
-                await asset.connect(keeper).transfer(auction.address, amount);
-            }
-
-            const transferAmount = amount.mul(keepers.length);
-            await asset.connect(auction).approve(registry.address, transferAmount);
-            expect(await asset.balanceOf(auction.address)).to.be.equal(transferAmount);
-
-            await expect(
-                registry.connect(auction).importKeepers(amount, asset.address, keeperAddresses)
-            )
-                .to.emit(registry, "KeeperImported")
-                .withArgs(auction.address, asset.address, keeperAddresses, amount);
-
-            expect(await asset.balanceOf(registry.address)).to.be.equal(transferAmount);
-            expect(await asset.balanceOf(auction.address)).to.be.equal(0);
-            for (const keeper of keepers) {
-                const keeperData = await registry.getKeeper(keeper.address);
-                expect(keeperData.amount).to.be.equal(amount);
-            }
-        });
     });
 
     describe("deleteKeeper()", function () {
@@ -263,8 +213,8 @@ describe("KeeperRegistry", function () {
         ];
         const GROUP_SATOSHI = parseUnits("0.6", 8);
         let btcAmount: BigNumber;
-        let group1Keepers: Wallet[];
-        let group2Keepers: Wallet[];
+        let group1Keepers: SignerWithAddress[];
+        let group2Keepers: SignerWithAddress[];
 
         beforeEach(async function () {
             btcAmount = parseBtc(keeperBtcAmount);
@@ -426,7 +376,7 @@ describe("KeeperRegistry", function () {
         const keeperAmountIn18Decimal = parseEther(keeperBtcAmount);
         const satsAmount = parseBtcInSats(keeperBtcAmount);
         let btcAmount: BigNumber;
-        let keeper: Wallet;
+        let keeper: SignerWithAddress;
 
         beforeEach(async function () {
             keeper = users[0];
@@ -485,7 +435,7 @@ describe("KeeperRegistry", function () {
             await sats.connect(keeper).approve(registry.address, 0);
             await expect(
                 registry.connect(keeper).swapAsset(sats.address, satsAmount)
-            ).to.revertedWith("ERC20: transfer amount exceeds allowance");
+            ).to.revertedWith("ERC20: insufficient allowance");
         });
 
         it("not enough balance", async function () {

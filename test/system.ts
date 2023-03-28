@@ -1,18 +1,20 @@
 import { expect } from "chai";
 import { BigNumber, Wallet, constants } from "ethers";
-import { deployments, ethers, waffle } from "hardhat";
+import { deployments, ethers } from "hardhat";
 const { parseUnits, parseEther } = ethers.utils;
 import { prepareSignature, advanceTimeAndBlock, currentTime, getReceiptId, Status } from "./helper";
 import {
     DeCusSystem,
     SATS,
-    ERC20,
+    MockERC20,
     KeeperRegistry,
     DCS,
     SwapRewarder,
     ISwapFee,
+    SwapFeeDcs,
 } from "../build/typechain";
-import { TimelockController } from "../build/typechain/TimelockController";
+import { TimelockController } from "../build/typechain";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const SATOSHI_SATS_MULTIPLIER = BigNumber.from(10).pow(10);
 const GROUP_SATOSHI = parseUnits("0.6", 8);
@@ -26,14 +28,16 @@ const BTC_ADDRESS = [
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture();
 
-    const [deployer, ...users] = waffle.provider.getWallets(); // position 0 is used as deployer
-    const btc = (await ethers.getContract("BTC")) as ERC20;
+    const { deployer } = await ethers.getNamedSigners();
+    const users = await ethers.getUnnamedSigners();
+
+    const btc = (await ethers.getContract("BTC")) as MockERC20;
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
     const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
     const sats = (await ethers.getContract("SATS")) as SATS;
     const dcs = (await ethers.getContract("DCS")) as DCS;
     const rewarder = (await ethers.getContract("SwapRewarder")) as SwapRewarder;
-    const fee = (await ethers.getContract("SwapFee")) as ISwapFee;
+    const fee = (await ethers.getContract("SwapFee")) as SwapFeeDcs;
     const timelockController = (await ethers.getContract(
         "TimelockController"
     )) as TimelockController;
@@ -51,19 +55,19 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 });
 
 describe("DeCusSystem", function () {
-    let deployer: Wallet;
-    let users: Wallet[];
+    let deployer: SignerWithAddress;
+    let users: SignerWithAddress[];
     let system: DeCusSystem;
     let registry: KeeperRegistry;
     let sats: SATS;
     let dcs: DCS;
     let rewarder: SwapRewarder;
-    let fee: ISwapFee;
+    let fee: SwapFeeDcs;
     let timelockController: TimelockController;
-    let group1Keepers: Wallet[];
-    let group2Keepers: Wallet[];
-    let group1Verifiers: Wallet[];
-    let group2Verifiers: Wallet[];
+    let group1Keepers: SignerWithAddress[];
+    let group2Keepers: SignerWithAddress[];
+    let group1Verifiers: SignerWithAddress[];
+    let group2Verifiers: SignerWithAddress[];
     const GROUP_ROLE = ethers.utils.id("GROUP_ROLE");
 
     beforeEach(async function () {
@@ -86,7 +90,7 @@ describe("DeCusSystem", function () {
         });
     });
 
-    const addGroupAdmin = async (admin: Wallet) => {
+    const addGroupAdmin = async (admin: SignerWithAddress) => {
         const delay = await timelockController.getMinDelay();
         const grantData = system.interface.encodeFunctionData("grantRole", [
             GROUP_ROLE,
@@ -133,7 +137,7 @@ describe("DeCusSystem", function () {
     };
 
     describe("addGroup()", function () {
-        let groupAdmin: Wallet;
+        let groupAdmin: SignerWithAddress;
 
         beforeEach(async function () {
             groupAdmin = users[9];
@@ -225,7 +229,7 @@ describe("DeCusSystem", function () {
             from: deployer.address,
             args: [mintFeeBps, burnFeeBps, mintFeeGasPrice, mintFeeGasUsed, sats.address],
         });
-        fee = (await ethers.getContract("SwapFee")) as ISwapFee;
+        fee = (await ethers.getContract("SwapFee")) as SwapFeeDcs;
 
         const delay = await timelockController.getMinDelay();
         const data = system.interface.encodeFunctionData("initialize", [
@@ -622,7 +626,7 @@ describe("DeCusSystem", function () {
     };
 
     const requestMint = async (
-        user: Wallet,
+        user: SignerWithAddress,
         btcAddress: string,
         nonce: number,
         mintEthFee: BigNumber
@@ -634,8 +638,8 @@ describe("DeCusSystem", function () {
     };
 
     const verifyMint = async (
-        user: Wallet,
-        keepers: Wallet[],
+        user: SignerWithAddress,
+        keepers: SignerWithAddress[],
         receiptId: string,
         txId: string,
         height: number
