@@ -1,19 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.18;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 contract MockERC20 is ERC20Burnable {
+    uint8 private immutable _decimals;
+
     constructor(
         string memory name,
         string memory symbol,
-        uint8 decimals
+        uint8 decimals_
     ) ERC20(name, symbol) {
-        _setupDecimals(decimals);
+        _decimals = decimals_;
     }
 
     function mint(address account, uint256 amount) public {
         _mint(account, amount);
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
     }
 }
 

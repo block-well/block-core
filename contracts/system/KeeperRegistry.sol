@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity ^0.8.18;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/math/Math.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import {SATS} from "./SATS.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
@@ -135,29 +135,6 @@ contract KeeperRegistry is
         if (data.amount == 0) delete keeperData[msg.sender];
     }
 
-    function importKeepers(
-        uint256 amount,
-        address asset,
-        address[] calldata keepers
-    ) external override {
-        require(assetSet.contains(asset), "unknown asset");
-        require(amount > 0, "amount != 0");
-
-        uint256 totalAmount;
-        uint256 normalizedAmount = btcRater.calcAmountInWei(asset, amount);
-        for (uint256 i = 0; i < keepers.length; i++) {
-            address keeper = keepers[i];
-            if (keeper != address(0)) {
-                _addKeeper(keeper, asset, normalizedAmount);
-                totalAmount = totalAmount.add(amount);
-            }
-        }
-
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), totalAmount);
-
-        emit KeeperImported(msg.sender, asset, keepers, normalizedAmount);
-    }
-
     function punishKeeper(address[] calldata keepers) external onlyOwner {
         for (uint256 i = 0; i < keepers.length; i++) {
             address keeper = keepers[i];
@@ -177,7 +154,7 @@ contract KeeperRegistry is
     }
 
     function confiscate(address[] calldata assets) external nonReentrant {
-        require(liquidation != ILiquidation(0), "liquidation not up yet");
+        require(liquidation != ILiquidation(address(0)), "liquidation not up yet");
 
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 confiscation = confiscations[assets[i]];
@@ -194,7 +171,7 @@ contract KeeperRegistry is
         address asset,
         uint256 amount
     ) external override {
-        require(liquidation != ILiquidation(0), "caller contract not up yet");
+        require(liquidation != ILiquidation(address(0)), "caller contract not up yet");
         require(msg.sender == address(liquidation), "only liquidation can call");
 
         IERC20(asset).safeTransferFrom(sender, address(this), amount);

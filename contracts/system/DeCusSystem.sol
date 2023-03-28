@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.18;
 
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/EnumerableSet.sol";
-import "@openzeppelin/contracts/drafts/EIP712.sol";
-import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IDeCusSystem} from "../interfaces/IDeCusSystem.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
@@ -293,7 +292,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi -= receipt.amountInSatoshi;
 
-        if (rewarder != ISwapRewarder(0))
+        if (rewarder != ISwapRewarder(address(0)))
             rewarder.burnReward(receipt.recipient, receipt.amountInSatoshi);
 
         emit BurnVerified(receiptId, receipt.groupBtcAddress, msg.sender);
