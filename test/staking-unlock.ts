@@ -1,14 +1,13 @@
 import { expect } from "chai";
-import { BigNumber, Wallet, utils } from "ethers";
+import { BigNumber, utils } from "ethers";
 import { ethers, deployments } from "hardhat";
 import { MerkleTree } from "merkletreejs";
-import keccak256 from "keccak256";
 
 const { parseEther, parseUnits } = ethers.utils;
 const parsePrecise = (value: string) => parseUnits(value, 18);
 import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
 import { WEEK, DAY, HOUR } from "./time";
-import { ERC20, StakingUnlock, Airdrop, MockERC20 } from "../build/typechain";
+import { StakingUnlock, Airdrop, MockERC20 } from "../build/typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
@@ -25,11 +24,14 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         [user0Index0, users[0].address, claimAmount]
     );
 
-    const Leaves = [user0Leaf0, keccak256("a"), keccak256("b"), keccak256("c")];
-    // const Leaves = [user0Leaf0].concat(["a", "b", "c"].map((x) => keccak256(x)));
+    // const Leaves = [user0Leaf0, keccak256("a"), keccak256("b"), keccak256("c")];
+    const Leaves = [user0Leaf0].concat(["a", "b", "c"].map((x) => ethers.utils.id(x)));
     // console.log(Leaves);
 
-    const merkleTree = new MerkleTree(Leaves, keccak256, { hashLeaves: false, sortPairs: true });
+    const merkleTree = new MerkleTree(Leaves, ethers.utils.keccak256, {
+        hashLeaves: false,
+        sortPairs: true,
+    });
     const merkleRoot = merkleTree.getHexRoot();
 
     await deployments.deploy("DCS", { from: deployer.address });
@@ -206,7 +208,7 @@ describe("StakingUnlock", function () {
             );
             Leaves.push(user0Leaf1);
 
-            const newMerkleTree = new MerkleTree(Leaves, keccak256, {
+            const newMerkleTree = new MerkleTree(Leaves, ethers.utils.keccak256, {
                 hashLeaves: false,
                 sortPairs: true,
             });
