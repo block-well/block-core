@@ -1,7 +1,8 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, ethers, Wallet, constants } from "ethers";
-import { deployments, waffle } from "hardhat";
-import { BtcRater, ERC20, KeeperRegistry, Liquidation } from "../build/typechain";
+import { deployments } from "hardhat";
+import { BtcRater, ERC20, KeeperRegistry, Liquidation, MockERC20 } from "../build/typechain";
 import { advanceTimeAndBlock, currentTime } from "./helper";
 import { DAY } from "./time";
 
@@ -12,9 +13,10 @@ const PRECISE_UNIT = parseUnits("1", 18);
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture(["TestToken"]);
 
-    const [deployer, ...users] = waffle.provider.getWallets();
+    const { deployer } = await ethers.getNamedSigners();
+    const users = await ethers.getUnnamedSigners();
 
-    const btc = (await ethers.getContract("BTC")) as ERC20;
+    const btc = (await ethers.getContract("BTC")) as MockERC20;
 
     await deployments.deploy("SATS", {
         from: deployer.address,
@@ -26,7 +28,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
         ethers.utils.id("MINTER_ROLE"),
         deployer.address
     );
-    const sats = (await ethers.getContract("SATS")) as ERC20;
+    const sats = (await ethers.getContract("SATS")) as MockERC20;
 
     await deployments.deploy("BtcRater", {
         from: deployer.address,
@@ -62,8 +64,8 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 });
 
 describe("Liquidation", function () {
-    let deployer: Wallet;
-    let users: Wallet[];
+    let deployer: SignerWithAddress;
+    let users: SignerWithAddress[];
     let btc: ERC20;
     let sats: ERC20;
     let registry: KeeperRegistry;

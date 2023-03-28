@@ -1,5 +1,6 @@
 import { ethers } from "hardhat";
 import { BigNumber, BigNumberish, Wallet } from "ethers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 const { solidityKeccak256 } = ethers.utils;
 
 const mintRequestTypes = [
@@ -9,7 +10,7 @@ const mintRequestTypes = [
 ];
 
 export async function sign(
-    signer: Wallet,
+    signer: SignerWithAddress,
     verifyingContract: string,
     receiptId: string,
     txId: string,
@@ -34,7 +35,7 @@ export async function sign(
 }
 
 export async function prepareSignature(
-    keepers: Wallet[],
+    keepers: SignerWithAddress[],
     verifyingContract: string,
     receiptId: string,
     txId: string,

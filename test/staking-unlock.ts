@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { BigNumber, Wallet, utils } from "ethers";
-import { waffle, ethers, deployments } from "hardhat";
+import { ethers, deployments } from "hardhat";
 import { MerkleTree } from "merkletreejs";
 import keccak256 from "keccak256";
 
@@ -8,7 +8,8 @@ const { parseEther, parseUnits } = ethers.utils;
 const parsePrecise = (value: string) => parseUnits(value, 18);
 import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
 import { WEEK, DAY, HOUR } from "./time";
-import { ERC20, StakingUnlock, Airdrop } from "../build/typechain";
+import { ERC20, StakingUnlock, Airdrop, MockERC20 } from "../build/typechain";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture([]);
@@ -16,42 +17,44 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const user0Index0 = 0;
     const claimAmount = parseEther("1600"); //* 10^18
 
-    const [deployer, ...users] = waffle.provider.getWallets();
+    const { deployer } = await ethers.getNamedSigners();
+    const users = await ethers.getUnnamedSigners();
+
     const user0Leaf0 = utils.solidityKeccak256(
         ["uint256", "address", "uint256"],
         [user0Index0, users[0].address, claimAmount]
     );
 
-    // const Leaves = [user0Leaf, keccak256('a'), keccak256('b'), keccak256('c')];
-    const Leaves = [user0Leaf0].concat(["a", "b", "c"].map((x) => keccak256(x)));
+    const Leaves = [user0Leaf0, keccak256("a"), keccak256("b"), keccak256("c")];
+    // const Leaves = [user0Leaf0].concat(["a", "b", "c"].map((x) => keccak256(x)));
     // console.log(Leaves);
 
     const merkleTree = new MerkleTree(Leaves, keccak256, { hashLeaves: false, sortPairs: true });
     const merkleRoot = merkleTree.getHexRoot();
 
     await deployments.deploy("DCS", { from: deployer.address });
-    const rewardToken = (await ethers.getContract("DCS")) as ERC20;
+    const rewardToken = (await ethers.getContract("DCS")) as MockERC20;
 
     await deployments.deploy("LpToken", {
         contract: "MockERC20",
         args: ["LpToken", "LpToken", 18],
         from: deployer.address,
     });
-    const stakedToken = (await ethers.getContract("LpToken")) as ERC20;
+    const stakedToken = (await ethers.getContract("LpToken")) as MockERC20;
 
     await deployments.deploy("LpToken2", {
         contract: "MockERC20",
         args: ["LpToken2", "LpToken2", 18],
         from: deployer.address,
     });
-    const stakedToken2 = (await ethers.getContract("LpToken2")) as ERC20;
+    const stakedToken2 = (await ethers.getContract("LpToken2")) as MockERC20;
 
     await deployments.deploy("UnknownERC20", {
         contract: "MockERC20",
         args: ["Unknown", "Unknown", 18],
         from: deployer.address,
     });
-    const unknownToken = (await ethers.getContract("UnknownERC20")) as ERC20;
+    const unknownToken = (await ethers.getContract("UnknownERC20")) as MockERC20;
 
     await deployments.deploy("StakingUnlock", {
         from: deployer.address,
@@ -93,12 +96,12 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 });
 
 describe("StakingUnlock", function () {
-    let deployer: Wallet;
-    let users: Wallet[];
-    let rewardToken: ERC20;
-    let stakedToken: ERC20;
-    let stakedToken2: ERC20;
-    let unknownToken: ERC20;
+    let deployer: SignerWithAddress;
+    let users: SignerWithAddress[];
+    let rewardToken: MockERC20;
+    let stakedToken: MockERC20;
+    let stakedToken2: MockERC20;
+    let unknownToken: MockERC20;
     let staking: StakingUnlock;
     let airdrop: Airdrop;
     let deadline: number;

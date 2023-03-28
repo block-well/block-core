@@ -1,18 +1,20 @@
 import { expect } from "chai";
 import { BigNumber, Wallet } from "ethers";
-import { waffle, ethers, deployments } from "hardhat";
+import { ethers, deployments } from "hardhat";
 const { parseEther } = ethers.utils;
 import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
 import { WEEK } from "./time";
-import { ERC20, Vesting } from "../build/typechain";
+import { MockERC20, Vesting } from "../build/typechain";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture([]);
 
-    const [deployer, ...users] = waffle.provider.getWallets();
+    const { deployer } = await ethers.getNamedSigners();
+    const users = await ethers.getUnnamedSigners();
 
     await deployments.deploy("DCS", { from: deployer.address });
-    const rewardToken = (await ethers.getContract("DCS")) as ERC20;
+    const rewardToken = (await ethers.getContract("DCS")) as MockERC20;
 
     await deployments.deploy("Vesting", {
         from: deployer.address,
@@ -45,9 +47,9 @@ function getVestedSupply(
 }
 
 describe("StakingUnlock", function () {
-    let deployer: Wallet;
-    let users: Wallet[];
-    let rewardToken: ERC20;
+    let deployer: SignerWithAddress;
+    let users: SignerWithAddress[];
+    let rewardToken: MockERC20;
     let vesting: Vesting;
 
     beforeEach(async function () {
