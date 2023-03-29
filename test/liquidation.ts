@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, ethers, Wallet, constants } from "ethers";
+import { BigNumber, constants, ethers } from "ethers";
 import { deployments } from "hardhat";
 import { BtcRater, ERC20, KeeperRegistry, Liquidation, MockERC20 } from "../build/typechain";
 import { advanceTimeAndBlock, currentTime } from "./helper";

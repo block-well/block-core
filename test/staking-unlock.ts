@@ -1,14 +1,14 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, utils } from "ethers";
-import { ethers, deployments } from "hardhat";
+import { deployments, ethers } from "hardhat";
 import { MerkleTree } from "merkletreejs";
+import { Airdrop, MockERC20, StakingUnlock } from "../build/typechain";
+import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
+import { DAY, HOUR, WEEK } from "./time";
 
 const { parseEther, parseUnits } = ethers.utils;
 const parsePrecise = (value: string) => parseUnits(value, 18);
-import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
-import { WEEK, DAY, HOUR } from "./time";
-import { StakingUnlock, Airdrop, MockERC20 } from "../build/typechain";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture([]);

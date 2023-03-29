@@ -1,12 +1,12 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { Wallet, constants, BigNumber } from "ethers";
+import { BigNumber, constants } from "ethers";
 import { deployments, ethers } from "hardhat";
 import {
-    KeeperRegistry,
-    ERC20,
     BtcRater,
     DeCusSystem,
+    ERC20,
+    KeeperRegistry,
     Liquidation,
     MockERC20,
 } from "../build/typechain";

@@ -27,11 +27,7 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         rewardToken = _rewardToken;
     }
 
-    function setLpConfig(
-        IERC20 lp,
-        uint256 speed,
-        uint256 minTimespan
-    ) external onlyOwner {
+    function setLpConfig(IERC20 lp, uint256 speed, uint256 minTimespan) external onlyOwner {
         LpConfig storage config = lpConfig[lp];
         if (speed != config.speed) config.speed = speed;
         if (minTimespan != config.minTimespan) config.minTimespan = minTimespan;
@@ -39,12 +35,10 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         emit SetLpConfig(address(lp), speed, minTimespan);
     }
 
-    function depositLocked(address user, uint256 amount)
-        external
-        override
-        nonReentrant
-        returns (uint256 unlockAmount)
-    {
+    function depositLocked(
+        address user,
+        uint256 amount
+    ) external override nonReentrant returns (uint256 unlockAmount) {
         UserStakeRecord storage rec = userStakeRecord[user];
 
         unlockAmount = _settleUserUnlock(user, rec);
@@ -57,12 +51,10 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         emit DepositLocked(msg.sender, user, amount, unlockAmount);
     }
 
-    function stake(IERC20 lp, uint256 amount)
-        external
-        override
-        nonReentrant
-        returns (uint256 unlockAmount)
-    {
+    function stake(
+        IERC20 lp,
+        uint256 amount
+    ) external override nonReentrant returns (uint256 unlockAmount) {
         LpConfig storage config = lpConfig[lp];
         require((config.speed > 0) && (config.minTimespan > 0), "unknown stake token");
 
@@ -83,12 +75,10 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         emit Stake(msg.sender, address(lp), amount, unlockAmount);
     }
 
-    function unstake(IERC20 lp, uint256 amount)
-        external
-        override
-        nonReentrant
-        returns (uint256 unlockAmount)
-    {
+    function unstake(
+        IERC20 lp,
+        uint256 amount
+    ) external override nonReentrant returns (uint256 unlockAmount) {
         LpConfig storage config = lpConfig[lp];
         require((config.speed > 0) && (config.minTimespan > 0), "unknown stake token");
 
@@ -117,10 +107,10 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         emit Claim(msg.sender, address(rec.lp), rec.amount, unlockAmount);
     }
 
-    function _settleUserUnlock(address user, UserStakeRecord storage rec)
-        private
-        returns (uint256 unlockAmount)
-    {
+    function _settleUserUnlock(
+        address user,
+        UserStakeRecord storage rec
+    ) private returns (uint256 unlockAmount) {
         unlockAmount = _calUnlockAmount(user, rec);
         rec.lastTimestamp = block.timestamp;
         if (unlockAmount > 0) {
@@ -129,11 +119,10 @@ contract StakingUnlock is ReentrancyGuard, Ownable, IStakingUnlock {
         }
     }
 
-    function _calUnlockAmount(address user, UserStakeRecord storage rec)
-        private
-        view
-        returns (uint256 unlockAmount)
-    {
+    function _calUnlockAmount(
+        address user,
+        UserStakeRecord storage rec
+    ) private view returns (uint256 unlockAmount) {
         uint256 elapsedTime = block.timestamp - rec.lastTimestamp;
         uint256 unlockSpeed = Math.min(_getLpSpeed(rec), rec.maxSpeed);
         unlockAmount = Math.min(userLocked[user], unlockSpeed.mul(elapsedTime).div(PRECISE_UNIT));

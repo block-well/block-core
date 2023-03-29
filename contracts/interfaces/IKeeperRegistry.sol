@@ -13,11 +13,7 @@ interface IKeeperRegistry {
 
     function isKeeperQualified(address keeper) external view returns (bool);
 
-    function addConfiscation(
-        address sender,
-        address asset,
-        uint256 amount
-    ) external;
+    function addConfiscation(address sender, address asset, uint256 amount) external;
 
     function incrementRefCount(address keeper) external;
 

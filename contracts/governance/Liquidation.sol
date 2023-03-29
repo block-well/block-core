@@ -57,11 +57,7 @@ contract Liquidation is ILiquidation, ReentrancyGuard {
         return discountSatsAmount;
     }
 
-    function assetAuction(
-        IERC20 asset,
-        uint256 amount,
-        address recipient
-    ) external nonReentrant {
+    function assetAuction(IERC20 asset, uint256 amount, address recipient) external nonReentrant {
         require(block.timestamp >= startTimestamp, "auction not start");
         require(recipient == address(registry), "recipient not match registry");
 

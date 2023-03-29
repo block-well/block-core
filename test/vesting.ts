@@ -1,11 +1,11 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, Wallet } from "ethers";
-import { ethers, deployments } from "hardhat";
-const { parseEther } = ethers.utils;
+import { BigNumber } from "ethers";
+import { deployments, ethers } from "hardhat";
+import { MockERC20, Vesting } from "../build/typechain";
 import { advanceBlockAtTime, advanceTimeAndBlock, currentTime } from "./helper";
 import { WEEK } from "./time";
-import { MockERC20, Vesting } from "../build/typechain";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+const { parseEther } = ethers.utils;
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture([]);

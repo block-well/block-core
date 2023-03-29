@@ -89,11 +89,10 @@ contract Vesting is Ownable, ReentrancyGuard {
         return vesting.totalVesting.sub(_totalVestedOf(vesting, block.timestamp));
     }
 
-    function _totalVestedOf(UserVesting storage vesting, uint256 timestamp)
-        internal
-        view
-        returns (uint256)
-    {
+    function _totalVestedOf(
+        UserVesting storage vesting,
+        uint256 timestamp
+    ) internal view returns (uint256) {
         uint256 start = vesting.startTimestamp;
         uint256 end = vesting.endTimestamp;
         uint256 locked = vesting.totalVesting;

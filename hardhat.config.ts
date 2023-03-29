@@ -1,10 +1,10 @@
-import path from "path";
-import fs from "fs";
 import "@nomicfoundation/hardhat-toolbox";
 import "@typechain/hardhat";
-import "hardhat-deploy";
+import fs from "fs";
 import "hardhat-abi-exporter";
+import "hardhat-deploy";
 import { HardhatUserConfig, NetworksUserConfig } from "hardhat/types";
+import path from "path";
 
 // Prevent to load scripts before compilation and typechain
 if (!process.env.SKIP_LOAD) {

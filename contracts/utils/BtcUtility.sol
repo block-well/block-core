@@ -13,13 +13,13 @@ library BtcUtility {
         require(ERC20_DECIMAL >= decimal, "asset decimal not supported");
 
         // the result is strictly <= 10**18, no need to check overflow
-        return 10**uint256(ERC20_DECIMAL - decimal);
+        return 10 ** uint256(ERC20_DECIMAL - decimal);
     }
 
     function getSatoshiDivisor(uint256 decimal) internal pure returns (uint256) {
         require((SATOSHI_DECIMAL <= decimal) && (decimal <= 18), "asset decimal not supported");
 
         // the result is strictly <= 10**10, no need to check overflow
-        return 10**uint256(decimal - SATOSHI_DECIMAL);
+        return 10 ** uint256(decimal - SATOSHI_DECIMAL);
     }
 }

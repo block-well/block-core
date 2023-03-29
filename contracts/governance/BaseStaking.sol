@@ -149,11 +149,9 @@ contract BaseStaking {
         stakes[account] = stakes[account].sub(amount, "Exceed staked balances");
     }
 
-    function _calGlobalDivident(uint256 currTimestamp)
-        internal
-        view
-        returns (uint256 newDivident, uint256 nextTimestamp)
-    {
+    function _calGlobalDivident(
+        uint256 currTimestamp
+    ) internal view returns (uint256 newDivident, uint256 nextTimestamp) {
         nextTimestamp = endTimestamp.min(currTimestamp);
         uint256 elapsedTime = nextTimestamp.sub(lastTimestamp);
         uint256 _totalStakes = totalStakes;
