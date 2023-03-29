@@ -98,7 +98,9 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     // -------------------------------- group ----------------------------------
-    function getGroup(string calldata btcAddress)
+    function getGroup(
+        string calldata btcAddress
+    )
         external
         view
         returns (
@@ -178,11 +180,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         return receipts[receiptId];
     }
 
-    function getReceiptId(string calldata groupBtcAddress, uint256 nonce)
-        public
-        pure
-        returns (bytes32)
-    {
+    function getReceiptId(
+        string calldata groupBtcAddress,
+        uint256 nonce
+    ) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(groupBtcAddress, nonce));
     }
 
@@ -268,10 +269,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         );
     }
 
-    function requestBurn(bytes32 receiptId, string calldata withdrawBtcAddress)
-        public
-        whenNotPaused
-    {
+    function requestBurn(
+        bytes32 receiptId,
+        string calldata withdrawBtcAddress
+    ) public whenNotPaused {
         Receipt storage receipt = receipts[receiptId];
 
         _requestWithdraw(receipt, withdrawBtcAddress);
@@ -313,11 +314,10 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         return btcRefundData;
     }
 
-    function refundBtc(string calldata groupBtcAddress, bytes32 txId)
-        public
-        onlyAdmin
-        whenNotPaused
-    {
+    function refundBtc(
+        string calldata groupBtcAddress,
+        bytes32 txId
+    ) public onlyAdmin whenNotPaused {
         bytes32 receiptId = getReceiptId(groupBtcAddress, groups[groupBtcAddress].nonce);
         Receipt storage receipt = receipts[receiptId];
 
@@ -367,11 +367,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     // -------------------------------- group ----------------------------------
-    function _deleteGroup(
-        string calldata btcAddress,
-        Group storage group,
-        bool force
-    ) private {
+    function _deleteGroup(string calldata btcAddress, Group storage group, bool force) private {
         bytes32 receiptId = getReceiptId(btcAddress, group.nonce);
         Receipt storage receipt = receipts[receiptId];
         require(
@@ -466,11 +462,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         receipt.status = Status.DepositRequested;
     }
 
-    function _approveDeposit(
-        Receipt storage receipt,
-        bytes32 txId,
-        uint32 height
-    ) private {
+    function _approveDeposit(Receipt storage receipt, bytes32 txId, uint32 height) private {
         require(
             receipt.status == Status.DepositRequested,
             "receipt is not in DepositRequested state"
@@ -550,11 +542,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     // user transfer SATS when requestBurn
-    function _paySATSForBurn(
-        address from,
-        address to,
-        uint256 amountInSatoshi
-    ) private {
+    function _paySATSForBurn(address from, address to, uint256 amountInSatoshi) private {
         uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
 
         uint256 feeAmount = fee.payExtraBurnFee(from, amount);

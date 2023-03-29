@@ -1,8 +1,8 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber, Wallet } from "ethers";
-import { ethers, deployments } from "hardhat";
-const { parseEther, parseUnits } = ethers.utils;
-const parsePrecise = (value: string) => parseUnits(value, 18);
+import { BigNumber } from "ethers";
+import { deployments, ethers } from "hardhat";
+import { MockERC20, StakingReward } from "../build/typechain";
 import {
     advanceBlock,
     advanceBlockAtTime,
@@ -10,9 +10,9 @@ import {
     currentTime,
     setAutomine,
 } from "./helper";
-import { WEEK, DAY } from "./time";
-import { ERC20, StakingReward, MockERC20 } from "../build/typechain";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { DAY, WEEK } from "./time";
+const { parseEther, parseUnits } = ethers.utils;
+const parsePrecise = (value: string) => parseUnits(value, 18);
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture([]);

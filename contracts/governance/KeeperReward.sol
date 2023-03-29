@@ -94,11 +94,10 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
         _updateEndTimestamp(_endTimestamp);
     }
 
-    function stake(uint256 amount, OnlineProof calldata proof)
-        external
-        nonReentrant
-        returns (uint256 rewards)
-    {
+    function stake(
+        uint256 amount,
+        OnlineProof calldata proof
+    ) external nonReentrant returns (uint256 rewards) {
         Accusation storage p = keeperAccusations[proof.keeper];
         require(p.accuser == address(0), "ongoing accusation");
         require(msg.sender == proof.keeper, "only self");
@@ -110,11 +109,10 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
         require(stakes[proof.keeper] <= maxKeeperStake, "exceed per keeper stake");
     }
 
-    function unstake(uint256 amount, OnlineProof calldata proof)
-        external
-        nonReentrant
-        returns (uint256 rewards)
-    {
+    function unstake(
+        uint256 amount,
+        OnlineProof calldata proof
+    ) external nonReentrant returns (uint256 rewards) {
         Accusation storage p = keeperAccusations[proof.keeper];
         require(p.accuser == address(0), "ongoing accusation");
         require(msg.sender == proof.keeper, "only self");
@@ -191,10 +189,10 @@ contract KeeperReward is Ownable, BaseStaking, ReentrancyGuard, EIP712("KeeperRe
         return true;
     }
 
-    function _winAccusation(Accusation storage p, address keeper)
-        internal
-        returns (uint256 penalty)
-    {
+    function _winAccusation(
+        Accusation storage p,
+        address keeper
+    ) internal returns (uint256 penalty) {
         _updateGlobalDivident();
         penalty =
             p.collateral +

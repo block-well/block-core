@@ -1,6 +1,6 @@
-import { ethers } from "hardhat";
-import { BigNumber, BigNumberish, Wallet } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { BigNumber, BigNumberish } from "ethers";
+import { ethers } from "hardhat";
 const { solidityKeccak256 } = ethers.utils;
 
 const mintRequestTypes = [

@@ -166,11 +166,7 @@ contract KeeperRegistry is
         }
     }
 
-    function addConfiscation(
-        address sender,
-        address asset,
-        uint256 amount
-    ) external override {
+    function addConfiscation(address sender, address asset, uint256 amount) external override {
         require(liquidation != ILiquidation(address(0)), "caller contract not up yet");
         require(msg.sender == address(liquidation), "only liquidation can call");
 
@@ -217,11 +213,7 @@ contract KeeperRegistry is
         return uint32(block.timestamp);
     }
 
-    function _addKeeper(
-        address keeper,
-        address asset,
-        uint256 amount
-    ) private {
+    function _addKeeper(address keeper, address asset, uint256 amount) private {
         KeeperData storage data = keeperData[keeper];
         data.asset = asset;
         data.amount = data.amount.add(amount);
@@ -233,10 +225,10 @@ contract KeeperRegistry is
         emit KeeperAdded(keeper, asset, amount);
     }
 
-    function _refundKeeper(KeeperData storage data, uint256 cAmount)
-        private
-        returns (uint256 amount)
-    {
+    function _refundKeeper(
+        KeeperData storage data,
+        uint256 cAmount
+    ) private returns (uint256 amount) {
         data.amount = data.amount.sub(cAmount);
         amount = cAmount;
         address asset = data.asset;
