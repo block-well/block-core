@@ -9,28 +9,28 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
-contract SwapFeeDcs is ISwapFee, Ownable {
+contract SwapFeeDcx is ISwapFee, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     uint16 public immutable mintFeeGasPrice; // in gwei
     uint32 public immutable mintFeeGasUsed;
-    uint256 public immutable burnFeeDcs;
-    IERC20 public immutable dcs;
+    uint256 public immutable burnFeeDcx;
+    IERC20 public immutable dcx;
     address public system;
 
     //================================= Public =================================
     constructor(
-        uint256 _burnFeeDcs,
+        uint256 _burnFeeDcx,
         uint16 _mintFeeGasPrice,
         uint32 _mintFeeGasUsed,
-        IERC20 _dcs,
+        IERC20 _dcx,
         address _system
     ) {
         mintFeeGasUsed = _mintFeeGasUsed;
         mintFeeGasPrice = _mintFeeGasPrice;
-        burnFeeDcs = _burnFeeDcs;
-        dcs = _dcs;
+        burnFeeDcx = _burnFeeDcx;
+        dcx = _dcx;
         system = _system;
     }
 
@@ -56,13 +56,13 @@ contract SwapFeeDcs is ISwapFee, Ownable {
 
     function payExtraBurnFee(address from, uint256) external override returns (uint256) {
         require(msg.sender == system, "only system");
-        dcs.safeTransferFrom(from, address(this), burnFeeDcs);
+        dcx.safeTransferFrom(from, address(this), burnFeeDcx);
         return 0;
     }
 
-    function collectDcs(uint256 amount) public onlyOwner {
-        dcs.safeTransfer(msg.sender, amount);
-        emit FeeCollected(msg.sender, address(dcs), amount);
+    function collectDcx(uint256 amount) public onlyOwner {
+        dcx.safeTransfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, address(dcx), amount);
     }
 
     function collectEther(address payable to, uint256 amount) public onlyOwner {

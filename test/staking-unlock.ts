@@ -34,8 +34,11 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const merkleRoot = merkleTree.getHexRoot();
 
-    await deployments.deploy("DCS", { from: deployer.address });
-    const rewardToken = (await ethers.getContract("DCS")) as MockERC20;
+    await deployments.deploy("DCX", {
+        from: deployer.address,
+        args: [ethers.utils.parseEther("1000000000"), deployer.address],
+    });
+    const rewardToken = (await ethers.getContract("DCX")) as MockERC20;
 
     await deployments.deploy("LpToken", {
         contract: "MockERC20",
@@ -73,7 +76,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const airdrop = (await ethers.getContract("Airdrop")) as Airdrop;
 
-    await rewardToken.connect(deployer).mint(airdrop.address, parseEther("1600"));
+    await rewardToken.connect(deployer).transfer(airdrop.address, parseEther("1600"));
     await stakedToken.connect(deployer).mint(users[0].address, parseEther("100"));
     await stakedToken2.connect(deployer).mint(users[0].address, parseEther("100"));
     await unknownToken.connect(deployer).mint(users[0].address, parseEther("1000"));
@@ -136,7 +139,7 @@ describe("StakingUnlock", function () {
         deadline = (await airdrop.deadline()).toNumber();
 
         minTimespan = 7 * DAY;
-        speed = BigNumber.from("1600").mul(PRECISE_UNIT).div(minTimespan); // 1 lp to 1600 dcs
+        speed = BigNumber.from("1600").mul(PRECISE_UNIT).div(minTimespan); // 1 lp to 1600 dcx
 
         user0Proof0 = merkleTree.getHexProof(Leaves[0]);
     });
@@ -145,7 +148,7 @@ describe("StakingUnlock", function () {
         it("Should initialize stakingUnlock", async function () {
             expect(await rewardToken.balanceOf(staking.address)).to.equal(0);
             expect(await rewardToken.balanceOf(users[0].address)).to.equal(0);
-            expect(await rewardToken.balanceOf(deployer.address)).to.equal(0);
+            expect(await rewardToken.balanceOf(deployer.address)).to.be.greaterThan(0);
 
             await expect(
                 staking.connect(deployer).setLpConfig(stakedToken.address, speed, minTimespan)
@@ -197,7 +200,7 @@ describe("StakingUnlock", function () {
         });
 
         it("Should update when a new record inserts", async () => {
-            await rewardToken.connect(deployer).mint(airdrop.address, parseEther("1000"));
+            await rewardToken.connect(deployer).transfer(airdrop.address, parseEther("1000"));
 
             const user0Index1 = 1;
             const newClaimAmount = parseEther("1000"); //* 10^18

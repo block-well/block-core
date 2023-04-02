@@ -40,7 +40,7 @@ interface IKeeperRegistry {
     event OverissueAdded(uint256 total, uint256 added);
     event OffsetOverissued(
         address indexed operator,
-        uint256 satsAmount,
+        uint256 ebtcAmount,
         uint256 remainingOverissueAmount
     );
 }

@@ -6,7 +6,7 @@ import { BtcRater, ERC20 } from "../build/typechain";
 const { parseUnits } = ethers.utils;
 const wbtcAmt = (value: string) => parseUnits(value, 8);
 const hbtcAmt = (value: string) => parseUnits(value, 18);
-const satsAmt = (value: string) => parseUnits(value, 18);
+const ebtcAmt = (value: string) => parseUnits(value, 18);
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     const { deployer } = await ethers.getNamedSigners();
@@ -21,29 +21,29 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const hbtc = (await ethers.getContract("MockHBTC")) as ERC20;
 
-    await deployments.deploy("SATS", { from: deployer.address });
-    const sats = (await ethers.getContract("SATS")) as ERC20;
+    await deployments.deploy("EBTC", { from: deployer.address });
+    const ebtc = (await ethers.getContract("EBTC")) as ERC20;
 
     await deployments.deploy("BtcRater", {
         from: deployer.address,
         args: [
-            [wbtc.address, hbtc.address, sats.address],
-            [1, 1, 1e8],
+            [wbtc.address, hbtc.address, ebtc.address],
+            [1, 1, 1],
         ],
     });
     const rater = (await ethers.getContract("BtcRater")) as BtcRater;
 
-    return { wbtc, hbtc, sats, rater };
+    return { wbtc, hbtc, ebtc, rater };
 });
 
 describe("BtcRater", function () {
     let wbtc: ERC20;
     let hbtc: ERC20;
-    let sats: ERC20;
+    let ebtc: ERC20;
     let rater: BtcRater;
 
     beforeEach(async function () {
-        ({ wbtc, hbtc, sats, rater } = await setupFixture());
+        ({ wbtc, hbtc, ebtc, rater } = await setupFixture());
     });
 
     describe("calcAmountInWei()", function () {
@@ -60,7 +60,7 @@ describe("BtcRater", function () {
             expect(await rater.calcAmountInWei(hbtc.address, hbtcAmt("1"))).equal(
                 parseUnits("1", 18)
             );
-            expect(await rater.calcAmountInWei(sats.address, satsAmt("1"))).equal(
+            expect(await rater.calcAmountInWei(ebtc.address, ebtcAmt("1"))).equal(
                 parseUnits("1", 18)
             );
         });
@@ -80,8 +80,8 @@ describe("BtcRater", function () {
             expect(await rater.calcOrigAmount(hbtc.address, parseUnits("1", 18))).equal(
                 hbtcAmt("1")
             );
-            expect(await rater.calcOrigAmount(sats.address, parseUnits("1", 18))).equal(
-                satsAmt("1")
+            expect(await rater.calcOrigAmount(ebtc.address, parseUnits("1", 18))).equal(
+                ebtcAmt("1")
             );
         });
     });

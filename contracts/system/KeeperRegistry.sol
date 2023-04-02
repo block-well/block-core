@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import {SATS} from "./SATS.sol";
+import {EBTC} from "./EBTC.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
 import {IBtcRater} from "../interfaces/IBtcRater.sol";
 import {ILiquidation} from "../interfaces/ILiquidation.sol";
@@ -20,7 +20,7 @@ import {BtcUtility} from "../utils/BtcUtility.sol";
 contract KeeperRegistry is
     Ownable,
     IKeeperRegistry,
-    ERC20("DeCus CToken", "DCS-CT"),
+    ERC20("DecuX CToken", "DCX-CT"),
     ReentrancyGuard
 {
     using Math for uint256;
@@ -29,7 +29,7 @@ contract KeeperRegistry is
     using EnumerableSet for EnumerableSet.AddressSet;
 
     address public system;
-    SATS public immutable sats;
+    EBTC public immutable ebtc;
     IBtcRater public immutable btcRater;
     ILiquidation public liquidation;
 
@@ -49,7 +49,7 @@ contract KeeperRegistry is
 
     constructor(
         address[] memory _assets,
-        SATS _sats,
+        EBTC _ebtc,
         IBtcRater _btcRater,
         uint256 _minKeeperCollateral
     ) {
@@ -58,7 +58,7 @@ contract KeeperRegistry is
         for (uint256 i = 0; i < _assets.length; i++) {
             _addAsset(_assets[i]);
         }
-        sats = _sats;
+        ebtc = _ebtc;
     }
 
     function updateMinKeeperCollateral(uint256 amount) external onlyOwner {
@@ -182,11 +182,11 @@ contract KeeperRegistry is
         emit OverissueAdded(overissuedTotal, overissuedAmount);
     }
 
-    function offsetOverissue(uint256 satsAmount) external {
-        overissuedTotal = overissuedTotal.sub(satsAmount);
-        confiscations[address(sats)] = confiscations[address(sats)].sub(satsAmount);
-        sats.burn(satsAmount);
-        emit OffsetOverissued(msg.sender, satsAmount, overissuedTotal);
+    function offsetOverissue(uint256 ebtcAmount) external {
+        overissuedTotal = overissuedTotal.sub(ebtcAmount);
+        confiscations[address(ebtc)] = confiscations[address(ebtc)].sub(ebtcAmount);
+        ebtc.burn(ebtcAmount);
+        emit OffsetOverissued(msg.sender, ebtcAmount, overissuedTotal);
     }
 
     function incrementRefCount(address keeper) external override onlySystem {

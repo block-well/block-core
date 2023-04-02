@@ -2,7 +2,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { BigNumber, Wallet } from "ethers";
 import { deployments, ethers } from "hardhat";
-import { DCS, ERC20, KeeperReward, MockERC20 } from "../build/typechain";
+import { DCX, ERC20, KeeperReward, MockERC20 } from "../build/typechain";
 import {
     advanceBlock,
     advanceBlockAtTime,
@@ -20,8 +20,11 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const { deployer } = await ethers.getNamedSigners();
     const users = await ethers.getUnnamedSigners();
 
-    await deployments.deploy("DCS", { from: deployer.address });
-    const rewardToken = (await ethers.getContract("DCS")) as DCS;
+    await deployments.deploy("DCX", {
+        from: deployer.address,
+        args: [ethers.utils.parseEther("1000000000"), deployer.address],
+    });
+    const rewardToken = (await ethers.getContract("DCX")) as DCX;
 
     await deployments.deploy("MockERC20", {
         from: deployer.address,
@@ -51,7 +54,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const stakingReward = (await ethers.getContract("KeeperReward")) as KeeperReward;
 
     const rate = parseEther("2");
-    await rewardToken.connect(deployer).mint(deployer.address, rate.mul(duration));
+    // await rewardToken.connect(deployer).mint(deployer.address, rate.mul(duration));
     await rewardToken.connect(deployer).approve(stakingReward.address, rate.mul(duration));
 
     const amount = parseEther("1000");
@@ -67,7 +70,7 @@ describe("KeeperReward", function () {
     let deployer: SignerWithAddress;
     let users: SignerWithAddress[];
     let validator: Wallet;
-    let rewardToken: DCS;
+    let rewardToken: DCX;
     let stakedToken: ERC20;
     let staking: KeeperReward;
     let startTimestamp: number;
@@ -716,8 +719,8 @@ describe("KeeperReward", function () {
 
             totalAmount = stakeAmount.mul(2);
 
-            await rewardToken.connect(deployer).mint(accuser.address, accusationPenalty);
-            await rewardToken.connect(deployer).mint(accuser2.address, accusationPenalty);
+            await rewardToken.connect(deployer).transfer(accuser.address, accusationPenalty);
+            await rewardToken.connect(deployer).transfer(accuser2.address, accusationPenalty);
         });
 
         it("Should accuse by anyone with collateral", async function () {

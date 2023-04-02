@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
-contract SwapFeeSats is ISwapFee, Ownable {
+contract SwapFeeEbtc is ISwapFee, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -17,7 +17,7 @@ contract SwapFeeSats is ISwapFee, Ownable {
     uint8 public immutable burnFeeBps;
     uint16 public immutable mintFeeGasPrice; // in gwei
     uint32 public immutable mintFeeGasUsed;
-    IERC20 public immutable sats;
+    IERC20 public immutable ebtc;
 
     //================================= Public =================================
     constructor(
@@ -25,13 +25,13 @@ contract SwapFeeSats is ISwapFee, Ownable {
         uint8 _burnFeeBps,
         uint16 _mintFeeGasPrice,
         uint32 _mintFeeGasUsed,
-        IERC20 _sats
+        IERC20 _ebtc
     ) {
         mintFeeBps = _mintFeeBps;
         burnFeeBps = _burnFeeBps;
         mintFeeGasUsed = _mintFeeGasUsed;
         mintFeeGasPrice = _mintFeeGasPrice;
-        sats = _sats;
+        ebtc = _ebtc;
     }
 
     function getMintEthFee() public view override returns (uint256) {
@@ -58,9 +58,9 @@ contract SwapFeeSats is ISwapFee, Ownable {
         return amount.mul(burnFeeBps).div(10000);
     }
 
-    function collectSats(uint256 amount) public onlyOwner {
-        sats.safeTransfer(msg.sender, amount);
-        emit FeeCollected(msg.sender, address(sats), amount);
+    function collectEbtc(uint256 amount) public onlyOwner {
+        ebtc.safeTransfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, address(ebtc), amount);
     }
 
     function collectEther(address payable to, uint256 amount) public onlyOwner {

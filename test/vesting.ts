@@ -13,16 +13,17 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const { deployer } = await ethers.getNamedSigners();
     const users = await ethers.getUnnamedSigners();
 
-    await deployments.deploy("DCS", { from: deployer.address });
-    const rewardToken = (await ethers.getContract("DCS")) as MockERC20;
+    await deployments.deploy("DCX", {
+        from: deployer.address,
+        args: [ethers.utils.parseEther("1000000000"), deployer.address],
+    });
+    const rewardToken = (await ethers.getContract("DCX")) as MockERC20;
 
     await deployments.deploy("Vesting", {
         from: deployer.address,
         args: [rewardToken.address],
     });
     const vesting = (await ethers.getContract("Vesting")) as Vesting;
-
-    await rewardToken.connect(deployer).mint(deployer.address, parseEther("10000"));
 
     return {
         users,

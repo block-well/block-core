@@ -10,7 +10,7 @@ import {ISwapRewarder} from "../interfaces/ISwapRewarder.sol";
 contract SwapRewarder is ISwapRewarder, Ownable {
     using SafeERC20 for IERC20;
 
-    IERC20 public immutable dcs;
+    IERC20 public immutable dcx;
     address public immutable minter;
     uint256 public immutable mintRewardAmount;
     uint256 public immutable burnRewardAmount;
@@ -23,12 +23,12 @@ contract SwapRewarder is ISwapRewarder, Ownable {
     }
 
     constructor(
-        IERC20 _dcs,
+        IERC20 _dcx,
         address _minter,
         uint256 _mintRewardAmount,
         uint256 _burnRewardAmount
     ) {
-        dcs = _dcs;
+        dcx = _dcx;
         minter = _minter;
         mintRewardAmount = _mintRewardAmount;
         burnRewardAmount = _burnRewardAmount;
@@ -37,7 +37,7 @@ contract SwapRewarder is ISwapRewarder, Ownable {
     function mintReward(address to, uint256) external override onlyMinter {
         if (mintRewardAmount == 0) return;
 
-        dcs.safeTransfer(to, mintRewardAmount);
+        dcx.safeTransfer(to, mintRewardAmount);
 
         emit SwapRewarded(to, mintRewardAmount, true);
     }
@@ -45,15 +45,15 @@ contract SwapRewarder is ISwapRewarder, Ownable {
     function burnReward(address to, uint256) external override onlyMinter {
         if (burnRewardAmount == 0) return;
 
-        dcs.safeTransfer(to, burnRewardAmount);
+        dcx.safeTransfer(to, burnRewardAmount);
 
         emit SwapRewarded(to, burnRewardAmount, false);
     }
 
     function abort() external onlyOwner {
-        uint256 balance = dcs.balanceOf(address(this));
+        uint256 balance = dcx.balanceOf(address(this));
 
-        dcs.safeTransfer(msg.sender, balance);
+        dcx.safeTransfer(msg.sender, balance);
 
         emit RewarderAbort(msg.sender, balance);
     }

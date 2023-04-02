@@ -10,7 +10,7 @@ interface ILiquidation {
         address indexed operator,
         address asset,
         uint256 amount,
-        uint256 discountSatsAmount
+        uint256 discountEbtcAmount
     );
 
     event InitialData(

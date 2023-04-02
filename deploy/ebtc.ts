@@ -4,16 +4,17 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
+    const TOTAL_SUPPLY = hre.ethers.utils.parseEther("1000000000");
 
-    await deployments.deploy("SATS", {
+    await deployments.deploy("EBTC", {
         from: deployer,
         args: [],
         log: true,
     });
 
-    await deployments.deploy("DCS", {
+    await deployments.deploy("DCX", {
         from: deployer,
-        args: [],
+        args: [TOTAL_SUPPLY, deployer],
         log: true,
     });
 };

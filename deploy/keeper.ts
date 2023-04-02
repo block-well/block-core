@@ -5,13 +5,13 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer, btc } = await getNamedAccounts();
 
-    const sats = await deployments.get("SATS");
+    const ebtc = await deployments.get("EBTC");
 
     const btcAddress = btc ? btc : (await deployments.get("BTC")).address;
     await deployments.deploy("BtcRater", {
         from: deployer,
         args: [
-            [btcAddress, sats.address],
+            [btcAddress, ebtc.address],
             [1, 1e8],
         ],
         log: true,
@@ -23,7 +23,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer,
         args: [
             [btcAddress],
-            sats.address,
+            ebtc.address,
             rater.address,
             hre.ethers.utils.parseEther(minKeeperCollateral),
         ],
