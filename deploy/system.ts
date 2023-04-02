@@ -16,7 +16,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     await deployments.deploy("SwapFee", {
         contract: "SwapFeeEbtc",
         from: deployer,
-        args: [0, 0, 30, 300000, ebtc.address], // TODO: check value before deploy
+        args: [0, 0, ebtc.address], // TODO: check value before deploy
         log: true,
     });
 

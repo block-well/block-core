@@ -15,39 +15,45 @@ contract SwapFeeEbtc is ISwapFee, Ownable {
 
     uint8 public immutable mintFeeBps;
     uint8 public immutable burnFeeBps;
-    uint16 public immutable mintFeeGasPrice; // in gwei
-    uint32 public immutable mintFeeGasUsed;
     IERC20 public immutable ebtc;
 
     //================================= Public =================================
-    constructor(
-        uint8 _mintFeeBps,
-        uint8 _burnFeeBps,
-        uint16 _mintFeeGasPrice,
-        uint32 _mintFeeGasUsed,
-        IERC20 _ebtc
-    ) {
+    constructor(uint8 _mintFeeBps, uint8 _burnFeeBps, IERC20 _ebtc) {
         mintFeeBps = _mintFeeBps;
         burnFeeBps = _burnFeeBps;
-        mintFeeGasUsed = _mintFeeGasUsed;
-        mintFeeGasPrice = _mintFeeGasPrice;
         ebtc = _ebtc;
     }
 
-    function getMintEthFee() public view override returns (uint256) {
-        return 1e9 * uint256(mintFeeGasUsed) * uint256(mintFeeGasPrice);
+    function getMintFeeEth() public pure override returns (uint256) {
+        return 1e9 * getMintFeeEthGasPrice() * getMintFeeEthGasUsed();
     }
 
-    function getMintFeeAmount(uint256 amount) external view override returns (uint256) {
+    function getMintFeeEthGasPrice() public pure override returns (uint256) {
+        return 30;
+    }
+
+    function getMintFeeEthGasUsed() public pure override returns (uint256) {
+        return 300000;
+    }
+
+    function getMintFeeEbtc(uint256 amount) external view override returns (uint256) {
         return amount.mul(mintFeeBps).div(10000);
     }
 
-    function getBurnFeeAmount(uint256 amount) public view override returns (uint256) {
+    function getBurnFeeEbtc(uint256 amount) public view override returns (uint256) {
         return amount.mul(burnFeeBps).div(10000);
     }
 
-    function payMintEthFee() external payable override {
-        require(msg.value >= getMintEthFee(), "not enough eth");
+    function getMintFeeDcx(uint256) public pure override returns (uint256) {
+        return 0;
+    }
+
+    function getBurnFeeDcx(uint256) public pure override returns (uint256) {
+        return 0;
+    }
+
+    function payMintFeeEth() external payable override {
+        require(msg.value >= getMintFeeEth(), "not enough eth");
     }
 
     function payExtraMintFee(address, uint256 amount) external view override returns (uint256) {
@@ -58,14 +64,16 @@ contract SwapFeeEbtc is ISwapFee, Ownable {
         return amount.mul(burnFeeBps).div(10000);
     }
 
-    function collectEbtc(uint256 amount) public onlyOwner {
-        ebtc.safeTransfer(msg.sender, amount);
-        emit FeeCollected(msg.sender, address(ebtc), amount);
-    }
-
-    function collectEther(address payable to, uint256 amount) public onlyOwner {
+    function collectEther(address payable to, uint256 amount) public override onlyOwner {
         (bool sent, ) = to.call{value: amount}("");
         require(sent, "failed to send ether");
         emit FeeCollected(to, address(0), amount);
     }
+
+    function collectEbtc(uint256 amount) public override onlyOwner {
+        ebtc.safeTransfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, address(ebtc), amount);
+    }
+
+    function collectDcx(uint256 amount) public override onlyOwner {}
 }

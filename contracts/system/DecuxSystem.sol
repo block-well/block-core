@@ -193,7 +193,7 @@ contract DecuxSystem is AccessControl, Pausable, IDecuxSystem, EIP712("Decux", "
         uint32 nonce
     ) public payable whenNotPaused {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
-        fee.payMintEthFee{value: msg.value}();
+        fee.payMintFeeEth{value: msg.value}();
 
         Group storage group = groups[groupBtcAddress];
         require(nonce == (group.nonce + 1), "invalid nonce");

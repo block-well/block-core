@@ -68,7 +68,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const fee = await deployments.deploy("SwapFee", {
         contract: "SwapFeeDcx",
         from: deployer.address,
-        args: [0, 50, 11111, ebtc.address, system.address],
+        args: [0, ebtc.address, system.address],
     });
 
     const rewarder = await deployments.deploy("SwapRewarder", {
