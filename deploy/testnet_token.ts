@@ -5,7 +5,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    const wbtcNetworks = ["ropsten", "kovan"];
+    const wbtcNetworks = ["ropsten", "kovan", "bsct", "hardhat"];
     // const wbtcNetworks = ["ropsten", "kovan", "hardhat"];
     const btcContract = wbtcNetworks.includes(hre.network.name) ? "MockWBTC" : "MockBTCB";
 

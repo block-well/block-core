@@ -16,7 +16,7 @@
         "verify:bsct": "hardhat etherscan-verify --network bsct",
         "deploy:bsc": "hardhat deploy --network bsc",
         "verify:bsc": "hardhat etherscan-verify --network bsc",
-        "abi:go": "abigen --abi=./build/abi/DeCusSystem.json --pkg=abi --type=DeCusSystem --out=../decus-keeper-client/eth/abi/decus_system.go && abigen --abi=./build/abi/KeeperRegistry.json --pkg=abi --type=KeeperRegistry --out=../decus-keeper-client/eth/abi/keeper_registry.go"
+        "abi:go": "abigen --abi=./build/abi/DecuxSystem.json --pkg=abi --type=DecuxSystem --out=../decus-keeper-client/eth/abi/decus_system.go && abigen --abi=./build/abi/KeeperRegistry.json --pkg=abi --type=KeeperRegistry --out=../decus-keeper-client/eth/abi/keeper_registry.go"
     },
     "devDependencies": {
         "@ethersproject/abi": "^5.7.0",

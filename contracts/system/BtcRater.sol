@@ -49,8 +49,8 @@ contract BtcRater is Ownable, IBtcRater {
         address asset,
         uint256 weiAmount
     ) external view override returns (uint256) {
-        // e.g. 1e18 => btcb&1e8
-        // e.g. 1e18 => hbtc&1e18
+        // e.g. 1e18 => wbtc&1e8
+        // e.g. 1e18 => btcb&1e18
         // e.g. 1e18 => ebtc&1e18
         return
             (weiAmount.mul(btcConversionRates[asset])).div(
