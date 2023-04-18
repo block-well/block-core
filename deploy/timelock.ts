@@ -13,16 +13,16 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         log: true,
     });
 
-    // DeCusSystem
+    // DecuxSystem
     await deployments.execute(
-        "DeCusSystem",
+        "DecuxSystem",
         { from: deployer, log: true },
         "grantRole",
         hre.ethers.constants.HashZero,
         timelockController.address
     );
     await deployments.execute(
-        "DeCusSystem",
+        "DecuxSystem",
         { from: deployer, log: true },
         "revokeRole",
         hre.ethers.constants.HashZero,
@@ -45,23 +45,23 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         timelockController.address
     );
 
-    // SATS
+    // EBTC
     await deployments.execute(
-        "SATS",
+        "EBTC",
         { from: deployer, log: true },
         "grantRole",
         hre.ethers.constants.HashZero,
         timelockController.address
     );
     await deployments.execute(
-        "SATS",
+        "EBTC",
         { from: deployer, log: true },
         "revokeRole",
         hre.ethers.constants.HashZero,
         deployer
     );
 
-    // DCS: we will transfer dcs's owner manually later after all allocation has been done
+    // DCX: we will transfer dcs's owner manually later after all allocation has been done
 
     // SwapFee: we will do it after all setup
     // await deployments.execute(

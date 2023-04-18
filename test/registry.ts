@@ -4,7 +4,7 @@ import { BigNumber, constants } from "ethers";
 import { deployments, ethers } from "hardhat";
 import {
     BtcRater,
-    DeCusSystem,
+    DecuxSystem,
     ERC20,
     KeeperRegistry,
     Liquidation,
@@ -13,8 +13,8 @@ import {
 import { advanceTimeAndBlock, currentTime } from "./helper";
 
 const { parseEther, parseUnits } = ethers.utils;
-const parseBtcInSats = (value: string) => parseUnits(value, 18);
-const BTC_TO_SATS = 1e8;
+const parseBtcInEbtc = (value: string) => parseUnits(value, 18);
+const BTC_TO_EBTC = 1;
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
     await deployments.fixture(["TestToken"]);
@@ -24,17 +24,20 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     const btc = (await ethers.getContract("BTC")) as MockERC20;
 
-    await deployments.deploy("SATS", { from: deployer.address });
+    await deployments.deploy("EBTC", { from: deployer.address });
     await deployments.execute(
-        "SATS",
+        "EBTC",
         { from: deployer.address },
         "grantRole",
         ethers.utils.id("MINTER_ROLE"),
         deployer.address
     );
-    const sats = (await ethers.getContract("SATS")) as MockERC20;
+    const ebtc = (await ethers.getContract("EBTC")) as MockERC20;
 
-    const dcs = await deployments.deploy("DCS", { from: deployer.address });
+    const dcx = await deployments.deploy("DCX", {
+        from: deployer.address,
+        args: [ethers.utils.parseEther("1000000000"), deployer.address],
+    });
 
     await deployments.deploy("MockHBTC", {
         contract: "MockERC20",
@@ -43,7 +46,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     });
     const hbtc = (await ethers.getContract("MockHBTC")) as MockERC20;
 
-    await deployments.deploy("DeCusSystem", { from: deployer.address, args: [] });
+    await deployments.deploy("DecuxSystem", { from: deployer.address, args: [] });
 
     await deployments.deploy("BtcRater", {
         from: deployer.address,
@@ -57,27 +60,27 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     await deployments.deploy("KeeperRegistry", {
         from: deployer.address,
-        args: [[btc.address, hbtc.address], sats.address, rater.address, 1e14],
+        args: [[btc.address, hbtc.address], ebtc.address, rater.address, 1e14],
     });
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
-    const system = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
+    const system = (await ethers.getContract("DecuxSystem")) as DecuxSystem;
 
     const fee = await deployments.deploy("SwapFee", {
-        contract: "SwapFeeDcs",
+        contract: "SwapFeeDcx",
         from: deployer.address,
-        args: [0, 50, 11111, sats.address, system.address],
+        args: [0, ebtc.address, system.address],
     });
 
     const rewarder = await deployments.deploy("SwapRewarder", {
         from: deployer.address,
-        args: [dcs.address, system.address, parseEther("40"), parseEther("10")],
+        args: [dcx.address, system.address, parseEther("40"), parseEther("10")],
     });
 
     await deployments.execute(
-        "DeCusSystem",
+        "DecuxSystem",
         { from: deployer.address },
         "initialize",
-        sats.address,
+        ebtc.address,
         registry.address,
         rewarder.address,
         fee.address
@@ -94,14 +97,14 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     for (const user of users) {
         await btc.mint(user.address, parseUnits("100", btcDecimals));
         await hbtc.mint(user.address, parseEther("100"));
-        await sats.connect(deployer).mint(user.address, parseBtcInSats("100"));
+        await ebtc.connect(deployer).mint(user.address, parseBtcInEbtc("100"));
 
         await btc.connect(user).approve(registry.address, parseUnits("100", btcDecimals));
         await hbtc.connect(user).approve(registry.address, parseEther("100"));
-        await sats.connect(user).approve(registry.address, parseBtcInSats("100"));
+        await ebtc.connect(user).approve(registry.address, parseBtcInEbtc("100"));
     }
 
-    return { users, deployer, btc, hbtc, sats, registry, rater, system };
+    return { users, deployer, btc, hbtc, ebtc, registry, rater, system };
 });
 
 describe("KeeperRegistry", function () {
@@ -109,14 +112,14 @@ describe("KeeperRegistry", function () {
     let users: SignerWithAddress[];
     let btc: ERC20;
     let hbtc: ERC20;
-    let sats: ERC20;
+    let ebtc: ERC20;
     let rater: BtcRater;
     let registry: KeeperRegistry;
-    let system: DeCusSystem;
+    let system: DecuxSystem;
     let btcDecimals = 0;
 
     beforeEach(async function () {
-        ({ users, deployer, btc, hbtc, sats, registry, rater, system } = await setupFixture());
+        ({ users, deployer, btc, hbtc, ebtc, registry, rater, system } = await setupFixture());
         btcDecimals = await btc.decimals();
     });
 
@@ -134,13 +137,28 @@ describe("KeeperRegistry", function () {
             });
             const hbtc2 = await ethers.getContract("HBTC2");
 
-            await expect(registry.connect(deployer).addAsset(btc2.address))
-                .to.emit(registry, "AssetAdded")
-                .withArgs(btc2.address);
+            let assets = await registry.assetList();
+            expect(assets).to.contain(btc.address);
+            expect(assets).to.not.contain(btc2.address);
+            expect(assets).to.not.contain(hbtc2.address);
 
-            await expect(registry.connect(deployer).addAsset(hbtc2.address))
-                .to.emit(registry, "AssetAdded")
-                .withArgs(hbtc2.address);
+            await expect(registry.connect(deployer).updateAsset(btc2.address, true))
+                .to.emit(registry, "AssetUpdate")
+                .withArgs(btc2.address, true);
+
+            await expect(registry.connect(deployer).updateAsset(hbtc2.address, true))
+                .to.emit(registry, "AssetUpdate")
+                .withArgs(hbtc2.address, true);
+
+            assets = await registry.assetList();
+            expect(assets).to.contain(btc2.address);
+            expect(assets).to.contain(hbtc2.address);
+
+            await expect(registry.connect(deployer).updateAsset(btc.address, false))
+                .to.emit(registry, "AssetUpdate")
+                .withArgs(btc.address, false);
+
+            expect(await registry.assetList()).to.not.contain(btc.address);
         });
     });
 
@@ -218,8 +236,8 @@ describe("KeeperRegistry", function () {
 
         beforeEach(async function () {
             btcAmount = parseBtc(keeperBtcAmount);
-            await registry.connect(deployer).addAsset(sats.address);
-            await rater.connect(deployer).updateRates(sats.address, BTC_TO_SATS);
+            await registry.connect(deployer).updateAsset(ebtc.address, true);
+            await rater.connect(deployer).updateRates(ebtc.address, BTC_TO_EBTC);
 
             group1Keepers = [users[0], users[1], users[2], users[3]];
             group2Keepers = [users[0], users[1], users[4], users[5]];
@@ -374,7 +392,7 @@ describe("KeeperRegistry", function () {
     describe("KeeperSwapAsset()", function () {
         const keeperBtcAmount = "0.5";
         const keeperAmountIn18Decimal = parseEther(keeperBtcAmount);
-        const satsAmount = parseBtcInSats(keeperBtcAmount);
+        const ebtcAmount = parseBtcInEbtc(keeperBtcAmount);
         let btcAmount: BigNumber;
         let keeper: SignerWithAddress;
 
@@ -382,17 +400,19 @@ describe("KeeperRegistry", function () {
             keeper = users[0];
             btcAmount = parseBtc(keeperBtcAmount);
 
-            await registry.connect(deployer).addAsset(sats.address);
-            await rater.connect(deployer).updateRates(sats.address, BTC_TO_SATS);
-
             await expect(registry.connect(keeper).addKeeper(btc.address, btcAmount))
                 .to.emit(registry, "KeeperAdded")
                 .withArgs(users[0].address, btc.address, keeperAmountIn18Decimal);
+
+            await registry.connect(deployer).updateAsset(ebtc.address, true);
+            await rater.connect(deployer).updateRates(ebtc.address, BTC_TO_EBTC);
         });
 
-        it("swap btc with sats", async function () {
+        it("swap btc with ebtc", async function () {
             const origWbtcAmount = await btc.balanceOf(keeper.address);
-            const origSatsAmount = await sats.balanceOf(keeper.address);
+            const origEbtcAmount = await ebtc.balanceOf(keeper.address);
+
+            await registry.connect(deployer).updateAsset(btc.address, false);
 
             // no fee after min keeper period
             const minKeeperPeriod = await registry.MIN_KEEPER_PERIOD();
@@ -402,26 +422,26 @@ describe("KeeperRegistry", function () {
             expect(keeperData.asset).to.equal(btc.address);
             expect(keeperData.amount).to.equal(keeperAmountIn18Decimal);
 
-            await expect(registry.connect(keeper).swapAsset(sats.address, satsAmount))
+            await expect(registry.connect(keeper).swapAsset(ebtc.address, ebtcAmount))
                 .to.emit(registry, "KeeperAssetSwapped")
-                .withArgs(keeper.address, sats.address, satsAmount)
-                .to.emit(sats, "Transfer")
-                .withArgs(keeper.address, registry.address, satsAmount)
+                .withArgs(keeper.address, ebtc.address, ebtcAmount)
+                .to.emit(ebtc, "Transfer")
+                .withArgs(keeper.address, registry.address, ebtcAmount)
                 .to.emit(btc, "Transfer")
                 .withArgs(registry.address, keeper.address, btcAmount);
 
             keeperData = await registry.getKeeper(keeper.address);
-            expect(keeperData.asset).to.equal(sats.address);
+            expect(keeperData.asset).to.equal(ebtc.address);
             expect(keeperData.amount).to.equal(keeperAmountIn18Decimal);
             expect(keeperData.joinTimestamp).to.equal(await currentTime());
 
             expect(await btc.balanceOf(keeper.address)).to.equal(origWbtcAmount.add(btcAmount));
-            expect(await sats.balanceOf(keeper.address)).to.equal(origSatsAmount.sub(satsAmount));
+            expect(await ebtc.balanceOf(keeper.address)).to.equal(origEbtcAmount.sub(ebtcAmount));
         });
 
         it("non-exist user", async function () {
             await expect(
-                registry.connect(users[1]).swapAsset(sats.address, satsAmount)
+                registry.connect(users[1]).swapAsset(ebtc.address, ebtcAmount)
             ).to.revertedWith("keeper not exist");
         });
 
@@ -432,36 +452,36 @@ describe("KeeperRegistry", function () {
         });
 
         it("not enough allowance", async function () {
-            await sats.connect(keeper).approve(registry.address, 0);
+            await ebtc.connect(keeper).approve(registry.address, 0);
             await expect(
-                registry.connect(keeper).swapAsset(sats.address, satsAmount)
+                registry.connect(keeper).swapAsset(ebtc.address, ebtcAmount)
             ).to.revertedWith("ERC20: insufficient allowance");
         });
 
         it("not enough balance", async function () {
-            await sats
+            await ebtc
                 .connect(keeper)
-                .transfer(users[1].address, await sats.balanceOf(keeper.address));
+                .transfer(users[1].address, await ebtc.balanceOf(keeper.address));
             await expect(
-                registry.connect(keeper).swapAsset(sats.address, satsAmount)
+                registry.connect(keeper).swapAsset(ebtc.address, ebtcAmount)
             ).to.revertedWith("ERC20: transfer amount exceeds balance");
         });
 
         it("swap with less amount", async function () {
             await expect(
-                registry.connect(keeper).swapAsset(sats.address, satsAmount.div(2))
+                registry.connect(keeper).swapAsset(ebtc.address, ebtcAmount.div(2))
             ).to.revertedWith("cannot reduce amount");
         });
     });
 
     describe("punishKeeper()", function () {
         beforeEach(async function () {
-            await registry.connect(deployer).addAsset(sats.address);
-            await rater.connect(deployer).updateRates(sats.address, BTC_TO_SATS);
+            await registry.connect(deployer).updateAsset(ebtc.address, true);
+            await rater.connect(deployer).updateRates(ebtc.address, BTC_TO_EBTC);
         });
 
         it("should punish keepers using different assets", async function () {
-            await registry.connect(users[0]).addKeeper(sats.address, parseBtcInSats("10"));
+            await registry.connect(users[0]).addKeeper(ebtc.address, parseBtcInEbtc("10"));
             await registry.connect(users[1]).addKeeper(btc.address, parseBtc("10"));
             await registry.connect(users[2]).addKeeper(hbtc.address, parseEther("10"));
 
@@ -470,14 +490,14 @@ describe("KeeperRegistry", function () {
             let user1Data = await registry.getKeeper(users[1].address);
             let user2Data = await registry.getKeeper(users[2].address);
 
-            expect(user0Data.asset).to.equal(sats.address);
+            expect(user0Data.asset).to.equal(ebtc.address);
             expect(user0Data.amount).to.equal(collateral);
             expect(user1Data.asset).to.equal(btc.address);
             expect(user1Data.amount).to.equal(collateral);
             expect(user2Data.asset).to.equal(hbtc.address);
             expect(user2Data.amount).to.equal(collateral);
 
-            expect(await registry.confiscations(sats.address)).to.be.equal(0);
+            expect(await registry.confiscations(ebtc.address)).to.be.equal(0);
             expect(await registry.confiscations(btc.address)).to.be.equal(0);
             expect(await registry.confiscations(hbtc.address)).to.be.equal(0);
 
@@ -487,7 +507,7 @@ describe("KeeperRegistry", function () {
                     .punishKeeper([users[0].address, users[1].address, users[2].address])
             )
                 .to.emit(registry, "KeeperPunished")
-                .withArgs(users[0].address, sats.address, collateral)
+                .withArgs(users[0].address, ebtc.address, collateral)
                 .to.emit(registry, "KeeperPunished")
                 .withArgs(users[1].address, btc.address, collateral)
                 .to.emit(registry, "KeeperPunished")
@@ -497,14 +517,14 @@ describe("KeeperRegistry", function () {
             user1Data = await registry.getKeeper(users[1].address);
             user2Data = await registry.getKeeper(users[2].address);
 
-            expect(user0Data.asset).to.equal(sats.address);
+            expect(user0Data.asset).to.equal(ebtc.address);
             expect(user0Data.amount).to.equal(0);
             expect(user1Data.asset).to.equal(btc.address);
             expect(user1Data.amount).to.equal(0);
             expect(user2Data.asset).to.equal(hbtc.address);
             expect(user2Data.amount).to.equal(0);
 
-            expect(await registry.confiscations(sats.address)).to.be.equal(collateral);
+            expect(await registry.confiscations(ebtc.address)).to.be.equal(collateral);
             expect(await registry.confiscations(btc.address)).to.be.equal(collateral);
             expect(await registry.confiscations(hbtc.address)).to.be.equal(collateral);
         });
@@ -513,13 +533,13 @@ describe("KeeperRegistry", function () {
     describe("addConfiscation()", function () {
         it("should not be called if liquidation not up yet", async function () {
             await expect(
-                registry.addConfiscation(users[0].address, sats.address, 10)
+                registry.addConfiscation(users[0].address, ebtc.address, 10)
             ).to.revertedWith("caller contract not up yet");
         });
         it("should not be called if caller is not liquidation", async function () {
             await deployments.deploy("Liquidation", {
                 from: deployer.address,
-                args: [sats.address, rater.address, registry.address, await currentTime(), 1728000],
+                args: [ebtc.address, rater.address, registry.address, await currentTime(), 1728000],
             });
             const liquidation = (await ethers.getContract("Liquidation")) as Liquidation;
             await expect(registry.connect(deployer).updateLiquidation(liquidation.address))
@@ -527,7 +547,7 @@ describe("KeeperRegistry", function () {
                 .withArgs(constants.AddressZero, liquidation.address);
             expect(await registry.liquidation()).to.equal(liquidation.address);
             await expect(
-                registry.addConfiscation(users[0].address, sats.address, 10)
+                registry.addConfiscation(users[0].address, ebtc.address, 10)
             ).to.revertedWith("only liquidation can call");
         });
     });
@@ -542,63 +562,63 @@ describe("KeeperRegistry", function () {
         it("should add overissue", async function () {
             expect(await registry.overissuedTotal()).to.equal(0);
 
-            let overissuedAmount = parseBtcInSats("7");
+            let overissuedAmount = parseBtcInEbtc("7");
             await expect(registry.connect(deployer).addOverissue(overissuedAmount))
                 .to.emit(registry, "OverissueAdded")
-                .withArgs(parseBtcInSats("7"), overissuedAmount);
+                .withArgs(parseBtcInEbtc("7"), overissuedAmount);
 
-            expect(await registry.overissuedTotal()).to.equal(parseBtcInSats("7"));
+            expect(await registry.overissuedTotal()).to.equal(parseBtcInEbtc("7"));
 
-            overissuedAmount = parseBtcInSats("5");
+            overissuedAmount = parseBtcInEbtc("5");
             await expect(registry.connect(deployer).addOverissue(overissuedAmount))
                 .to.emit(registry, "OverissueAdded")
-                .withArgs(parseBtcInSats("12"), overissuedAmount);
+                .withArgs(parseBtcInEbtc("12"), overissuedAmount);
 
-            expect(await registry.overissuedTotal()).to.equal(parseBtcInSats("12"));
+            expect(await registry.overissuedTotal()).to.equal(parseBtcInEbtc("12"));
         });
     });
 
     describe("offsetOverissue()", function () {
         beforeEach(async function () {
-            await registry.connect(deployer).addAsset(sats.address);
-            await rater.connect(deployer).updateRates(sats.address, BTC_TO_SATS);
+            await registry.connect(deployer).updateAsset(ebtc.address, true);
+            await rater.connect(deployer).updateRates(ebtc.address, BTC_TO_EBTC);
         });
 
         it("should offet overissue", async function () {
             //punish keeper
-            await registry.connect(users[0]).addKeeper(sats.address, parseBtcInSats("10"));
-            await registry.connect(users[1]).addKeeper(sats.address, parseBtcInSats("10"));
+            await registry.connect(users[0]).addKeeper(ebtc.address, parseBtcInEbtc("10"));
+            await registry.connect(users[1]).addKeeper(ebtc.address, parseBtcInEbtc("10"));
 
-            expect(await sats.balanceOf(registry.address)).to.equal(parseBtcInSats("20"));
-            expect(await registry.confiscations(sats.address)).to.be.equal(0);
+            expect(await ebtc.balanceOf(registry.address)).to.equal(parseBtcInEbtc("20"));
+            expect(await registry.confiscations(ebtc.address)).to.be.equal(0);
 
-            const collateral = parseBtcInSats("10");
+            const collateral = parseBtcInEbtc("10");
             await expect(
                 registry.connect(deployer).punishKeeper([users[0].address, users[1].address])
             )
                 .to.emit(registry, "KeeperPunished")
-                .withArgs(users[0].address, sats.address, collateral)
+                .withArgs(users[0].address, ebtc.address, collateral)
                 .to.emit(registry, "KeeperPunished")
-                .withArgs(users[1].address, sats.address, collateral);
+                .withArgs(users[1].address, ebtc.address, collateral);
 
             //add overissue
-            const overissuedAmount = parseBtcInSats("12");
+            const overissuedAmount = parseBtcInEbtc("12");
             await expect(registry.connect(deployer).addOverissue(overissuedAmount))
                 .to.emit(registry, "OverissueAdded")
-                .withArgs(parseBtcInSats("12"), overissuedAmount);
+                .withArgs(parseBtcInEbtc("12"), overissuedAmount);
 
-            expect(await sats.balanceOf(registry.address)).to.equal(parseBtcInSats("20"));
-            expect(await registry.confiscations(sats.address)).to.be.equal(parseBtcInSats("20"));
-            expect(await registry.overissuedTotal()).to.equal(parseBtcInSats("12"));
+            expect(await ebtc.balanceOf(registry.address)).to.equal(parseBtcInEbtc("20"));
+            expect(await registry.confiscations(ebtc.address)).to.be.equal(parseBtcInEbtc("20"));
+            expect(await registry.overissuedTotal()).to.equal(parseBtcInEbtc("12"));
 
             //offset overissue
-            const satsAmount = parseBtcInSats("12");
-            await expect(registry.connect(deployer).offsetOverissue(satsAmount))
+            const ebtcAmount = parseBtcInEbtc("12");
+            await expect(registry.connect(deployer).offsetOverissue(ebtcAmount))
                 .to.emit(registry, "OffsetOverissued")
-                .withArgs(deployer.address, satsAmount, 0);
+                .withArgs(deployer.address, ebtcAmount, 0);
 
-            expect(await sats.balanceOf(registry.address)).to.equal(parseBtcInSats("8"));
-            expect(await registry.confiscations(sats.address)).to.be.equal(parseBtcInSats("8"));
+            expect(await ebtc.balanceOf(registry.address)).to.equal(parseBtcInEbtc("8"));
+            expect(await registry.confiscations(ebtc.address)).to.be.equal(parseBtcInEbtc("8"));
             expect(await registry.overissuedTotal()).to.equal(0);
         });
     });

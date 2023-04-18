@@ -20,8 +20,11 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const { deployer } = await ethers.getNamedSigners();
     const users = await ethers.getUnnamedSigners();
 
-    await deployments.deploy("DCS", { from: deployer.address });
-    const rewardToken = (await ethers.getContract("DCS")) as MockERC20;
+    await deployments.deploy("DCX", {
+        from: deployer.address,
+        args: [ethers.utils.parseEther("1000000000"), deployer.address],
+    });
+    const rewardToken = (await ethers.getContract("DCX")) as MockERC20;
 
     await deployments.deploy("MockERC20", {
         from: deployer.address,
@@ -40,7 +43,7 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
     const stakingReward = (await ethers.getContract("StakingReward")) as StakingReward;
 
     const rate = parseEther("2");
-    await rewardToken.connect(deployer).mint(deployer.address, rate.mul(10 * WEEK));
+    // await rewardToken.connect(deployer).transfer(deployer.address, rate.mul(10 * WEEK));
     await rewardToken.connect(deployer).approve(stakingReward.address, rate.mul(10 * WEEK));
 
     const amount = parseEther("100");
@@ -138,7 +141,7 @@ describe("StakingReward", function () {
             const newEndTimestamp = endTimestamp + WEEK;
             const diff = rate.mul(WEEK);
             const balance = await rewardToken.balanceOf(staking.address);
-            await rewardToken.connect(deployer).mint(deployer.address, diff);
+            await rewardToken.connect(deployer).transfer(deployer.address, diff);
             await rewardToken.connect(deployer).approve(staking.address, diff);
             await expect(staking.connect(deployer).updateEndTimestamp(newEndTimestamp))
                 .to.emit(staking, "UpdateEndTimestamp")

@@ -17,7 +17,7 @@ export async function sign(
     height: BigNumberish
 ): Promise<string> {
     const domain = {
-        name: "DeCus",
+        name: "Decux",
         version: "1.0",
         chainId: 31337,
         verifyingContract: verifyingContract,

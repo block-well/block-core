@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-interface IDeCusSystem {
+interface IDecuxSystem {
     struct Group {
         uint32 maxSatoshi;
         uint32 currSatoshi;

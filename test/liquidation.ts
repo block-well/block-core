@@ -7,7 +7,7 @@ import { advanceTimeAndBlock, currentTime } from "./helper";
 import { DAY } from "./time";
 
 const { parseEther, parseUnits } = ethers.utils;
-const parseBtcInSats = (value: string) => parseUnits(value, 18);
+const parseBtcInEbtc = (value: string) => parseUnits(value, 18);
 const PRECISE_UNIT = parseUnits("1", 18);
 
 const setupFixture = deployments.createFixture(async ({ ethers, deployments }) => {
@@ -18,63 +18,63 @@ const setupFixture = deployments.createFixture(async ({ ethers, deployments }) =
 
     const btc = (await ethers.getContract("BTC")) as MockERC20;
 
-    await deployments.deploy("SATS", {
+    await deployments.deploy("EBTC", {
         from: deployer.address,
     });
     await deployments.execute(
-        "SATS",
+        "EBTC",
         { from: deployer.address },
         "grantRole",
         ethers.utils.id("MINTER_ROLE"),
         deployer.address
     );
-    const sats = (await ethers.getContract("SATS")) as MockERC20;
+    const ebtc = (await ethers.getContract("EBTC")) as MockERC20;
 
     await deployments.deploy("BtcRater", {
         from: deployer.address,
         args: [
-            [btc.address, sats.address],
-            [1, 1e8],
+            [btc.address, ebtc.address],
+            [1, 1],
         ],
     });
     const rater = (await ethers.getContract("BtcRater")) as BtcRater;
 
     await deployments.deploy("KeeperRegistry", {
         from: deployer.address,
-        args: [[btc.address], sats.address, rater.address, 1e14],
+        args: [[btc.address], ebtc.address, rater.address, 1e14],
     });
     const registry = (await ethers.getContract("KeeperRegistry")) as KeeperRegistry;
 
     await deployments.deploy("Liquidation", {
         from: deployer.address,
-        args: [sats.address, rater.address, registry.address, (await currentTime()) + DAY, 1728000],
+        args: [ebtc.address, rater.address, registry.address, (await currentTime()) + DAY, 1728000],
     });
     const liquidation = (await ethers.getContract("Liquidation")) as Liquidation;
 
     const btcDecimals = await btc.decimals();
     for (const user of users) {
         await btc.mint(user.address, parseUnits("100", btcDecimals));
-        await sats.connect(deployer).mint(user.address, parseBtcInSats("100"));
+        await ebtc.connect(deployer).mint(user.address, parseBtcInEbtc("100"));
 
         await btc.connect(user).approve(registry.address, parseUnits("100", btcDecimals));
-        await sats.connect(user).approve(registry.address, parseBtcInSats("100"));
+        await ebtc.connect(user).approve(registry.address, parseBtcInEbtc("100"));
     }
 
-    return { deployer, users, btc, sats, registry, liquidation, rater };
+    return { deployer, users, btc, ebtc, registry, liquidation, rater };
 });
 
 describe("Liquidation", function () {
     let deployer: SignerWithAddress;
     let users: SignerWithAddress[];
     let btc: ERC20;
-    let sats: ERC20;
+    let ebtc: ERC20;
     let registry: KeeperRegistry;
     let liquidation: Liquidation;
     let rater: BtcRater;
     let btcDecimals = 0;
 
     beforeEach(async function () {
-        ({ deployer, users, btc, sats, registry, liquidation, rater } = await setupFixture());
+        ({ deployer, users, btc, ebtc, registry, liquidation, rater } = await setupFixture());
         btcDecimals = await btc.decimals();
     });
 
@@ -132,17 +132,17 @@ describe("Liquidation", function () {
             expect(await btc.balanceOf(liquidation.address)).to.equal(parseBtc("10"));
 
             /* --- asset auction --- */
-            //contract btc & sats balances now
+            //contract btc & ebtc balances now
             const origLiquidationWbtc = await btc.balanceOf(liquidation.address);
-            const origRegistrySats = await sats.balanceOf(registry.address);
+            const origRegistryEbtc = await ebtc.balanceOf(registry.address);
             expect(origLiquidationWbtc).to.equal(parseBtc("10"));
-            expect(origRegistrySats).to.equal(0);
+            expect(origRegistryEbtc).to.equal(0);
 
-            //users[1] btc & sats balances now
+            //users[1] btc & ebtc balances now
             const origUserWbtc = await btc.balanceOf(users[1].address);
-            const origUserSats = await sats.balanceOf(users[1].address);
+            const origUserEbtc = await ebtc.balanceOf(users[1].address);
             expect(origUserWbtc).to.equal(parseBtc("100"));
-            expect(origUserSats).to.equal(parseBtcInSats("100"));
+            expect(origUserEbtc).to.equal(parseBtcInEbtc("100"));
 
             //different time to auction
             const btcAmount = parseBtc("10");
@@ -152,11 +152,11 @@ describe("Liquidation", function () {
             let price = await liquidation.discountPrice(timestamp);
             expect(price).to.equal(BigNumber.from("1").mul(PRECISE_UNIT));
 
-            let discountSatsAmount = await liquidation.calcDiscountSatsAmount(
+            let discountEbtcAmount = await liquidation.calcDiscountEbtcAmount(
                 btc.address,
                 btcAmount
             );
-            expect(discountSatsAmount).to.equal(parseBtcInSats("10"));
+            expect(discountEbtcAmount).to.equal(parseBtcInEbtc("10"));
 
             await expect(
                 liquidation.connect(users[1]).assetAuction(btc.address, btcAmount, registry.address)
@@ -172,8 +172,8 @@ describe("Liquidation", function () {
                 PRECISE_UNIT.sub(duration.mul(PRECISE_UNIT).div(await liquidation.duration()))
             );
 
-            discountSatsAmount = await liquidation.calcDiscountSatsAmount(btc.address, btcAmount);
-            expect(discountSatsAmount).to.equal(parseBtcInSats("10").mul(price).div(PRECISE_UNIT));
+            discountEbtcAmount = await liquidation.calcDiscountEbtcAmount(btc.address, btcAmount);
+            expect(discountEbtcAmount).to.equal(parseBtcInEbtc("10").mul(price).div(PRECISE_UNIT));
 
             //recipient is wrong
             await expect(
@@ -186,54 +186,54 @@ describe("Liquidation", function () {
             const tx = await liquidation
                 .connect(users[1])
                 .assetAuction(btc.address, btcAmount, registry.address);
-            discountSatsAmount = await liquidation.calcDiscountSatsAmount(btc.address, btcAmount);
+            discountEbtcAmount = await liquidation.calcDiscountEbtcAmount(btc.address, btcAmount);
             await expect(tx)
                 .to.emit(liquidation, "AssetAuctioned")
-                .withArgs(users[1].address, btc.address, btcAmount, discountSatsAmount)
+                .withArgs(users[1].address, btc.address, btcAmount, discountEbtcAmount)
                 .to.emit(registry, "ConfiscationAdded")
                 .withArgs(
-                    sats.address,
-                    await rater.calcAmountInWei(sats.address, discountSatsAmount)
+                    ebtc.address,
+                    await rater.calcAmountInWei(ebtc.address, discountEbtcAmount)
                 );
 
-            //contract btc & sats balances now
+            //contract btc & ebtc balances now
             expect(await btc.balanceOf(liquidation.address)).to.equal(
                 origLiquidationWbtc.sub(btcAmount)
             );
-            expect(await sats.balanceOf(registry.address)).to.equal(
-                origRegistrySats.add(discountSatsAmount)
+            expect(await ebtc.balanceOf(registry.address)).to.equal(
+                origRegistryEbtc.add(discountEbtcAmount)
             );
 
-            //users[1] btc & sats balances now
+            //users[1] btc & ebtc balances now
             expect(await btc.balanceOf(users[1].address)).to.equal(origUserWbtc.add(btcAmount));
-            expect(await sats.balanceOf(users[1].address)).to.equal(
-                origUserSats.sub(discountSatsAmount)
+            expect(await ebtc.balanceOf(users[1].address)).to.equal(
+                origUserEbtc.sub(discountEbtcAmount)
             );
 
             /* --- offset overissue --- */
             //add overissue
             expect(await registry.overissuedTotal()).to.equal(0);
 
-            const overissuedAmount = parseBtcInSats("5");
+            const overissuedAmount = parseBtcInEbtc("5");
             await expect(registry.connect(deployer).addOverissue(overissuedAmount))
                 .to.emit(registry, "OverissueAdded")
-                .withArgs(parseBtcInSats("5"), overissuedAmount);
+                .withArgs(parseBtcInEbtc("5"), overissuedAmount);
 
-            expect(await sats.balanceOf(registry.address)).to.equal(discountSatsAmount);
-            expect(await registry.confiscations(sats.address)).to.be.equal(discountSatsAmount);
-            expect(await registry.overissuedTotal()).to.equal(parseBtcInSats("5"));
+            expect(await ebtc.balanceOf(registry.address)).to.equal(discountEbtcAmount);
+            expect(await registry.confiscations(ebtc.address)).to.be.equal(discountEbtcAmount);
+            expect(await registry.overissuedTotal()).to.equal(parseBtcInEbtc("5"));
 
             //offset overissue
-            const satsAmount = parseBtcInSats("5");
-            await expect(registry.connect(deployer).offsetOverissue(satsAmount))
+            const ebtcAmount = parseBtcInEbtc("5");
+            await expect(registry.connect(deployer).offsetOverissue(ebtcAmount))
                 .to.emit(registry, "OffsetOverissued")
-                .withArgs(deployer.address, satsAmount, 0);
+                .withArgs(deployer.address, ebtcAmount, 0);
 
-            expect(await sats.balanceOf(registry.address)).to.equal(
-                discountSatsAmount.sub(satsAmount)
+            expect(await ebtc.balanceOf(registry.address)).to.equal(
+                discountEbtcAmount.sub(ebtcAmount)
             );
-            expect(await registry.confiscations(sats.address)).to.be.equal(
-                discountSatsAmount.sub(satsAmount)
+            expect(await registry.confiscations(ebtc.address)).to.be.equal(
+                discountEbtcAmount.sub(ebtcAmount)
             );
             expect(await registry.overissuedTotal()).to.equal(0);
         });

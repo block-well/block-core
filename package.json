@@ -16,7 +16,7 @@
         "verify:bsct": "hardhat etherscan-verify --network bsct",
         "deploy:bsc": "hardhat deploy --network bsc",
         "verify:bsc": "hardhat etherscan-verify --network bsc",
-        "abi:go": "abigen --abi=./build/abi/DeCusSystem.json --pkg=abi --type=DeCusSystem --out=../decus-keeper-client/eth/abi/decus_system.go && abigen --abi=./build/abi/KeeperRegistry.json --pkg=abi --type=KeeperRegistry --out=../decus-keeper-client/eth/abi/keeper_registry.go"
+        "abi:go": "abigen --abi=./build/abi/DecuxSystem.json --pkg=abi --type=DecuxSystem --out=../decus-keeper-client/eth/abi/decus_system.go && abigen --abi=./build/abi/KeeperRegistry.json --pkg=abi --type=KeeperRegistry --out=../decus-keeper-client/eth/abi/keeper_registry.go"
     },
     "devDependencies": {
         "@ethersproject/abi": "^5.7.0",
@@ -39,6 +39,7 @@
         "bitcoinjs-lib": "^6.1.0",
         "chai": "^4.3.7",
         "dayjs": "^1.11.7",
+        "ecpair": "^2.1.0",
         "eslint": "^8.37.0",
         "eslint-config-prettier": "^8.8.0",
         "eslint-plugin-prettier": "^4.2.1",
@@ -51,6 +52,7 @@
         "prettier-plugin-organize-imports": "^3.2.2",
         "prettier-plugin-solidity": "^1.1.3",
         "solidity-coverage": "^0.8.2",
+        "tiny-secp256k1": "^2.2.1",
         "ts-combinatorics": "^1.0.0",
         "ts-node": "^10.9.1",
         "typechain": "^8.1.1",

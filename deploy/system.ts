@@ -5,23 +5,24 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const { deployments, getNamedAccounts } = hre;
     const { deployer } = await getNamedAccounts();
 
-    const system = await deployments.deploy("DeCusSystem", {
+    const system = await deployments.deploy("DecuxSystem", {
         from: deployer,
         args: [],
         log: true,
     });
 
-    const dcs = await deployments.get("DCS");
+    const dcx = await deployments.get("DCX");
+    const ebtc = await deployments.get("EBTC");
     await deployments.deploy("SwapFee", {
-        contract: "SwapFeeDcs",
+        contract: "SwapFeeEbtc",
         from: deployer,
-        args: [hre.ethers.utils.parseEther("100"), 10, 300000, dcs.address, system.address], // TODO: check value before deploy
+        args: [0, 0, ebtc.address], // TODO: check value before deploy
         log: true,
     });
 
     await deployments.deploy("SwapRewarder", {
         from: deployer,
-        args: [dcs.address, system.address, hre.ethers.utils.parseEther("200"), 0], // TODO: check value before deploy
+        args: [dcx.address, system.address, 0, 0], // TODO: check value before deploy
         log: true,
     });
 };

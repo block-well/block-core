@@ -1,5 +1,5 @@
 import { task, types } from "hardhat/config";
-import { KeeperRegistry, DeCusSystem, ERC20 } from "../build/typechain";
+import { KeeperRegistry, DecuxSystem, ERC20 } from "../build/typechain";
 import { NonceManager } from "@ethersproject/experimental";
 import { ContractTransaction } from "ethers";
 
@@ -69,12 +69,12 @@ task("addKeeper", "add keeper")
     );
 
 task("groupStatus", "print status of all groups").setAction(async (args, { ethers }) => {
-    const decusSystem = (await ethers.getContract("DeCusSystem")) as DeCusSystem;
-    console.log(`DeCusSystem: ${decusSystem.address}`);
-    const addEvents = await decusSystem.queryFilter(
-        decusSystem.filters.GroupAdded(null, null, null, null)
+    const decuxSystem = (await ethers.getContract("DecuxSystem")) as DecuxSystem;
+    console.log(`DecuxSystem: ${decuxSystem.address}`);
+    const addEvents = await decuxSystem.queryFilter(
+        decuxSystem.filters.GroupAdded(null, null, null, null)
     );
-    const deleteEvents = await decusSystem.queryFilter(decusSystem.filters.GroupDeleted(null));
+    const deleteEvents = await decuxSystem.queryFilter(decuxSystem.filters.GroupDeleted(null));
 
     const addGroupIds = addEvents
         .map((e) => e.args.btcAddress)
@@ -96,19 +96,19 @@ task("groupStatus", "print status of all groups").setAction(async (args, { ether
         `Groups ${groupIds.length}: #added ${addGroupIds.length} #deleted ${deleteGroupIds.length}`
     );
 
-    const now = (await decusSystem.provider.getBlock("latest")).timestamp;
+    const now = (await decuxSystem.provider.getBlock("latest")).timestamp;
 
-    const groupReusingGap = await decusSystem.GROUP_REUSING_GAP();
-    const mintRequestGracePeriod = await decusSystem.MINT_REQUEST_GRACE_PERIOD();
-    const withdrawVerificationEnd = await decusSystem.WITHDRAW_VERIFICATION_END();
+    const groupReusingGap = await decuxSystem.GROUP_REUSING_GAP();
+    const mintRequestGracePeriod = await decuxSystem.MINT_REQUEST_GRACE_PERIOD();
+    const withdrawVerificationEnd = await decuxSystem.WITHDRAW_VERIFICATION_END();
 
     for (const groupId of groupIds) {
-        const group = await decusSystem.getGroup(groupId);
+        const group = await decuxSystem.getGroup(groupId);
         if (group.required === 0) {
             continue;
         }
 
-        const receipt = await decusSystem.getReceipt(group.workingReceiptId);
+        const receipt = await decuxSystem.getReceipt(group.workingReceiptId);
         const updateTime = receipt.updateTimestamp;
         let minable = "false";
 

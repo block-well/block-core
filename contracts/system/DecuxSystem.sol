@@ -9,17 +9,17 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-import {IDeCusSystem} from "../interfaces/IDeCusSystem.sol";
+import {IDecuxSystem} from "../interfaces/IDecuxSystem.sol";
 import {IKeeperRegistry} from "../interfaces/IKeeperRegistry.sol";
 import {ISwapRewarder} from "../interfaces/ISwapRewarder.sol";
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 import {BtcUtility} from "../utils/BtcUtility.sol";
-import {SATS} from "./SATS.sol";
+import {EBTC} from "./EBTC.sol";
 
-contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "1.0") {
+contract DecuxSystem is AccessControl, Pausable, IDecuxSystem, EIP712("Decux", "1.0") {
     using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
-    using SafeERC20 for SATS;
+    using SafeERC20 for EBTC;
 
     bytes32 public constant GROUP_ROLE = keccak256("GROUP_ROLE");
     bytes32 public constant GUARD_ROLE = keccak256("GUARD_ROLE");
@@ -33,7 +33,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     uint32 public constant REFUND_GAP = 1 days;
 
     bool public keeperExitAllowed = false;
-    SATS public sats;
+    EBTC public ebtc;
     IKeeperRegistry public keeperRegistry;
     ISwapRewarder public rewarder;
     ISwapFee public fee;
@@ -70,12 +70,12 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     }
 
     function initialize(
-        SATS _sats,
+        EBTC _ebtc,
         IKeeperRegistry _registry,
         ISwapRewarder _rewarder,
         ISwapFee _fee
     ) external onlyAdmin {
-        sats = _sats;
+        ebtc = _ebtc;
         keeperRegistry = _registry;
         rewarder = _rewarder;
         fee = _fee;
@@ -193,7 +193,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         uint32 nonce
     ) public payable whenNotPaused {
         require(amountInSatoshi > 0, "amount 0 is not allowed");
-        fee.payMintEthFee{value: msg.value}();
+        fee.payMintFeeEth{value: msg.value}();
 
         Group storage group = groups[groupBtcAddress];
         require(nonce == (group.nonce + 1), "invalid nonce");
@@ -256,7 +256,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         _verifyMintRequest(group, request, keepers, r, s, packedV);
         _approveDeposit(receipt, request.txId, request.height);
 
-        _mintSATS(receipt.recipient, receipt.amountInSatoshi);
+        _mintebtc(receipt.recipient, receipt.amountInSatoshi);
 
         rewarder.mintReward(receipt.recipient, receipt.amountInSatoshi);
 
@@ -277,7 +277,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _requestWithdraw(receipt, withdrawBtcAddress);
 
-        _paySATSForBurn(msg.sender, address(this), receipt.amountInSatoshi);
+        _payebtcForBurn(msg.sender, address(this), receipt.amountInSatoshi);
 
         emit BurnRequested(receiptId, receipt.groupBtcAddress, withdrawBtcAddress, msg.sender);
     }
@@ -288,7 +288,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _approveWithdraw(receipt);
 
-        _burnSATS(receipt.amountInSatoshi);
+        _burnebtc(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi -= receipt.amountInSatoshi;
@@ -304,7 +304,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
 
         _revokeWithdraw(receipt);
 
-        _refundSATSForBurn(receipt.recipient, receipt.amountInSatoshi);
+        _refundebtcForBurn(receipt.recipient, receipt.amountInSatoshi);
 
         emit BurnRevoked(receiptId, receipt.groupBtcAddress, receipt.recipient, msg.sender);
     }
@@ -439,7 +439,7 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
     function _forceVerifyBurn(bytes32 receiptId, Receipt storage receipt) private {
         receipt.status = Status.Available;
 
-        _burnSATS(receipt.amountInSatoshi);
+        _burnebtc(receipt.amountInSatoshi);
 
         Group storage group = groups[receipt.groupBtcAddress];
         group.currSatoshi -= receipt.amountInSatoshi;
@@ -522,43 +522,43 @@ contract DeCusSystem is AccessControl, Pausable, IDeCusSystem, EIP712("DeCus", "
         require((z = x + y) >= x);
     }
 
-    // -------------------------------- SATS -----------------------------------
-    function _mintSATS(address to, uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
+    // -------------------------------- ebtc -----------------------------------
+    function _mintebtc(address to, uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getEbtcAmountMultiplier());
 
         uint256 feeAmount = fee.payExtraMintFee(to, amount);
         if (feeAmount > 0) {
-            sats.mint(address(fee), feeAmount);
-            sats.mint(to, amount.sub(feeAmount));
+            ebtc.mint(address(fee), feeAmount);
+            ebtc.mint(to, amount.sub(feeAmount));
         } else {
-            sats.mint(to, amount);
+            ebtc.mint(to, amount);
         }
     }
 
-    function _burnSATS(uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
+    function _burnebtc(uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getEbtcAmountMultiplier());
 
-        sats.burn(amount);
+        ebtc.burn(amount);
     }
 
-    // user transfer SATS when requestBurn
-    function _paySATSForBurn(address from, address to, uint256 amountInSatoshi) private {
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
+    // user transfer ebtc when requestBurn
+    function _payebtcForBurn(address from, address to, uint256 amountInSatoshi) private {
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getEbtcAmountMultiplier());
 
         uint256 feeAmount = fee.payExtraBurnFee(from, amount);
 
-        sats.safeTransferFrom(from, to, amount.add(feeAmount));
+        ebtc.safeTransferFrom(from, to, amount.add(feeAmount));
 
         if (feeAmount > 0) {
-            sats.safeTransfer(address(fee), feeAmount);
+            ebtc.safeTransfer(address(fee), feeAmount);
         }
     }
 
     // refund user when recoverBurn
-    function _refundSATSForBurn(address to, uint256 amountInSatoshi) private {
+    function _refundebtcForBurn(address to, uint256 amountInSatoshi) private {
         // fee is not refunded
-        uint256 amount = (amountInSatoshi).mul(BtcUtility.getSatsAmountMultiplier());
+        uint256 amount = (amountInSatoshi).mul(BtcUtility.getEbtcAmountMultiplier());
 
-        sats.safeTransfer(to, amount);
+        ebtc.safeTransfer(to, amount);
     }
 }
