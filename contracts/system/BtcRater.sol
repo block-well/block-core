@@ -32,6 +32,11 @@ contract BtcRater is Ownable, IBtcRater {
         emit UpdateRates(asset, rate);
     }
 
+    function removeRates(address asset) external onlyOwner {
+        delete btcConversionRates[asset];
+        emit RemoveRates(asset);
+    }
+
     function calcAmountInWei(
         address asset,
         uint256 amount

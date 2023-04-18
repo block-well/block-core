@@ -12,7 +12,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
         from: deployer,
         args: [
             [btcAddress, ebtc.address],
-            [1, 1e8],
+            [1, 1],
         ],
         log: true,
     });

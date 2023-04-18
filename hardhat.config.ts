@@ -100,7 +100,7 @@ config.networks = {
         accounts,
     },
     bsct: {
-        url: "https://data-seed-prebsc-1-s2.binance.org:8545",
+        url: "https://bsc-testnet.nodereal.io/v1/d8d8a4dd985a45e1a4eff1f96064c85f",
         accounts,
         chainId: 97,
         gasMultiplier: 2,

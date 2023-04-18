@@ -13,6 +13,8 @@ interface IKeeperRegistry {
 
     function isKeeperQualified(address keeper) external view returns (bool);
 
+    function assetList() external view returns (address[] memory);
+
     function addConfiscation(address sender, address asset, uint256 amount) external;
 
     function incrementRefCount(address keeper) external;
@@ -22,7 +24,7 @@ interface IKeeperRegistry {
     event MinCollateralUpdated(uint256 amount);
 
     event SystemUpdated(address oldSystem, address newSystem);
-    event AssetAdded(address indexed asset);
+    event AssetUpdate(address indexed asset, bool isAdd);
 
     event KeeperAdded(address indexed keeper, address asset, uint256 amount);
     event KeeperDeleted(address indexed keeper, address asset, uint256 amount, uint256 cAmount);
