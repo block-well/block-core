@@ -20,7 +20,8 @@ contract SwapFeeDcs is ISwapFee,Initializable, OwnableUpgradeable, UUPSUpgradeab
     IERC20 public  dcs;
     uint256 public  burnFeeDcs;
     address public system;
-
+  
+  
     //================================= Public =================================
 
     function initialize(  uint256 _burnFeeDcs,
