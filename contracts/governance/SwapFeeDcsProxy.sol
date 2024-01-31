@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
-contract SwapFeeDcs is ISwapFee, Ownable {
+contract SwapFeeDcsProxy is ISwapFee, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -39,9 +39,46 @@ contract SwapFeeDcs is ISwapFee, Ownable {
         dcs = _dcs;
         system = _system;
     }
-    
+
     function updateProxy(address _updateProxy) {
         require(msg.sender == admin, "NOt administrator");
         proxy = _updateProxy;
+    }
+
+    function getMintEthFee() public view override returns (uint256) {
+        return 1e9 * uint256(mintFeeGasUsed) * uint256(mintFeeGasPrice);
+    }
+
+    function getMintFeeAmount(uint256) external pure override returns (uint256) {
+        return 0;
+    }
+
+    function getBurnFeeAmount(uint256) public pure override returns (uint256) {
+        return 0;
+    }
+
+    function payMintEthFee() external payable override {
+        require(msg.value >= getMintEthFee(), "not enough eth");
+    }
+
+    function payExtraMintFee(address, uint256) external pure override returns (uint256) {
+        return 0;
+    }
+
+    function payExtraBurnFee(address from, uint256) external override returns (uint256) {
+        require(msg.sender == system, "only system");
+        dcs.safeTransferFrom(from, address(this), burnFeeDcs);
+        return 0;
+    }
+
+    function collectDcs(uint256 amount) public onlyOwner {
+        dcs.safeTransfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, address(dcs), amount);
+    }
+
+    function collectEther(address payable to, uint256 amount) public onlyOwner {
+        (bool sent, ) = to.call{value: amount}("");
+        require(sent, "failed to send ether");
+        emit FeeCollected(to, address(0), amount);
     }
 }

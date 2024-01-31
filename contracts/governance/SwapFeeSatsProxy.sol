@@ -39,10 +39,44 @@ contract SwapFeeSats is ISwapFee, Ownable {
         mintFeeGasPrice = _mintFeeGasPrice;
         sats = _sats;
     }
-    
+
     function updateProxy(address _updateProxy) {
         require(msg.sender == admin, "NOt administrator");
         proxy = _updateProxy;
     }
 
+    function getMintEthFee() public view override returns (uint256) {
+        return 1e9 * uint256(mintFeeGasUsed) * uint256(mintFeeGasPrice);
+    }
+
+    function getMintFeeAmount(uint256 amount) external view override returns (uint256) {
+        return amount.mul(mintFeeBps).div(10000);
+    }
+
+    function getBurnFeeAmount(uint256 amount) public view override returns (uint256) {
+        return amount.mul(burnFeeBps).div(10000);
+    }
+
+    function payMintEthFee() external payable override {
+        require(msg.value >= getMintEthFee(), "not enough eth");
+    }
+
+    function payExtraMintFee(address, uint256 amount) external view override returns (uint256) {
+        return amount.mul(mintFeeBps).div(10000);
+    }
+
+    function payExtraBurnFee(address, uint256 amount) external view override returns (uint256) {
+        return amount.mul(burnFeeBps).div(10000);
+    }
+
+    function collectSats(uint256 amount) public onlyOwner {
+        sats.safeTransfer(msg.sender, amount);
+        emit FeeCollected(msg.sender, address(sats), amount);
+    }
+
+    function collectEther(address payable to, uint256 amount) public onlyOwner {
+        (bool sent, ) = to.call{value: amount}("");
+        require(sent, "failed to send ether");
+        emit FeeCollected(to, address(0), amount);
+    }
 }
