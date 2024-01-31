@@ -12,7 +12,7 @@ async function main() {
         "0x00000000000000000000000000000000000000bb"
     );
 
-    console.log("Box upgraded");
+    console.log("swapFee upgraded");
 }
 
 main();
