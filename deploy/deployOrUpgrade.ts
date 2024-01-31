@@ -23,10 +23,7 @@ const deployOrUpgrade: DeployFunction = async function (hre: HardhatRuntimeEnvir
 
     const SwapFeeDcs = await ethers.getContractFactory("SwapFeeDcs");
     console.log("Before deployProxy");
-    // const swapFeeDcs = await deployProxy(SwapFeeDcs, [data0], {
-    //     kind: "uups",
-    // });
-    const swapFeeDcs = await deployProxy(SwapFeeDcs, {
+    const swapFeeDcs = await deployProxy(SwapFeeDcs, [data0], {
         kind: "uups",
     });
     console.log("After deployProxy");

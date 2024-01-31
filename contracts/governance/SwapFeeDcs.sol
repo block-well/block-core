@@ -23,16 +23,15 @@ contract SwapFeeDcs is ISwapFee, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     //================================= Public =================================
-    // function initialize(bytes calldata data) external initializer {
-    function initialize() external initializer {
+    function initialize(bytes calldata data) external initializer {
         __Ownable_init();
         __UUPSUpgradeable_init();
-        // address dcsAddr;
-        // (mintFeeGasPrice, mintFeeGasUsed, burnFeeDcs, dcsAddr, system) = abi.decode(
-        //     data,
-        //     (uint16, uint32, uint256, address, address)
-        // );
-        // dcs = IERC20(dcsAddr);
+        address dcsAddr;
+        (mintFeeGasPrice, mintFeeGasUsed, burnFeeDcs, dcsAddr, system) = abi.decode(
+            data,
+            (uint16, uint32, uint256, address, address)
+        );
+        dcs = IERC20(dcsAddr);
     }
 
     function payMintEthFee() external payable override {
