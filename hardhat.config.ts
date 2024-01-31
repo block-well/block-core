@@ -1,4 +1,8 @@
-import "@nomicfoundation/hardhat-toolbox";
+import "hardhat-gas-reporter";
+
+import "@nomiclabs/hardhat-etherscan";
+
+import "@openzeppelin/hardhat-upgrades";
 import "@typechain/hardhat";
 import fs from "fs";
 import "hardhat-abi-exporter";
@@ -104,7 +108,7 @@ config.networks = {
         accounts,
         chainId: 97,
         gasMultiplier: 2,
-        // gasPrice: 20e9,
+        gasPrice: 20e9,
     },
     bsc: {
         url: "https://bsc-dataseed1.defibit.io/",
