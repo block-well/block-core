@@ -2,35 +2,40 @@
 pragma solidity ^0.8.18;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
-contract SwapFeeSats is ISwapFee, Ownable {
-    using SafeMath for uint256;
-    using SafeERC20 for IERC20;
+contract SwapFeeSats is ISwapFee, OwnableUpgradeable {
+    using SafeMathUpgradeable for uint256;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    uint8 public immutable mintFeeBps;
-    uint8 public immutable burnFeeBps;
-    uint16 public immutable mintFeeGasPrice; // in gwei
-    uint32 public immutable mintFeeGasUsed;
-    IERC20 public immutable sats;
+    uint256 public burnFeeDcs;
+    IERC20Upgradeable public dcs;
+    address public system;
+    uint32 public mintFeeGasUsed;
+    uint16 public mintFeeGasPrice; // in gwei
+    uint8 public mintFeeBps;
+    uint8 public burnFeeBps;
+    IERC20Upgradeable public sats;
 
     //================================= Public =================================
-    constructor(
+    function initialize(
+        uint32 _mintFeeGasUsed,
+        uint16 _mintFeeGasPrice,
         uint8 _mintFeeBps,
         uint8 _burnFeeBps,
-        uint16 _mintFeeGasPrice,
-        uint32 _mintFeeGasUsed,
-        IERC20 _sats
-    ) {
-        mintFeeBps = _mintFeeBps;
-        burnFeeBps = _burnFeeBps;
+        IERC20Upgradeable _sats
+    ) public initializer {
         mintFeeGasUsed = _mintFeeGasUsed;
         mintFeeGasPrice = _mintFeeGasPrice;
+        mintFeeBps = _mintFeeBps;
+        burnFeeBps = _burnFeeBps;
         sats = _sats;
     }
 
@@ -68,4 +73,14 @@ contract SwapFeeSats is ISwapFee, Ownable {
         require(sent, "failed to send ether");
         emit FeeCollected(to, address(0), amount);
     }
+
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     *
+     * Add new variables please refer to the link
+     * See https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#modifying-your-contracts
+     */
+    uint256[49] private __gap;
 }
