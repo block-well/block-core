@@ -11,7 +11,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
-contract SwapFeeSats is ISwapFee, Initializable, OwnableUpgradeable {
+contract SwapFeeSatsV2 is ISwapFee, Initializable, OwnableUpgradeable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -22,7 +22,7 @@ contract SwapFeeSats is ISwapFee, Initializable, OwnableUpgradeable {
     IERC20 public sats;
 
     function getVersion() external pure returns (uint8) {
-        return 1;
+        return 2;
     }
 
     //================================= Public =================================
