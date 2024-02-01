@@ -6,27 +6,35 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+
 
 import {ISwapFee} from "../interfaces/ISwapFee.sol";
 
-contract SwapFeeDcs is ISwapFee, Ownable {
+contract SwapFeeDcs is ISwapFee, Initializable, OwnableUpgradeable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    uint16 public immutable mintFeeGasPrice; // in gwei
-    uint32 public immutable mintFeeGasUsed;
-    uint256 public immutable burnFeeDcs;
-    IERC20 public immutable dcs;
+    uint16 public mintFeeGasPrice; // in gwei
+    uint32 public mintFeeGasUsed;
+    uint256 public burnFeeDcs;
+    IERC20 public dcs;
     address public system;
 
+    function getVersion() external pure returns (uint8) {
+        return 1;
+    }
+
     //================================= Public =================================
-    constructor(
+    function initialize(
         uint256 _burnFeeDcs,
         uint16 _mintFeeGasPrice,
         uint32 _mintFeeGasUsed,
         IERC20 _dcs,
         address _system
-    ) {
+    ) initializer public {
         mintFeeGasUsed = _mintFeeGasUsed;
         mintFeeGasPrice = _mintFeeGasPrice;
         burnFeeDcs = _burnFeeDcs;
